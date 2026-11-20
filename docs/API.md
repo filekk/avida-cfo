@@ -29,6 +29,8 @@ POST /api/reset             → back to start (use before every demo run)
 | GET | `/api/sync` | **Server-Sent Events** stream, ~20–40 s |
 | POST | `/api/actions/{id}/approve` | body `{"edited_body": "<email text>" \| null}` → `{"action": Action, "saved_liquidity": number}` |
 | POST | `/api/actions/{id}/reject` | no body → `{"action": Action, "saved_liquidity": number}` |
+| GET | `/api/ask/suggestions?lang=en\|de` | clickable questions for the current situation (see "Ask your CFO") |
+| POST | `/api/ask` | body `{"question": "…", "lang": "en"\|"de"}` → answer from the right agent (chip: instant, typed: 3–7 s) |
 | GET | `/api/policy` | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
 | GET | `/api/audit` | `[{time, event, ...}]` – what happened, in order |
 | POST | `/api/reset` | clears findings/actions, returns the start `Dashboard` |
@@ -211,6 +213,43 @@ For `credit_application` (agent `Analyst Agent`) the payload is:
   "indicative_rate_pct": 9.5, "max_interest_cost": 163.97,
   "calculation": "Lowest balance -27,882 EUR on … → gap 42,882 EUR, rounded up to 45,000 EUR. …", "note": "…" }
 ```
+
+## Ask your CFO
+
+The owner asks in plain language; the backend routes the question to the right agent (numbers → Analyst,
+contracts → Legal, emails → Negotiator), which answers **only from the numbers already computed**. Every number in
+the answer is checked; if the model is down or invents something, a prepared answer is used (`source: "fallback"`).
+`lang` = the language selected on the site; suggestions **and** answers come in that language.
+
+```
+GET /api/ask/suggestions?lang=de
+```
+```jsonc
+{ "lang": "de",
+  "note": "Nach dem Abgleich Ihres Posteingangs erscheinen genauere Fragen.",   // only before sync, else null
+  "suggestions": [ { "id": "overdraft", "question": "Warum brauche ich einen Kontokorrentkredit?", "agent": "Analyst Agent" }, … ] }
+```
+Before sync: `safe`, `big_payments`. After sync (up to 4, fixed order): `overdraft`, `on_time` (late customer),
+`reject` (Legal), `no_figures` (Negotiator), then `safe`, `big_payments`. Re-fetch after every sync, reset and language switch.
+
+```
+POST /api/ask   {"question": "Warum brauche ich einen Kontokorrentkredit?", "lang": "de"}
+```
+```jsonc
+{ "question": "…", "lang": "de",
+  "agent": "Analyst Agent",          // who answered → show the agent's icon/name next to the answer
+  "answer": "Zwischen dem 22.01.2027 und …",
+  "source": "llm",                   // rules = clicked suggestion (prepared answer, instant)
+                                     // llm = typed question answered by the model; fallback → "cached answer"
+  "in_data": true,                   // false = question not answerable from company data → polite refusal text;
+                                     //         show the suggestions below it
+  "note": null, "suggestions": [ … ] // same as GET /api/ask/suggestions – handy for follow-up chips
+}
+```
+- Send the suggestion's `question` text unchanged when a chip is clicked – the backend recognises it and returns the
+  prepared, always-correct answer **instantly** (`source: "rules"`). Typed questions go to the model.
+- `422` if `lang` is not `en`/`de` or the question is empty / longer than 500 characters.
+- Typed questions take 3–7 s → show a "thinking…" state; one request at a time is enough.
 
 ## Rules for the UI
 

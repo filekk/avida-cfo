@@ -126,6 +126,23 @@ nic nie wychodzi z systemu. `POLICY` – macierz autonomii (kto co może) dla `/
 ### `main.py` – API
 Endpointy z `docs/API.md`, SSE na `/api/sync`, serwowanie zbudowanego Vue z `STATIC_DIR` (SPA fallback na `index.html`).
 
+### `ask.py` – „Ask your CFO” (`/api/ask`, `/api/ask/suggestions`)
+Właściciel pyta prostym językiem, odpowiada właściwy agent – **tylko z liczb już policzonych** (nic nowego nie liczymy).
+1. **Fakty per agent** (`analyst_facts` / `legal_facts` / `negotiator_facts`) – zdania po angielsku z dokładnymi
+   liczbami z dashboardu (przed syncem: sama prognoza). Agent dostaje tylko swoje fakty.
+2. **Router** (`route`) – deterministyczny, po słowach EN+DE (całe słowa: „Briefing” ≠ „Brief”); domyślnie Analityk.
+   Kliknięta podpowiedź ma agenta przypisanego z góry.
+3. **Podpowiedzi** (`suggestions`) – generowane z sytuacji (kredyt, opóźniony klient, odrzucona podwyżka, mail bez
+   liczb, „czy jestem bezpieczna”, największe płatności), w EN albo DE, stała kolejność, max 4. Każda ma **gotową
+   odpowiedź** w tym języku (niemiecki format liczb i dat) – nie wychodzi do frontendu, służy jako fallback.
+4. **Kliknięta podpowiedź** → od razu gotowa odpowiedź (`source: "rules"`, bez LLM). Powód: test na żywo pokazał,
+   że Granite 8B po niemiecku potrafi przekręcić sens przy prawdziwych liczbach, a tego strażnik nie łapie.
+5. **Pytanie wpisane ręcznie** (`ask`) – LLM zwraca `{answer, in_data}`:
+   - `in_data=false` → stała uprzejma odmowa (EN/DE) + podpowiedzi,
+   - `answer_ok()` – max 4 zdania / 500 znaków, każda liczba (także `27.882`, `9,5 %`, `03.02.2027`) musi być w faktach,
+   - strażnik odrzucił / model padł → „nie jestem pewna…” + gotowa odpowiedź pierwszej podpowiedzi tego agenta.
+Każde pytanie trafia do audit logu.
+
 ---
 
 ## 3. Przebieg demo w liczbach (offline i na żywym Granite wychodzi to samo)
@@ -160,6 +177,8 @@ późno” (nie możemy klienta zmusić). `if_accepted` = „akceptujesz wszystk
 | Mail zdradza problemy finansowe | regex EN+DE + review LLM | `legal.rule_review` |
 | Mail bez klauzuli / kwoty / z [Name] | reguły + jedna runda poprawek | `legal.rule_review`, orchestrator |
 | Briefing z wymyśloną liczbą | liczby ⊆ fakty, max 3 zdania / 320 znaków | `analyst.summary_ok` |
+| Odpowiedź na pytanie z wymyśloną liczbą | liczby ⊆ fakty agenta (EN+DE), max 4 zdania | `ask.answer_ok` |
+| Pytanie spoza danych firmy | `in_data=false` → stała odmowa | `ask.ask` |
 | Model nie działa | fallback + etykieta `fallback` | `llm.py`, `fallback.py` |
 
 ---
