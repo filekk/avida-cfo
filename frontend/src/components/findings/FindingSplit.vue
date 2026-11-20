@@ -16,7 +16,11 @@ import { verdictTone } from "./verdict";
  * The core of "explainable", drawn as a 3-step flow: what the email says → what the contract says → verdict,
  * with the money underneath. The full email and the formula stay one click away instead of filling the screen.
  */
-const props = defineProps<{ finding: Finding }>();
+/**
+ * `bare`:    no frame and no header – the parent (Action center focus view) already shows both.
+ * `stacked`: always vertical (email ↓ contract ↓ verdict), for narrow containers.
+ */
+const props = defineProps<{ finding: Finding; bare?: boolean; stacked?: boolean }>();
 const showEmail = ref(false);
 const showCalc = ref(false);
 const v = computed(() => VERDICT[props.finding.contract.verdict]);
@@ -29,8 +33,8 @@ const TOGGLE =
 </script>
 
 <template>
-  <article class="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+  <article :class="bare ? '' : 'overflow-hidden rounded-xl border border-line bg-surface shadow-card'">
+    <header v-if="!bare" class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
       <div class="flex min-w-0 items-center gap-3">
         <IconTile tone="neutral" class="!text-fg">{{ ex.supplier.charAt(0) }}</IconTile>
         <div class="grid min-w-0 gap-0.5">
@@ -43,7 +47,7 @@ const TOGGLE =
       <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="14" />{{ v.label }}</StatusPill>
     </header>
 
-    <div class="grid gap-3 p-4 sm:p-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
+    <div :class="['grid gap-3', bare ? '' : 'p-4 sm:p-5', stacked ? '' : 'lg:grid-cols-[1fr_auto_1fr_auto_1fr]']">
       <!-- 1 · the email -->
       <section class="grid content-start gap-3 rounded-xl bg-input p-4" aria-label="What the email says">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -71,7 +75,7 @@ const TOGGLE =
 
       <span class="grid place-items-center" aria-hidden="true">
         <span class="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-muted">
-          <AppIcon name="arrowDown" :size="18" class="lg:hidden" /><AppIcon name="arrowRight" :size="18" class="hidden lg:block" />
+          <AppIcon name="arrowDown" :size="18" :class="stacked ? '' : 'lg:hidden'" /><AppIcon v-if="!stacked" name="arrowRight" :size="18" class="hidden lg:block" />
         </span>
       </span>
 
@@ -97,7 +101,7 @@ const TOGGLE =
 
       <span class="grid place-items-center" aria-hidden="true">
         <span class="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-muted">
-          <AppIcon name="arrowDown" :size="18" class="lg:hidden" /><AppIcon name="arrowRight" :size="18" class="hidden lg:block" />
+          <AppIcon name="arrowDown" :size="18" :class="stacked ? '' : 'lg:hidden'" /><AppIcon v-if="!stacked" name="arrowRight" :size="18" class="hidden lg:block" />
         </span>
       </span>
 
@@ -132,8 +136,8 @@ const TOGGLE =
     </div>
 
     <!-- the money: red = what the increase costs you (if not allowed), navy = a legitimate cost -->
-    <footer class="grid gap-4 border-t border-line bg-input/50 px-5 py-4">
-      <div class="grid gap-4 sm:grid-cols-3">
+    <footer :class="['grid gap-4', bare ? 'mt-4 rounded-xl bg-input/50 p-4' : 'border-t border-line bg-input/50 px-5 py-4']">
+      <div :class="['grid gap-4', stacked ? 'sm:grid-cols-2' : 'sm:grid-cols-3']">
         <StatTile icon="euro" label="Extra per month" :value="eur(finding.impact.monthly)" :tone="tone.stat" />
         <StatTile icon="chart" label="Within your forecast" :value="eur(finding.impact.in_horizon)" :tone="tone.stat" />
         <StatTile icon="calendar" label="Next 12 months" :value="eur(finding.impact.next_12_months)" :tone="tone.stat" />

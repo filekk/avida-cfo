@@ -18,24 +18,19 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/DashboardView.vue"),
     meta: { title: "Your money at a glance" },
   },
-  {
-    path: "/findings",
-    name: "findings",
-    component: () => import("@/views/FindingsView.vue"),
-    meta: { title: "What Avida found" },
-  },
+  // Findings were merged into the Action center. Old links (e.g. from the overview) still work:
+  // /findings/:id opens the Action center with that finding expanded.
+  { path: "/findings", name: "findings", redirect: { name: "decisions" } },
   {
     path: "/findings/:id",
     name: "finding-detail",
-    component: () => import("@/views/FindingDetailView.vue"),
-    props: true,
-    meta: { title: "Price change in detail" },
+    redirect: (to) => ({ name: "decisions", query: { finding: String(to.params.id) } }),
   },
   {
     path: "/decisions",
     name: "decisions",
     component: () => import("@/views/DecisionsView.vue"),
-    meta: { title: "Your decisions" },
+    meta: { title: "Action center" },
   },
   {
     path: "/policy",

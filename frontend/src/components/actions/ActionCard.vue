@@ -13,7 +13,13 @@ import { eur, eurCents, fmtDayMonth } from "@/utils/format";
  * One proposed action. UI rule #1: nothing happens without an explicit click on Approve / Not now.
  * Emits the decision; the parent (store) talks to the API.
  */
-const props = defineProps<{ action: Action; busy?: boolean }>();
+/**
+ * `embedded`: rendered inside another card (Action center focus view) – no frame and no header of its own,
+ *             the parent shows the title and badges.
+ * `compact`:  also hides the "why" and the savings, for when the parent already explains them
+ *             (the finding's email → contract → verdict flow).
+ */
+const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean; embedded?: boolean }>();
 const emit = defineEmits<{ decide: [id: string, approve: boolean, editedBody?: string] }>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
@@ -31,13 +37,17 @@ const decline = () => emit("decide", props.action.id, false);
 
 <template>
   <article
-    :class="[
-      'grid gap-5 rounded-xl border bg-surface p-5 transition-[border-color,box-shadow] duration-slow',
-      pending ? 'border-sun shadow-float' : 'border-line shadow-card',
-    ]"
+    :class="
+      embedded
+        ? 'grid gap-5'
+        : [
+            'grid gap-5 rounded-xl border bg-surface p-5 transition-[border-color,box-shadow] duration-slow',
+            pending ? 'border-sun shadow-float' : 'border-line shadow-card',
+          ]
+    "
   >
     <!-- mobile: tile + badges side by side, title full width below · sm+: tile | badges+title | savings -->
-    <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:flex sm:items-start">
+    <div v-if="!embedded" class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:flex sm:items-start">
       <IconTile
         :icon="action.type === 'send_email' ? 'send' : 'landmark'"
         :tone="pending ? 'accent' : 'neutral'"
@@ -62,7 +72,7 @@ const decline = () => emit("decide", props.action.id, false);
     </div>
 
     <StatTile
-      v-if="action.savings_12m > 0"
+      v-if="action.savings_12m > 0 && !compact"
       class="sm:hidden"
       icon="piggyBank"
       tone="positive"
@@ -70,7 +80,7 @@ const decline = () => emit("decide", props.action.id, false);
       :value="eur(action.savings_12m)"
     />
 
-    <p class="grid grid-cols-[auto_1fr] gap-2.5 leading-relaxed text-muted">
+    <p v-if="!compact" class="grid grid-cols-[auto_1fr] gap-2.5 leading-relaxed text-muted">
       <AppIcon name="recommendation" :size="20" class="mt-0.5 text-warn" />
       <span><b class="text-fg">Why: </b>{{ action.why }}</span>
     </p>
