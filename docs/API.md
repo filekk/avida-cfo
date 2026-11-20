@@ -31,6 +31,9 @@ POST /api/reset             → back to start (use before every demo run)
 | POST | `/api/actions/{id}/reject` | no body → `{"action": Action, "saved_liquidity": number}` |
 | GET | `/api/ask/suggestions?lang=en\|de` | clickable questions for the current situation (see "Ask your CFO") |
 | POST | `/api/ask` | body `{"question": "…", "lang": "en"\|"de"}` → answer from the right agent (chip: instant, typed: 3–7 s) |
+| GET | `/api/contracts` | `[ContractSummary]` – the Legal Agent's contracts (`origin`: `index` = prepared in Jupyter, `uploaded` = read live by the model) |
+| POST | `/api/contracts/upload` | multipart `file` (PDF / .md / .txt, max 5 MB) → `UploadResult`, **10–20 s** (model reads it); 422 with `detail` if unreadable |
+| DELETE | `/api/contracts/{id}` | removes an uploaded contract (`U-001`…), returns the new list; 404 for index contracts |
 | GET | `/api/policy` | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
 | GET | `/api/audit` | `[{time, event, ...}]` – what happened, in order |
 | POST | `/api/reset` | clears findings/actions, returns the start `Dashboard` |
@@ -213,6 +216,27 @@ For `credit_application` (agent `Analyst Agent`) the payload is:
   "indicative_rate_pct": 9.5, "max_interest_cost": 163.97,
   "calculation": "Lowest balance -27,882 EUR on … → gap 42,882 EUR, rounded up to 45,000 EUR. …", "note": "…" }
 ```
+
+## Contracts: upload → live extraction → Legal Agent
+
+The owner uploads a contract; Granite extracts the terms the Legal Agent's rules need (guided JSON on vLLM),
+the backend checks them (dates parse, the monthly fee must appear in the document, every clause quote must exist
+word for word – otherwise dropped and listed in `warnings`) and adds the contract to the knowledge base.
+An upload for the same party replaces the earlier upload and takes precedence over the index entry.
+On the next `/api/sync` the Legal Agent uses it; its trace line ends with *"(contract you uploaded, terms
+extracted by the model)"* and `finding.contract.contract.origin == "uploaded"`.
+
+```jsonc
+// POST /api/contracts/upload  → UploadResult
+{ "source": "llm", "seconds": 14.0, "pages": 4,
+  "contract": { "id": "U-001", "supplier": "Stahlhandel Nord GmbH",          // or "customer": "…"
+    "title": "Rahmenliefervertrag – Stahl und Aluminium", "file": "uploads/stahlhandel.pdf", "start_date": "2025-01-01",
+    "monthly_fee": 14000, "fixed_price_until": null, "price_change_notice_days": 42, "max_annual_increase_pct": 8.0,
+    // customer contracts instead: "payment_terms_days": 30, "changes_require_written_agreement": true
+    "clauses": [{ "id": "§6.1", "page": 4, "title": "Material price adjustment", "text": "The Supplier may adjust …" }],
+    "origin": "uploaded", "extracted_by": "granite-8b (live)", "warnings": [] } }
+```
+The same extraction code (`backend/app/extraction.py`) is benchmarked in `notebooks/contract_extraction.ipynb`.
 
 ## Ask your CFO
 

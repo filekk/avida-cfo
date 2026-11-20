@@ -53,21 +53,29 @@ class LLM:
             raise err
         return copy.deepcopy(fallback), "fallback"
 
-    async def json(self, system: str, user: str, schema: dict, fallback: dict) -> tuple[dict, str]:
+    async def json(self, system: str, user: str, schema: dict, fallback: dict | None,
+                   max_tokens: int = 400) -> tuple[dict, str]:
         """Structured output. vLLM enforces the JSON schema via guided decoding.
 
         The fallback is deep-copied: callers mutate results, and canned answers must stay pristine across runs.
+        fallback=None means "no canned answer exists": a model failure is raised to the caller.
         """
         if not settings.llm_enabled:
+            if fallback is None:
+                raise RuntimeError("LLM is disabled (LLM_ENABLED=false)")
             return copy.deepcopy(fallback), "fallback"
         try:
             raw = await self._complete(
                 system,
                 user,
+                max_tokens=max_tokens,
                 response_format={"type": "json_schema", "json_schema": {"name": "result", "schema": schema}},
             )
             return _parse_json(raw), "llm"
         except Exception as e:  # noqa: BLE001
+            if fallback is None:
+                log.warning("LLM json failed (no fallback): %s", e)
+                raise
             return self._fail("json", e, fallback)
 
     async def text(self, system: str, user: str, fallback: str, max_tokens: int = 400) -> tuple[str, str]:

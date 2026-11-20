@@ -5,7 +5,7 @@ import json
 import logging
 from contextlib import aclosing
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from . import ask as ask_cfo
+from . import contract_library
 from .config import settings
 from .llm import llm
 from .orchestrator import initial_dashboard, run_pipeline
@@ -118,6 +119,34 @@ def ask_suggestions(lang: Lang = "en"):
 async def ask(q: Question):
     """'Ask your CFO': the right agent answers from the numbers already computed (guarded, with fallback)."""
     return await ask_cfo.ask(q.question.strip(), q.lang)
+
+
+@app.get("/api/contracts")
+def contracts():
+    """The Legal Agent's knowledge base: notebook-prepared index + contracts uploaded at runtime."""
+    return contract_library.listing()
+
+
+@app.post("/api/contracts/upload")
+async def upload_contract(file: UploadFile = File(...)):
+    """Owner uploads a contract (PDF / .md / .txt) -> Granite extracts the terms live (guided JSON)
+    -> the Legal Agent uses them on the next inbox check."""
+    content = await file.read(contract_library.MAX_BYTES + 1)
+    try:
+        result = await contract_library.upload(file.filename or "contract", content)
+    except contract_library.ExtractionError as e:
+        raise HTTPException(422, str(e)) from e
+    c = result["contract"]
+    store.log("contract_uploaded", contract_id=c["id"], party=c.get("supplier") or c.get("customer"),
+              file=file.filename, extracted_by=c["extracted_by"], warnings=len(c["warnings"]))
+    return result
+
+
+@app.delete("/api/contracts/{contract_id}")
+def delete_contract(contract_id: str):
+    if not contract_library.delete(contract_id):
+        raise HTTPException(404, "only uploaded contracts can be removed")
+    return contract_library.listing()
 
 
 @app.get("/api/policy")

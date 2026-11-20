@@ -125,7 +125,8 @@ def _verdict_line(ex: dict, res: dict) -> str:
         return f"{ex['party']}: cannot check – {why}. Please review."
     what = "paying later" if ex["kind"] == "payment_delay" else "the increase"
     ok = "allowed" if res["verdict"] == "allowed" else "NOT allowed"
-    return f"{ex['party']}: {what} is {ok} by the contract{clause}."
+    uploaded = " (contract you uploaded, terms extracted by the model)" if (res.get("contract") or {}).get("origin") == "uploaded" else ""
+    return f"{ex['party']}: {what} is {ok} by the contract{clause}{uploaded}."
 
 
 # --- one negotiation (runs concurrently with the others) ---------------------------
