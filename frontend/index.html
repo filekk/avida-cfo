@@ -2,11 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Avida CFO – an AI liquidity assistant for small businesses." />
     <title>Avida CFO</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="theme-color" content="#0E2A47" />
+    <script>
+      // Apply the saved theme + accessibility settings before first paint (no flash, no text-size jump).
+      // Keep in sync with composables/useTheme.ts and composables/useA11y.ts.
+      try {
+        const d = document.documentElement;
+        const t = localStorage.getItem("avida-theme");
+        if (t === "light" || t === "dark") d.dataset.theme = t;
+        const a = JSON.parse(localStorage.getItem("avida-a11y") || "{}");
+        if (a.text === "lg" || a.text === "xl" || a.text === "xxl") d.dataset.text = a.text;
+        if (a.contrast === "high") d.dataset.contrast = "high";
+        if (a.motion === "reduce" || a.motion === "full") d.dataset.motion = a.motion;
+        if (a.links === true) d.dataset.links = "underline";
+        if (a.spacing === true) d.dataset.spacing = "wide";
+        // language (i18n/index.ts): correct <html lang> for screen readers from the first paint
+        const l = localStorage.getItem("avida-lang");
+        if (l === "en" || l === "de") d.lang = l;
+      } catch {}
+    </script>
   </head>
-  <body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+  <body>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
