@@ -1,7 +1,8 @@
 """Legal Agent – the lawyer.
 
-1. Finds the supplier contract, retrieves relevant clauses and checks the price change.
-   The verdict comes from explicit rules (auditable); the LLM explains it and picks the clause to quote.
+1. Finds the contract with the supplier / customer, retrieves relevant clauses and checks the announced change
+   (price increase or later payment). The verdict comes from explicit rules (auditable); the LLM explains it
+   and picks the clause to quote.
 2. Reviews the Negotiator's draft email before the owner sees it (four-eyes principle).
 """
 from __future__ import annotations
@@ -15,12 +16,14 @@ from ..llm import llm
 NAME = "Legal Agent"
 
 PRICE_TERMS = ("price", "fee", "increase", "adjust", "index", "notice", "fixed", "guarantee")
+PAYMENT_TERMS = ("payment", "payable", "invoice", "late", "interest", "agreement")
 
 SYSTEM = (
     "You are the Legal Agent of a CFO assistant for a small company owner who is not a lawyer. "
-    "You get contract clauses, a supplier's price change and the results of automatic rule checks. "
-    "Explain in at most 2 short, friendly sentences whether the increase is allowed, and pick the single clause "
-    "that matters most. Quote it word for word. Do not give legal advice beyond the contract text. Answer with JSON only."
+    "You get contract clauses, a change announced by a supplier or customer (a price increase or a later payment) "
+    "and the results of automatic rule checks. Explain in at most 2 short, friendly sentences whether the change is "
+    "allowed, and pick the single clause that matters most. Quote it word for word. "
+    "Do not give legal advice beyond the contract text. Answer with JSON only."
 )
 
 SCHEMA = {
@@ -34,22 +37,30 @@ SCHEMA = {
 }
 
 
-def find_contract(supplier: str) -> dict | None:
-    s = supplier.lower()
+def _party(contract: dict) -> str:
+    return contract.get("supplier") or contract.get("customer") or ""
+
+
+def find_contract(name: str) -> dict | None:
+    s = name.lower().strip()
+    if not s:  # "" is a substring of every name – never match on an empty name
+        return None
     for c in data.contracts():
-        if c["supplier"].lower() in s or s in c["supplier"].lower() or any(a in s for a in c["aliases"]):
+        p = _party(c).lower()
+        if p in s or s in p or any(a in s for a in c.get("aliases", [])):
             return c
     return None
 
 
-def retrieve_clauses(contract: dict, k: int = 3) -> list[dict]:
+def retrieve_clauses(contract: dict, terms: tuple[str, ...] = PRICE_TERMS, k: int = 3) -> list[dict]:
     """Keyword retrieval – enough for a handful of contracts. Swap for ChromaDB/embeddings if it grows."""
-    scored = [(sum(t in cl["text"].lower() or t in cl["title"].lower() for t in PRICE_TERMS), cl) for cl in contract["clauses"]]
+    scored = [(sum(t in cl["text"].lower() or t in cl["title"].lower() for t in terms), cl) for cl in contract["clauses"]]
     scored.sort(key=lambda x: -x[0])
     return [cl for score, cl in scored[:k] if score > 0]
 
 
 def rule_checks(contract: dict, extraction: dict, received: date) -> list[dict]:
+    """Price change: guarantee period, notice period, yearly cap."""
     checks = []
     eff = date.fromisoformat(extraction["effective_date"])
 
@@ -89,6 +100,27 @@ def rule_checks(contract: dict, extraction: dict, received: date) -> list[dict]:
     return checks
 
 
+def payment_checks(contract: dict, extraction: dict) -> list[dict]:
+    """Late customer payment: agreed due date, and whether payment dates may be changed one-sidedly."""
+    due, new = date.fromisoformat(extraction["due_date"]), date.fromisoformat(extraction["new_payment_date"])
+    late = (new - due).days
+    inv = extraction.get("invoice") or "the invoice"
+    checks = [{
+        "check": "Agreed payment date",
+        "passed": late <= 0,
+        "clause_id": _clause_with(contract, "payable"),
+        "detail": f"{inv} is due on {due:%d %b %Y}; payment is announced for {new:%d %b %Y} ({late} days late).",
+    }]
+    if contract.get("changes_require_written_agreement"):
+        checks.append({
+            "check": "Change of payment date",
+            "passed": late <= 0,
+            "clause_id": _clause_with(contract, "written agreement"),
+            "detail": "Payment dates can only be changed by written agreement of both parties – no such agreement exists.",
+        })
+    return checks
+
+
 def _clause_with(contract: dict, word: str) -> str:
     for cl in contract["clauses"]:
         if word in cl["text"].lower() or word in cl["title"].lower():
@@ -96,44 +128,74 @@ def _clause_with(contract: dict, word: str) -> str:
     return ""
 
 
-async def check_price_change(extraction: dict, received: str) -> tuple[dict, str]:
-    contract = find_contract(extraction["supplier"])
-    if not contract:
-        fb = fallback.contract_explanation("unclear", extraction["supplier"], [], None)
-        return {"verdict": "unclear", "contract": None, "checks": [], "clauses": [], **fb}, "rules"
+def _unclear(extraction: dict, contract: dict | None, figures: bool) -> tuple[dict, str]:
+    fb = fallback.contract_explanation("unclear", extraction["party"], [], None, extraction["kind"], figures)
+    if not contract and not figures:
+        fb["explanation_simple"] += f" There is also no contract with {extraction['party']} on file."
+    return {"verdict": "unclear", "contract": _contract_info(contract), "clause": None, "checks": [], "clauses": [], **fb}, "rules"
 
-    # The model may return "CloudHost GmbH – Billing" etc. Use the contract's canonical name from here on,
-    # so the forecast matches the right cash-flow line.
-    extraction["supplier"] = contract["supplier"]
-    clauses = retrieve_clauses(contract)
-    checks = rule_checks(contract, extraction, date.fromisoformat(received))
+
+def _contract_info(contract: dict | None) -> dict | None:
+    if not contract:
+        return None
+    keys = ("id", "supplier", "customer", "title", "file", "start_date", "fixed_price_until", "payment_terms_days")
+    return {k: contract[k] for k in keys if k in contract}
+
+
+def _normalise(extraction: dict, contract: dict) -> None:
+    """The model may return 'CloudHost GmbH – Billing' etc. Use the contract's canonical name from here on,
+    so the forecast matches the right cash-flow line."""
+    name = _party(contract)
+    extraction["party"] = name
+    extraction["customer" if extraction["kind"] == "payment_delay" else "supplier"] = name
+
+
+async def check(extraction: dict, received: str) -> tuple[dict, str]:
+    """Entry point for every finding (price change or late payment)."""
+    contract = find_contract(extraction["party"])
+    if contract:
+        _normalise(extraction, contract)
+    if not contract or not extraction["figures_stated"]:
+        return _unclear(extraction, contract, extraction["figures_stated"])
+
+    if extraction["kind"] == "payment_delay":
+        checks = payment_checks(contract, extraction)
+        clauses = retrieve_clauses(contract, PAYMENT_TERMS)
+        change = (f"{extraction['summary']} (invoice {extraction['invoice']} over EUR {extraction['amount']:,.2f}, "
+                  f"due {extraction['due_date']}, customer will pay on {extraction['new_payment_date']})")
+    else:
+        checks = rule_checks(contract, extraction, date.fromisoformat(received))
+        clauses = retrieve_clauses(contract, PRICE_TERMS)
+        change = (f"{extraction['summary']} (from {extraction['old_monthly']} to {extraction['new_monthly']} EUR/month, "
+                  f"effective {extraction['effective_date']}, announced {received})")
+
     failed = [c for c in checks if not c["passed"]]
     verdict = "violates" if failed else "allowed"
-
     key_id = failed[0]["clause_id"] if failed else (checks[-1]["clause_id"] if checks else "")
     key_clause = next((c for c in contract["clauses"] if c["id"] == key_id), clauses[0] if clauses else None)
 
     user = (
-        f"Contract: {contract['title']} with {contract['supplier']}\n"
+        f"Contract: {contract['title']} with {_party(contract)}\n"
         "Clauses:\n" + "\n".join(f"- {c['id']} {c['title']}: {c['text']}" for c in clauses) + "\n\n"
-        f"Announced change: {extraction['summary']} (from {extraction['old_monthly']} to {extraction['new_monthly']} EUR/month, "
-        f"effective {extraction['effective_date']}, announced {received})\n"
+        f"Announced change: {change}\n"
         "Rule checks:\n" + "\n".join(f"- {c['check']}: {'OK' if c['passed'] else 'VIOLATED'} – {c['detail']}" for c in checks) + "\n"
         f"Overall verdict (fixed, do not change it): {verdict.upper()}"
     )
-    fb = fallback.contract_explanation(verdict, contract["supplier"], failed, key_clause)
+    fb = fallback.contract_explanation(verdict, _party(contract), failed, key_clause, extraction["kind"])
     expl, source = await llm.json(SYSTEM, user, SCHEMA, fb)
 
     # Guard against hallucinated quotes: the quote must exist in the contract, else use the real clause.
     real = next((c for c in contract["clauses"] if c["id"] == expl.get("clause_id")), None)
-    quote = expl.get("quote", "").strip().strip('"“”„')
+    quote = str(expl.get("quote", "")).strip().strip('"“”„')
     if not real or not quote or quote[:40] not in real["text"]:
         expl["clause_id"], expl["quote"] = fb["clause_id"], fb["quote"]
         real = key_clause
+    if not str(expl.get("explanation_simple", "")).strip():
+        expl["explanation_simple"] = fb["explanation_simple"]
 
     return {
         "verdict": verdict,
-        "contract": {k: contract[k] for k in ("id", "supplier", "title", "file", "start_date", "fixed_price_until")},
+        "contract": _contract_info(contract),
         "clause": real,
         "checks": checks,
         "clauses": clauses,
@@ -144,9 +206,9 @@ async def check_price_change(extraction: dict, received: str) -> tuple[dict, str
 # --- Review of the Negotiator's draft ----------------------------------------------
 
 REVIEW_SYSTEM = (
-    "You are the Legal Agent reviewing an email that a colleague drafted to a supplier. "
+    "You are the Legal Agent reviewing an email that a colleague drafted to a business partner. "
     "Approve it unless there is a real problem: the contract clause is misquoted, amounts or dates are wrong, "
-    "it claims rights the contract does not give, it reveals the company's own cash-flow problems to the supplier, "
+    "it claims rights the contract does not give, it reveals the company's own cash-flow problems, "
     "it is rude or threatening, or it contains placeholders like [Name]. Report at most 2 concrete issues. "
     "Answer with JSON only."
 )
@@ -160,37 +222,58 @@ REVIEW_SCHEMA = {
     "required": ["approved", "issues"],
 }
 
+INTERNAL_FINANCE = re.compile(
+    r"liquidity|cash[- ]?flow|overdraft|credit line|financial difficult|bottleneck|"
+    r"liquidität|engpass|überziehung|kontokorrent|zahlungsschwierig",
+    re.I,
+)
+
 
 def _digits(s: str) -> str:
     return re.sub(r"[^0-9]", "", s)
 
 
-def rule_review(draft: str, extraction: dict, legal_result: dict) -> list[str]:
-    """Deterministic checks the draft must pass regardless of what the model thinks."""
+def rule_review(draft: str, task: str, extraction: dict, legal_result: dict) -> list[str]:
+    """Deterministic checks the draft must pass regardless of what the model thinks.
+
+    task: reject_price | payment_reminder | ask_details
+    """
     issues = []
     clause = legal_result.get("clause") or {}
-    if clause.get("id") and clause["id"] not in draft:
+    if task in ("reject_price", "payment_reminder") and clause.get("id") and clause["id"] not in draft:
         issues.append(f"The email does not refer to {clause['id']} of the contract.")
-    if _digits(f"{extraction['old_monthly']:.0f}") not in _digits(draft):
+    if task == "reject_price" and _digits(f"{extraction['old_monthly']:.0f}") not in _digits(draft):
         issues.append(f"The email does not state the agreed price of EUR {extraction['old_monthly']:,.2f}.")
+    if task == "payment_reminder" and _digits(f"{extraction['amount']:.0f}") not in _digits(draft):
+        issues.append(f"The email does not state the invoice amount of EUR {extraction['amount']:,.2f}.")
     if re.search(r"\[[^\]]{2,40}\]", draft):
         issues.append("The email still contains a placeholder in square brackets.")
-    if re.search(r"liquidity|cash[- ]?flow|overdraft|credit line|financial difficult", draft, re.I):
-        issues.append("The email reveals internal financial information to the supplier.")
+    if INTERNAL_FINANCE.search(draft):
+        issues.append("The email reveals internal financial information.")
     return issues
 
 
-async def review_draft(draft: str, extraction: dict, legal_result: dict) -> tuple[dict, str]:
-    rules = rule_review(draft, extraction, legal_result)
+def _review_context(task: str, extraction: dict, legal_result: dict) -> str:
     clause = legal_result.get("clause") or {}
-    user = (
-        f"Supplier: {extraction['supplier']}. Agreed price EUR {extraction['old_monthly']:,.2f}/month, "
-        f"announced EUR {extraction['new_monthly']:,.2f}/month from {extraction['effective_date']}.\n"
-        f"Contract clause {clause.get('id', '')}: \"{clause.get('text', '')}\"\n"
-        "Problems with the increase: "
-        + "; ".join(c["detail"] for c in legal_result.get("checks", []) if not c["passed"])
-        + f"\n\nDRAFT EMAIL:\n{draft}"
-    )
+    clause_txt = f"Contract clause {clause.get('id', '')}: \"{clause.get('text', '')}\"\n" if clause else ""
+    problems = "; ".join(c["detail"] for c in legal_result.get("checks", []) if not c["passed"])
+    if task == "reject_price":
+        return (f"Supplier: {extraction['supplier']}. Agreed price EUR {extraction['old_monthly']:,.2f}/month, "
+                f"announced EUR {extraction['new_monthly']:,.2f}/month from {extraction['effective_date']}.\n"
+                f"{clause_txt}Problems with the increase: {problems}\n"
+                "The email should reject the increase politely but firmly.")
+    if task == "payment_reminder":
+        return (f"Customer (an important one): {extraction['customer']}. Invoice {extraction['invoice']} over "
+                f"EUR {extraction['amount']:,.2f}, due {extraction['due_date']}; the customer announced payment on "
+                f"{extraction['new_payment_date']}.\n{clause_txt}Problems: {problems}\n"
+                "The email should ask friendly but clearly for payment on the agreed date and keep the relationship warm.")
+    return (f"Supplier: {extraction['party']} announced a price change without figures; there is no contract on file.\n"
+            "The email should ask for the exact current and new amounts, the start date and the contractual basis.")
+
+
+async def review_draft(draft: str, task: str, extraction: dict, legal_result: dict) -> tuple[dict, str]:
+    rules = rule_review(draft, task, extraction, legal_result)
+    user = _review_context(task, extraction, legal_result) + f"\n\nDRAFT EMAIL:\n{draft}"
     fb = {"approved": not rules, "issues": []}
     out, source = await llm.json(REVIEW_SYSTEM, user, REVIEW_SCHEMA, fb)
     llm_issues = [i for i in out.get("issues", []) if isinstance(i, str) and i.strip()][:2] if not out.get("approved", True) else []

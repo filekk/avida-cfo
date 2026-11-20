@@ -6,6 +6,7 @@ so the UI can be honest about it.
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import re
@@ -50,12 +51,15 @@ class LLM:
         log.warning("LLM %s failed: %s", what, err)
         if not settings.demo_fallback:
             raise err
-        return fallback, "fallback"
+        return copy.deepcopy(fallback), "fallback"
 
     async def json(self, system: str, user: str, schema: dict, fallback: dict) -> tuple[dict, str]:
-        """Structured output. vLLM enforces the JSON schema via guided decoding."""
+        """Structured output. vLLM enforces the JSON schema via guided decoding.
+
+        The fallback is deep-copied: callers mutate results, and canned answers must stay pristine across runs.
+        """
         if not settings.llm_enabled:
-            return fallback, "fallback"
+            return copy.deepcopy(fallback), "fallback"
         try:
             raw = await self._complete(
                 system,

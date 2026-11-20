@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import aclosing
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,8 +65,10 @@ async def sync():
 
     async def events():
         try:
-            async for ev in run_pipeline():
-                yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+            # aclosing: if the browser disconnects, the pipeline is closed right away (and cancels its LLM calls).
+            async with aclosing(run_pipeline()) as pipeline:
+                async for ev in pipeline:
+                    yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
         except Exception as e:  # noqa: BLE001
             logging.exception("pipeline failed")
             yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"

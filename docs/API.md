@@ -61,25 +61,37 @@ Handoff between agents (show as an arrow / chat bubble from one agent to another
 
 | Agent | Role | Does |
 |---|---|---|
-| 📊 Analyst Agent | numbers | reads the inbox, forecasts 90 days in 3 scenarios, sizes the credit line, writes the briefing |
-| ⚖️ Legal Agent | lawyer | checks each price change against the contract; **reviews every draft email** before the owner sees it |
-| ✉️ Negotiator Agent | writer | drafts the reply from the lawyer's clause + the analyst's figures; revises once if the lawyer finds issues |
+| 📊 Analyst Agent | numbers | reads the inbox (EN + DE), forecasts 90 days in 3 scenarios, sizes the credit line, writes the briefing |
+| ⚖️ Legal Agent | lawyer | checks each change against the supplier / customer contract; **reviews every draft email** before the owner sees it |
+| ✉️ Negotiator Agent | writer | drafts replies from the lawyer's clause + the analyst's figures; revises once if the lawyer finds issues |
+
+The demo inbox (6 emails) produces every kind of finding:
+
+| Email | Kind | Verdict → recommendation | Negotiator writes |
+|---|---|---|---|
+| CloudHost +15% (breaks price guarantee) | `price_change` | `violates` → `reject` | rejection |
+| PaperPro +3.5% (within cap) | `price_change` | `allowed` → `accept` | – |
+| Bauer pays invoice 30 days late (SAP migration) | `payment_delay` | `violates` → `remind` | friendly payment reminder |
+| Stahlhandel Nord +6% (**German email**) | `price_change` | `allowed` → `accept` | – |
+| IT-Service Kraus "prices go up", **no figures** | `price_change`, `figures_stated: false` | `unclear` → `review` | asks for the exact prices |
+| IHK newsletter | – (ignored) | – | – |
 
 Typical sequence of trace events:
 ```
-Analyst  reads 3 emails → finds 2 price changes
-Analyst  → Legal       "Please check 2 price changes"
-Legal    verdicts (CloudHost: NOT allowed §5.2, PaperPro: allowed)
+Analyst  reads 6 emails → 4 price changes, 1 late payment, 1 ignored ("no figures – I won't guess")
+Analyst  → Legal       "Please check 5 change(s) …"
+Legal    verdicts (one line per change)
 Legal    → Analyst     "Verdicts: …"
 Analyst  forecast, lowest balance
-Analyst  → Negotiator  prices + yearly impact
-Legal    → Negotiator  clause + violations
-Negotiator draft written
-Negotiator → Legal     "Please review my draft"
-Legal    approved   (or: Legal → Negotiator "Found issues…", Negotiator revised, Legal approved)
-Negotiator ✋ waiting for approval (email)    Analyst ✋ waiting for approval (overdraft)
+── negotiations run IN PARALLEL, events of different partners interleave (each message names the partner) ──
+Analyst  → Negotiator  figures            Legal → Negotiator  clause + violations
+Negotiator "Draft to X written."          Negotiator → Legal "Please review my draft to X …"
+Legal    approved   (or: Legal → Negotiator "found issues…", Negotiator revised, Legal approved)
+──
+Negotiator ✋ waiting for approval (one per email)    Analyst ✋ waiting for approval (overdraft)
 Analyst  briefing ready
 ```
+A second `GET /api/sync` while one is running gets an `error` event ("already running") – disable the button while syncing.
 - `autonomy` (**must be visible in the UI – required by the challenge**):
 
 | value | label for the UI | meaning |
@@ -97,19 +109,20 @@ Analyst  briefing ready
 {
   "company": { "name": "Müller Feinmechanik GmbH", "owner": "Petra Müller", "currency": "EUR" },
   "today": "2026-11-20",
-  "headline": "You're safe for the next 73 days. Around 01 February your balance drops to 10,958 EUR – below your safety cushion of 15,000 EUR.",
-  "kpis": {
-    "balance_today": 93000, "days_safe": 73,
-    "min_balance": 10958, "min_date": "2027-02-03",
+  "headline": "You're safe for the next 63 days. From 22 January your balance falls below your safety cushion, and on 03 February your account would be 27,882 EUR overdrawn.",
+  "kpis": {                                            // before sync: days_safe 73, min_balance 11000
+    "balance_today": 93000, "days_safe": 63,
+    "min_balance": -27882, "min_date": "2027-02-03",   // can be NEGATIVE (= overdrawn) → show in red
     "safety_buffer": 15000, "saved_liquidity": 0        // grows after approvals
   },
   "agents": [ { "name": "Analyst Agent", "role": "Analyst", "icon": "📊", "does": "…" }, … ],   // for an "our team" panel
   "analysis": {                                        // Analyst's briefing; null before sync
-    "summary": "…max 2 sentences written by the model…",
-    "key_points": [ "If you follow the advice, your lowest balance is 10,958 EUR on 2027-02-03 (safety cushion: 15,000 EUR).",
-                    "If you accept every price increase, it drops to 9,488 EUR.",
+    "summary": "…max 3 short sentences written by the model (checked: only numbers from key_points)…",
+    "key_points": [ "Bauer Maschinenbau AG wants to pay 38,000 EUR 30 days late (2027-02-04 instead of 2027-01-05). …",
+                    "If you follow the advice, your lowest balance is -27,882 EUR on 2027-02-03 – your account would be overdrawn …",
+                    "Payroll (12 employees): 46,000 EUR on 2027-01-28 would not be covered without an overdraft.",
                     "Rejecting the CloudHost GmbH increase keeps 17,640 EUR per year in your company.", … ],  // exact, computed
-    "risk_level": "medium",                            // low | medium | high → colour
+    "risk_level": "high",                              // low | medium | high → colour
     "source": "llm"
   },
   "scenarios": {                                       // before sync only "current" exists
@@ -131,12 +144,15 @@ Analyst  briefing ready
   "largest_outflows": [ { "date", "amount", "label", "category", "counterparty" } ] }
 ```
 
-`Finding` (one per detected price change – the split screen)
+`Finding` (one per detected price change or late payment – the split screen)
 ```jsonc
 {
   "id": "mail-001",
-  "email": { "from", "from_name", "subject", "received", "body" },          // LEFT side
-  "extraction": { "supplier": "CloudHost GmbH", "old_monthly": 9800, "new_monthly": 11270,
+  "kind": "price_change",                                                    // price_change | payment_delay
+  "email": { "from", "from_name", "subject", "received", "body" },          // LEFT side (body may be German)
+  "extraction": { "kind": "price_change", "party": "CloudHost GmbH", "supplier": "CloudHost GmbH",
+                  "figures_stated": true,      // false → email had no verifiable figures, nothing calculated
+                  "old_monthly": 9800, "new_monthly": 11270,
                   "increase_pct": 15.0, "monthly_delta": 1470, "effective_date": "2027-01-01",
                   "summary": "CloudHost raises hosting by 15% from 1 Jan 2027." },
   "contract": {                                                              // RIGHT side
@@ -150,10 +166,27 @@ Analyst  briefing ready
   },
   "impact": { "monthly": 1470, "in_horizon": 2940, "next_12_months": 17640,
               "calculation": "11,270.00 − 9,800.00 = 1,470.00 EUR/month × 12 = 17,640.00 EUR/year" },  // "Show calculation"
-  "recommendation": "reject",         // reject | accept | review
+  "recommendation": "reject",         // reject | accept | remind (late payment) | review (cannot check)
   "action_id": "act-1"                // only when there is something to approve
 }
 ```
+
+`Finding` with `kind: "payment_delay"` – same shape, different `extraction` / `impact`:
+```jsonc
+{ "id": "mail-004", "kind": "payment_delay",
+  "extraction": { "kind": "payment_delay", "party": "Bauer Maschinenbau AG", "customer": "Bauer Maschinenbau AG",
+                  "figures_stated": true, "invoice": "RE-2026-1187", "amount": 38000,
+                  "due_date": "2027-01-05", "new_payment_date": "2027-02-04", "days_late": 30, "summary": "…" },
+  "contract": { "verdict": "violates", "clause_id": "§7.1", "contract": { "title": "Framework Agreement – Precision Parts (customer contract)", … },
+                "checks": [ { "check": "Agreed payment date", "passed": false, … }, { "check": "Change of payment date", "passed": false, … } ], … },
+  "impact": { "monthly": 0, "in_horizon": 0, "next_12_months": 0,          // costs nothing – it moves cash
+              "days_late": 30, "min_balance_on_time": 10118, "min_balance_late": -27882,
+              "lowest_balance_effect": 38000,                              // "your lowest balance is 38,000 EUR lower"
+              "calculation": "EUR 38,000.00 arrives 30 days later (05 Jan 2027 → 04 Feb 2027). …" },
+  "recommendation": "remind", "action_id": "act-2" }
+```
+When `figures_stated` is `false` (IT-Service Kraus): `verdict: "unclear"`, `checks: []`, `contract: null`,
+`impact.calculation: "The email gives no figures – nothing to calculate yet."` → show "no figures given – Avida asks".
 
 `Action` (cards with Approve / Not now)
 ```jsonc
@@ -163,7 +196,8 @@ Analyst  briefing ready
   "why": "…one-paragraph reason…",
   "agent": "Negotiator Agent", "autonomy": "approval", "execution": "simulated",
   "status": "pending",                          // pending | executed | rejected
-  "savings_12m": 17640,
+  "savings_12m": 17640,                         // 0 for payment reminders / requests for details
+  "finding_id": "mail-001",                     // send_email only: which Finding this email answers
   "payload": { "to": "billing@cloudhost.example", "body": "Subject: …\n\nDear …" },   // editable textarea
   "reviewed_by": "Legal Agent",                 // send_email only
   "review": { "approved": true, "issues": [], "rounds": 1 },   // "✔ Checked by the Legal Agent" badge; rounds 2 = was revised
@@ -173,9 +207,9 @@ Analyst  briefing ready
 For `credit_application` (agent `Analyst Agent`) the payload is:
 ```jsonc
 { "product": "Business overdraft facility (Kontokorrentkredit)", "bank": "Commerzbank (simulated offer)",
-  "amount": 5000, "gap": 4042, "from": "2027-02-01", "until": "2027-02-04", "days_needed": 4,
-  "indicative_rate_pct": 9.5, "max_interest_cost": 5.21,
-  "calculation": "Lowest balance 10,958 EUR on … → gap 4,042 EUR, rounded up to 5,000 EUR. …", "note": "…" }
+  "amount": 45000, "gap": 42882, "from": "2027-01-22", "until": "2027-02-04", "days_needed": 14,
+  "indicative_rate_pct": 9.5, "max_interest_cost": 163.97,
+  "calculation": "Lowest balance -27,882 EUR on … → gap 42,882 EUR, rounded up to 45,000 EUR. …", "note": "…" }
 ```
 
 ## Rules for the UI

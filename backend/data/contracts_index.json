@@ -4,7 +4,10 @@
     {
       "id": "C-001",
       "supplier": "CloudHost GmbH",
-      "aliases": ["cloudhost", "cloud host"],
+      "aliases": [
+        "cloudhost",
+        "cloud host"
+      ],
       "title": "Master Services Agreement – Business ERP Hosting",
       "file": "contracts/cloudhost_msa.md",
       "start_date": "2025-09-01",
@@ -42,7 +45,10 @@
     {
       "id": "C-002",
       "supplier": "PaperPro GmbH",
-      "aliases": ["paperpro", "paper pro"],
+      "aliases": [
+        "paperpro",
+        "paper pro"
+      ],
       "title": "Supply Agreement – Office Supplies",
       "file": "contracts/paperpro_supply.md",
       "start_date": "2024-01-01",
@@ -62,6 +68,68 @@
           "page": 2,
           "title": "Notice",
           "text": "Price adjustments under §4.1 must be announced in text form at least 30 days before they take effect."
+        }
+      ]
+    },
+    {
+      "id": "C-003",
+      "supplier": "Stahlhandel Nord GmbH",
+      "aliases": [
+        "stahlhandel nord",
+        "stahlhandel"
+      ],
+      "title": "Rahmenliefervertrag – Stahl und Aluminium (Framework Supply Agreement)",
+      "file": "contracts/stahlhandel_framework.md",
+      "start_date": "2025-01-01",
+      "monthly_fee": 14000,
+      "fixed_price_until": null,
+      "price_change_notice_days": 42,
+      "max_annual_increase_pct": 8.0,
+      "clauses": [
+        {
+          "id": "§6.1",
+          "page": 3,
+          "title": "Material price adjustment",
+          "text": "The Supplier may adjust the prices in line with the published steel and aluminium price index, by no more than 8% per calendar year."
+        },
+        {
+          "id": "§6.2",
+          "page": 3,
+          "title": "Notice",
+          "text": "Price adjustments under §6.1 must be announced in text form at least six (6) weeks before they take effect."
+        }
+      ]
+    },
+    {
+      "id": "C-004",
+      "customer": "Bauer Maschinenbau AG",
+      "aliases": [
+        "bauer maschinenbau",
+        "bauer"
+      ],
+      "title": "Framework Agreement – Precision Parts (customer contract)",
+      "file": "contracts/customers/bauer_framework.md",
+      "start_date": "2024-03-01",
+      "payment_terms_days": 30,
+      "changes_require_written_agreement": true,
+      "clauses": [
+        {
+          "id": "§7.1",
+          "page": 4,
+          "title": "Payment terms",
+          "text": "Invoices are payable within 30 days of the invoice date without deduction."
+        },
+        {
+          "id": "§7.2",
+          "page": 4,
+          "title": "Changes to payment dates",
+          "text": "Agreed payment dates may only be changed by written agreement of both parties."
+        },
+        {
+          "id": "§7.3",
+          "page": 4,
+          "title": "Late payment",
+          "text": "In case of late payment, statutory default interest under §288(2) BGB applies."
         }
       ]
     }
