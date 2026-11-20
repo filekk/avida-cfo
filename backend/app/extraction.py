@@ -132,6 +132,35 @@ def _fee_in_text(fee: float, text: str) -> bool:
     return whole in digits
 
 
+def sanity_check(out: dict) -> list[str]:
+    """
+    A function to perform sanity checks on the input dictionary (out)
+    and adjust implausible values, returning a list of warning messages.
+    """
+    warnings = []
+
+    # Warning 1: Price guarantee
+    if out.get('start_date') and out.get('fixed_price_until') \
+            and out['fixed_price_until'] < out['start_date']:
+        warnings.append("Price guarantee ends before the contract starts – ignored.")
+        out['fixed_price_until'] = None
+
+    # Warning 2: Max annual increase percentage
+    value = out.get('max_annual_increase_pct')
+    if value is not None and not (0 <= value <= 100):
+        warnings.append(f"Yearly price increase cap of {value}% is not plausible – ignored.")
+        out['max_annual_increase_pct'] = None
+
+    # Warning 3: Days for price change notice and payment terms
+    for days_name in ('price_change_notice_days', 'payment_terms_days'):
+        value = out.get(days_name)
+        if value is not None and not (0 <= value <= 730):
+            warnings.append(f"'{days_name}' of {value} days is not plausible – ignored.")
+            out[days_name] = None
+
+    return warnings
+
+
 def clean(raw: dict, pages: list[str], own_company: str = "") -> dict:
     """Normalise the model output and attach `warnings` the owner should look at before trusting it.
 
@@ -166,6 +195,7 @@ def clean(raw: dict, pages: list[str], own_company: str = "") -> dict:
     if out["monthly_fee"] is not None and not _fee_in_text(out["monthly_fee"], "\n".join(pages)):
         warnings.append(f"Monthly fee EUR {out['monthly_fee']:,.2f} does not appear in the document – ignored.")
         out["monthly_fee"] = None
+    warnings.extend(sanity_check(out))
 
     clauses, dropped = [], 0
     for cl in raw.get("clauses") or []:
