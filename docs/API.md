@@ -3,7 +3,7 @@
 Live backend (real Granite model on OpenShift AI):
 `https://avida-cfo-avida-cfo.apps.ocp.8c6kp.sandbox2571.opentlc.com`
 
-Interactive docs (try every endpoint in the browser): **`/docs`** · machine-readable: `/openapi.json`
+Interactivee docs (try every endpoint in the browser): **`/docs`** · machine-readable: `/openapi.json`
 
 > Developing the frontend locally? Don't run the backend – proxy `/api` to the cluster.
 > Vite: `server: { proxy: { "/api": { target: "<live URL>", changeOrigin: true, secure: false } } }`
