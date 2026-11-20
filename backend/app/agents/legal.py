@@ -1,19 +1,23 @@
-"""Contract Agent – finds the supplier contract, retrieves relevant clauses and checks the price change.
+"""Legal Agent – the lawyer.
 
-The verdict comes from explicit rules (auditable). The LLM only explains it in plain language
-and picks the clause to quote.
+1. Finds the supplier contract, retrieves relevant clauses and checks the price change.
+   The verdict comes from explicit rules (auditable); the LLM explains it and picks the clause to quote.
+2. Reviews the Negotiator's draft email before the owner sees it (four-eyes principle).
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from .. import data, fallback
 from ..llm import llm
 
+NAME = "Legal Agent"
+
 PRICE_TERMS = ("price", "fee", "increase", "adjust", "index", "notice", "fixed", "guarantee")
 
 SYSTEM = (
-    "You are the Contract Agent of a CFO assistant for a small company owner who is not a lawyer. "
+    "You are the Legal Agent of a CFO assistant for a small company owner who is not a lawyer. "
     "You get contract clauses, a supplier's price change and the results of automatic rule checks. "
     "Explain in at most 2 short, friendly sentences whether the increase is allowed, and pick the single clause "
     "that matters most. Quote it word for word. Do not give legal advice beyond the contract text. Answer with JSON only."
@@ -135,3 +139,60 @@ async def check_price_change(extraction: dict, received: str) -> tuple[dict, str
         "clauses": clauses,
         **expl,
     }, source
+
+
+# --- Review of the Negotiator's draft ----------------------------------------------
+
+REVIEW_SYSTEM = (
+    "You are the Legal Agent reviewing an email that a colleague drafted to a supplier. "
+    "Approve it unless there is a real problem: the contract clause is misquoted, amounts or dates are wrong, "
+    "it claims rights the contract does not give, it reveals the company's own cash-flow problems to the supplier, "
+    "it is rude or threatening, or it contains placeholders like [Name]. Report at most 2 concrete issues. "
+    "Answer with JSON only."
+)
+
+REVIEW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "approved": {"type": "boolean"},
+        "issues": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["approved", "issues"],
+}
+
+
+def _digits(s: str) -> str:
+    return re.sub(r"[^0-9]", "", s)
+
+
+def rule_review(draft: str, extraction: dict, legal_result: dict) -> list[str]:
+    """Deterministic checks the draft must pass regardless of what the model thinks."""
+    issues = []
+    clause = legal_result.get("clause") or {}
+    if clause.get("id") and clause["id"] not in draft:
+        issues.append(f"The email does not refer to {clause['id']} of the contract.")
+    if _digits(f"{extraction['old_monthly']:.0f}") not in _digits(draft):
+        issues.append(f"The email does not state the agreed price of EUR {extraction['old_monthly']:,.2f}.")
+    if re.search(r"\[[^\]]{2,40}\]", draft):
+        issues.append("The email still contains a placeholder in square brackets.")
+    if re.search(r"liquidity|cash[- ]?flow|overdraft|credit line|financial difficult", draft, re.I):
+        issues.append("The email reveals internal financial information to the supplier.")
+    return issues
+
+
+async def review_draft(draft: str, extraction: dict, legal_result: dict) -> tuple[dict, str]:
+    rules = rule_review(draft, extraction, legal_result)
+    clause = legal_result.get("clause") or {}
+    user = (
+        f"Supplier: {extraction['supplier']}. Agreed price EUR {extraction['old_monthly']:,.2f}/month, "
+        f"announced EUR {extraction['new_monthly']:,.2f}/month from {extraction['effective_date']}.\n"
+        f"Contract clause {clause.get('id', '')}: \"{clause.get('text', '')}\"\n"
+        "Problems with the increase: "
+        + "; ".join(c["detail"] for c in legal_result.get("checks", []) if not c["passed"])
+        + f"\n\nDRAFT EMAIL:\n{draft}"
+    )
+    fb = {"approved": not rules, "issues": []}
+    out, source = await llm.json(REVIEW_SYSTEM, user, REVIEW_SCHEMA, fb)
+    llm_issues = [i for i in out.get("issues", []) if isinstance(i, str) and i.strip()][:2] if not out.get("approved", True) else []
+    issues = rules + llm_issues
+    return {"approved": not issues, "issues": issues, "rule_issues": rules}, source

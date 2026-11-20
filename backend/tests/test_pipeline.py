@@ -61,3 +61,31 @@ def test_supplier_name_is_normalised_to_contract(monkeypatch):
     d = _sync()
     assert d["scenarios"]["if_accepted"]["min_balance"] == 9488
     assert d["scenarios"]["recommended"]["min_balance"] == 10958
+
+
+def test_three_agents_collaborate():
+    d = _sync()
+    assert [a["name"] for a in d["agents"]] == ["Analyst Agent", "Legal Agent", "Negotiator Agent"]
+    email = next(a for a in d["actions"] if a["type"] == "send_email")
+    assert email["agent"] == "Negotiator Agent" and email["reviewed_by"] == "Legal Agent"
+    assert email["review"]["approved"]  # the template draft passes the lawyer's checks
+    assert d["analysis"]["key_points"] and d["analysis"]["risk_level"] in {"low", "medium", "high"}
+
+
+def test_legal_review_catches_bad_drafts():
+    from app.agents.legal import rule_review
+
+    ex = {"old_monthly": 9800.0}
+    res = {"clause": {"id": "§5.2"}}
+    good = "Under §5.2 the agreed price of EUR 9,800.00 applies."
+    assert rule_review(good, ex, res) == []
+    bad = "Dear [Name], we cannot pay more because of our tight cash flow."
+    assert len(rule_review(bad, ex, res)) == 4
+
+
+def test_briefing_guard_drops_invented_numbers():
+    from app.agents.analyst import _numbers
+
+    facts = "Balance today: 93,000 EUR. Safety cushion: 15,000 EUR. Lowest 10,958 EUR on 2027-02-03, +15.0%."
+    assert _numbers("Lowest balance 10,958 EUR (+15%) on 2027-02-03") <= _numbers(facts)
+    assert not _numbers("leaving 78,000 EUR for operations") <= _numbers(facts)

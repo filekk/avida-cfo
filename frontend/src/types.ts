@@ -6,6 +6,8 @@ export interface TraceEvent {
   autonomy: Autonomy;
   message: string;
   source?: "llm" | "fallback" | "rules";
+  to?: string;
+  kind?: "handoff";
 }
 
 export interface Forecast {

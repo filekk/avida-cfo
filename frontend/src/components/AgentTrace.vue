@@ -14,7 +14,9 @@ defineProps<{ events: TraceEvent[]; running: boolean }>();
         :key="i"
         class="flex flex-col gap-1 border-l-4 border-slate-200 pl-3 sm:flex-row sm:items-center sm:gap-3"
       >
-        <span class="w-36 shrink-0 text-sm font-semibold text-slate-500">{{ e.agent }}</span>
+        <span class="w-56 shrink-0 text-sm font-semibold text-slate-500">
+          {{ e.agent }}<template v-if="e.to"> → {{ e.to }}</template>
+        </span>
         <AutonomyBadge :level="e.autonomy" />
         <span>{{ e.message }}</span>
         <span v-if="e.source === 'fallback'" class="text-xs text-slate-400">(cached answer)</span>
