@@ -35,7 +35,7 @@ const routes: RouteRecordRaw[] = [
     path: "/decisions",
     name: "decisions",
     component: () => import("@/views/DecisionsView.vue"),
-    meta: { title: "Your decisions" },
+    meta: { title: "Action center" },
   },
   {
     path: "/policy",

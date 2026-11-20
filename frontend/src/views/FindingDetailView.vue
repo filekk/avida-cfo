@@ -30,6 +30,7 @@ const action = computed(() => (finding.value?.action_id ? store.actionById(findi
       v-if="action"
       :action="action"
       :busy="deciding.has(action.id)"
+      compact
       @decide="(id, approve, body) => store.decide(id, approve, body)"
     />
   </template>

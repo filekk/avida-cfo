@@ -12,7 +12,11 @@ import { eur, eurCents, fmtDayMonth } from "@/utils/format";
  * One proposed action. UI rule #1: nothing happens without an explicit click on Approve / Not now.
  * Emits the decision; the parent (store) talks to the API.
  */
-const props = defineProps<{ action: Action; busy?: boolean }>();
+/**
+ * `compact`: used under the finding detail, which already explains the "why" and the savings,
+ * so the card shows only the draft and the buttons.
+ */
+const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean }>();
 const emit = defineEmits<{ decide: [id: string, approve: boolean, editedBody?: string] }>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
@@ -51,7 +55,7 @@ const decline = () => emit("decide", props.action.id, false);
         </div>
         <h3 class="text-lg font-bold leading-snug">{{ action.title }}</h3>
       </div>
-      <div v-if="action.savings_12m > 0" class="hidden shrink-0 justify-items-end leading-tight sm:grid">
+      <div v-if="action.savings_12m > 0 && !compact" class="hidden shrink-0 justify-items-end leading-tight sm:grid">
         <span class="text-[0.78rem] text-muted">You save</span>
         <span class="font-display text-2xl font-extrabold tabular-nums text-positive">{{ eur(action.savings_12m) }}</span>
         <span class="text-[0.75rem] text-muted">next 12 months</span>
@@ -59,7 +63,7 @@ const decline = () => emit("decide", props.action.id, false);
     </div>
 
     <StatTile
-      v-if="action.savings_12m > 0"
+      v-if="action.savings_12m > 0 && !compact"
       class="sm:hidden"
       icon="piggyBank"
       tone="positive"
@@ -67,7 +71,7 @@ const decline = () => emit("decide", props.action.id, false);
       :value="eur(action.savings_12m)"
     />
 
-    <p class="grid grid-cols-[auto_1fr] gap-2 text-sm leading-relaxed text-muted">
+    <p v-if="!compact" class="grid grid-cols-[auto_1fr] gap-2 text-sm leading-relaxed text-muted">
       <AppIcon name="recommendation" :size="17" class="mt-0.5 text-warn" />
       <span><b class="text-fg">Why: </b>{{ action.why }}</span>
     </p>
