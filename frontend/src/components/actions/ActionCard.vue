@@ -4,8 +4,9 @@ import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import SourceTag from "@/components/agent/SourceTag.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import StatTile from "@/components/ui/StatTile.vue";
 import type { Action } from "@/types/api";
-import { eur, eurCents, fmtDate } from "@/utils/format";
+import { eur, eurCents, fmtDayMonth } from "@/utils/format";
 
 /**
  * One proposed action. UI rule #1: nothing happens without an explicit click on Approve / Not now.
@@ -30,54 +31,84 @@ const decline = () => emit("decide", props.action.id, false);
 <template>
   <article
     :class="[
-      'grid gap-4 rounded-xl border bg-surface p-5',
+      'grid gap-5 rounded-xl border bg-surface p-5',
       pending ? 'border-sun shadow-float' : 'border-line',
     ]"
   >
-    <div class="flex flex-wrap items-center gap-2">
-      <AutonomyBadge :level="action.autonomy" />
-      <AutonomyBadge level="simulated" />
-      <span class="text-sm text-muted">proposed by {{ action.agent }}</span>
-      <SourceTag :source="action.source" />
+    <div class="flex items-start gap-4">
+      <span
+        :class="['grid h-12 w-12 shrink-0 place-items-center rounded-xl', pending ? 'bg-sun text-sun-on' : 'bg-input text-muted']"
+        aria-hidden="true"
+      >
+        <AppIcon :name="action.type === 'send_email' ? 'send' : 'landmark'" :size="22" />
+      </span>
+      <div class="grid min-w-0 flex-1 gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <AutonomyBadge :level="action.autonomy" />
+          <AutonomyBadge level="simulated" />
+          <span class="text-[0.8rem] text-muted">by {{ action.agent }}</span>
+          <SourceTag :source="action.source" />
+        </div>
+        <h3 class="text-lg font-bold leading-snug">{{ action.title }}</h3>
+      </div>
+      <div v-if="action.savings_12m > 0" class="hidden shrink-0 justify-items-end leading-tight sm:grid">
+        <span class="text-[0.78rem] text-muted">You save</span>
+        <span class="font-display text-2xl font-extrabold tabular-nums text-positive">{{ eur(action.savings_12m) }}</span>
+        <span class="text-[0.75rem] text-muted">next 12 months</span>
+      </div>
     </div>
 
-    <div class="grid gap-1.5">
-      <h3 class="text-lg font-bold">{{ action.title }}</h3>
-      <p><b>Why: </b>{{ action.why }}</p>
-      <p v-if="action.savings_12m > 0" class="text-sm">
-        Saves <b class="tabular-nums text-positive">{{ eur(action.savings_12m) }}</b> over the next 12 months.
-      </p>
-    </div>
+    <StatTile
+      v-if="action.savings_12m > 0"
+      class="sm:hidden"
+      icon="piggyBank"
+      tone="positive"
+      label="You save (next 12 months)"
+      :value="eur(action.savings_12m)"
+    />
+
+    <p class="grid grid-cols-[auto_1fr] gap-2 text-sm leading-relaxed text-muted">
+      <AppIcon name="recommendation" :size="17" class="mt-0.5 text-warn" />
+      <span><b class="text-fg">Why: </b>{{ action.why }}</span>
+    </p>
 
     <!-- send_email: editable draft -->
-    <label v-if="action.type === 'send_email'" class="grid gap-1.5">
-      <span class="text-sm text-muted">
-        Draft email to <b class="text-fg">{{ action.payload.to }}</b> – you can edit it before sending
+    <label v-if="action.type === 'send_email'" class="grid gap-2">
+      <span class="flex flex-wrap items-center gap-2 text-sm text-muted">
+        <AppIcon name="mail" /> To <b class="text-fg">{{ action.payload.to }}</b>
+        <span v-if="pending" class="flex items-center gap-1 text-[0.8rem]"><AppIcon name="pencil" :size="13" /> you can edit it</span>
       </span>
       <textarea
         v-model="body"
         :disabled="!pending"
-        rows="10"
+        rows="8"
         class="w-full rounded-lg border border-line bg-input p-3 font-mono text-[0.85rem] leading-relaxed text-fg disabled:opacity-70"
       />
     </label>
 
     <!-- credit_application: offer details -->
-    <div v-else class="grid gap-3 rounded-lg bg-input p-4">
-      <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div><dt class="text-muted">Product</dt><dd class="font-semibold">{{ action.payload.product }}</dd></div>
-        <div><dt class="text-muted">Amount</dt><dd class="font-semibold tabular-nums">{{ eur(action.payload.amount) }}</dd></div>
-        <div>
-          <dt class="text-muted">Needed</dt>
-          <dd class="font-semibold">{{ fmtDate(action.payload.from) }} – {{ fmtDate(action.payload.until) }}</dd>
-        </div>
-        <div>
-          <dt class="text-muted">Max. interest</dt>
-          <dd class="font-semibold tabular-nums">{{ eurCents(action.payload.max_interest_cost) }} ({{ action.payload.indicative_rate_pct }} %)</dd>
-        </div>
-      </dl>
-      <p class="text-sm text-muted">{{ action.payload.calculation }}</p>
-      <p class="text-xs text-muted">{{ action.payload.bank }} · {{ action.payload.note }}</p>
+    <div v-else class="grid gap-4 rounded-xl bg-input/70 p-4">
+      <p class="flex flex-wrap items-center gap-x-2 text-sm">
+        <b>{{ action.payload.product }}</b>
+        <span class="text-muted">· {{ action.payload.bank }}</span>
+      </p>
+      <div class="grid gap-4 sm:grid-cols-3">
+        <StatTile icon="euro" tone="info" label="Amount" :value="eur(action.payload.amount)" />
+        <StatTile
+          icon="calendar"
+          tone="info"
+          label="Needed"
+          :value="`${fmtDayMonth(action.payload.from)} – ${fmtDayMonth(action.payload.until)}`"
+        />
+        <StatTile
+          icon="landmark"
+          tone="info"
+          label="Max. interest"
+          :value="eurCents(action.payload.max_interest_cost)"
+          :sub="`${action.payload.indicative_rate_pct} % a year`"
+        />
+      </div>
+      <p class="text-[0.8rem] text-muted">{{ action.payload.calculation }} · {{ action.payload.note }}</p>
     </div>
 
     <div v-if="pending" class="flex flex-wrap gap-3">
