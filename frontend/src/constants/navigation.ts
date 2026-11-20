@@ -11,8 +11,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: "dashboard", label: "Overview", icon: "dashboard" },
-  { to: "findings", label: "Findings", icon: "inbox", badge: "findings" },
-  { to: "decisions", label: "Your decisions", icon: "decisions", badge: "pendingActions" },
+  { to: "decisions", label: "Action center", icon: "decisions", badge: "pendingActions" },
   { to: "policy", label: "Agent permissions", icon: "shield" },
   { to: "history", label: "History", icon: "history" },
 ];
