@@ -1,0 +1,22 @@
+{
+  "recurring_monthly": [
+    { "label": "Bauer Maschinenbau AG – monthly orders", "counterparty": "Bauer Maschinenbau AG", "category": "revenue", "amount": 38000, "day": 5 },
+    { "label": "Small customers – card & transfer income", "counterparty": "Various customers", "category": "revenue", "amount": 14000, "day": 15 },
+    { "label": "Schmidt Automotive – monthly orders", "counterparty": "Schmidt Automotive", "category": "revenue", "amount": 34000, "day": 25 },
+
+    { "label": "Office & workshop rent", "counterparty": "Immobilien Weber KG", "category": "rent", "amount": -6500, "day": 1 },
+    { "label": "Fees & subscriptions", "counterparty": "Various", "category": "other", "amount": -3000, "day": 3 },
+    { "label": "Office supplies", "counterparty": "PaperPro GmbH", "category": "supplier", "amount": -1200, "day": 5 },
+    { "label": "Cloud hosting & ERP", "counterparty": "CloudHost GmbH", "category": "supplier", "amount": -9800, "day": 15 },
+    { "label": "Raw materials (steel, aluminium)", "counterparty": "Stahlhandel Nord", "category": "supplier", "amount": -14000, "day": 20 },
+    { "label": "Payroll (12 employees)", "counterparty": "Employees", "category": "payroll", "amount": -46000, "day": 28 },
+    { "label": "Machine loan repayment", "counterparty": "Commerzbank", "category": "loan", "amount": -2500, "day": 30 }
+  ],
+  "one_off": [
+    { "label": "Christmas bonus (Weihnachtsgeld)", "counterparty": "Employees", "category": "payroll", "amount": -18000, "date": "2026-11-30" },
+    { "label": "Corporate tax prepayment Q4", "counterparty": "Finanzamt", "category": "tax", "amount": -12000, "date": "2026-12-10" },
+    { "label": "CNC machine maintenance", "counterparty": "Maschinenservice Huber", "category": "supplier", "amount": -9000, "date": "2027-01-22" },
+    { "label": "Annual business insurance premium", "counterparty": "Allianz", "category": "other", "amount": -11000, "date": "2027-01-26" },
+    { "label": "Project invoice #2026-114 – Bauer Maschinenbau AG", "counterparty": "Bauer Maschinenbau AG", "category": "revenue", "amount": 42000, "date": "2027-02-10" }
+  ]
+}

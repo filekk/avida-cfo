@@ -1,0 +1,134 @@
+"""Deterministic cash-flow forecast. No LLM here – numbers must be exact and explainable."""
+from __future__ import annotations
+
+import calendar
+import math
+from dataclasses import asdict, dataclass
+from datetime import date, timedelta
+
+
+@dataclass
+class CashItem:
+    date: date
+    amount: float
+    label: str
+    category: str
+    counterparty: str
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["date"] = self.date.isoformat()
+        return d
+
+
+@dataclass
+class Adjustment:
+    """A change to a recurring item, e.g. a supplier price increase."""
+
+    counterparty: str
+    monthly_delta: float  # positive = costs more each month
+    effective: date
+    label: str
+
+
+def _month_iter(start: date, end: date):
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        yield y, m
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+
+
+def expand_items(cashflows: dict, start: date, days: int, adjustments: list[Adjustment] | None = None) -> list[CashItem]:
+    """Turn recurring + one-off definitions into dated items within [start, start+days)."""
+    end = start + timedelta(days=days - 1)
+    adjustments = adjustments or []
+    items: list[CashItem] = []
+
+    for rec in cashflows.get("recurring_monthly", []):
+        for y, m in _month_iter(start, end):
+            day = min(rec["day"], calendar.monthrange(y, m)[1])
+            d = date(y, m, day)
+            if not (start <= d <= end):
+                continue
+            amount = float(rec["amount"])
+            label = rec["label"]
+            for adj in adjustments:
+                if adj.counterparty == rec["counterparty"] and d >= adj.effective:
+                    # Outflows are negative: a price increase makes them more negative.
+                    amount -= adj.monthly_delta
+                    label = f"{label} ({adj.label})"
+            items.append(CashItem(d, amount, label, rec["category"], rec["counterparty"]))
+
+    for one in cashflows.get("one_off", []):
+        d = date.fromisoformat(one["date"])
+        if start <= d <= end:
+            items.append(CashItem(d, float(one["amount"]), one["label"], one["category"], one["counterparty"]))
+
+    items.sort(key=lambda i: (i.date, -i.amount))
+    return items
+
+
+def run_forecast(start_balance: float, items: list[CashItem], start: date, days: int, buffer: float) -> dict:
+    by_day: dict[date, float] = {}
+    for it in items:
+        by_day[it.date] = by_day.get(it.date, 0.0) + it.amount
+
+    balance = start_balance
+    series = []
+    min_balance, min_date = start_balance, start
+    first_breach: date | None = None
+    last_breach: date | None = None
+    for i in range(days):
+        d = start + timedelta(days=i)
+        balance += by_day.get(d, 0.0)
+        series.append({"date": d.isoformat(), "balance": round(balance, 2)})
+        if balance < min_balance:
+            min_balance, min_date = balance, d
+        if balance < buffer:
+            first_breach = first_breach or d
+            last_breach = d
+
+    return {
+        "start_balance": start_balance,
+        "end_balance": round(balance, 2),
+        "min_balance": round(min_balance, 2),
+        "min_date": min_date.isoformat(),
+        "buffer": buffer,
+        "first_breach_date": first_breach.isoformat() if first_breach else None,
+        "last_breach_date": last_breach.isoformat() if last_breach else None,
+        "days_safe": (first_breach - start).days if first_breach else days,
+        "horizon_days": days,
+        "series": series,
+    }
+
+
+def size_credit_line(forecast: dict, offer: dict) -> dict | None:
+    """Propose an overdraft that keeps the balance above the safety buffer."""
+    gap = forecast["buffer"] - forecast["min_balance"]
+    if gap <= 0:
+        return None
+    step = offer.get("step", 5000)
+    amount = math.ceil(gap / step) * step
+    start = date.fromisoformat(forecast["first_breach_date"])
+    end = date.fromisoformat(forecast["last_breach_date"])
+    days_needed = (end - start).days + 1
+    rate = offer["indicative_rate_pct"] / 100
+    # Upper bound: assumes the full amount is drawn for the whole period.
+    max_interest = amount * rate * days_needed / 365
+    return {
+        "product": offer["product"],
+        "bank": offer["bank"],
+        "amount": amount,
+        "gap": round(gap, 2),
+        "from": start.isoformat(),
+        "until": end.isoformat(),
+        "days_needed": days_needed,
+        "indicative_rate_pct": offer["indicative_rate_pct"],
+        "max_interest_cost": round(max_interest, 2),
+        "calculation": (
+            f"Lowest balance {forecast['min_balance']:,.0f} EUR on {forecast['min_date']} vs. safety buffer "
+            f"{forecast['buffer']:,.0f} EUR → gap {gap:,.0f} EUR, rounded up to {amount:,.0f} EUR. "
+            f"Max. interest: {amount:,.0f} × {offer['indicative_rate_pct']}% × {days_needed}/365 = {max_interest:,.0f} EUR."
+        ),
+        "note": offer.get("note", ""),
+    }

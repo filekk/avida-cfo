@@ -1,0 +1,48 @@
+# Alternative to `oc new-app`: declarative Deployment + Service + Route.
+# Replace the image with the one built by OpenShift (oc get is avida-cfo).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avida-cfo
+  labels: { app: avida-cfo }
+spec:
+  replicas: 1   # in-memory state – keep a single replica
+  selector:
+    matchLabels: { app: avida-cfo }
+  template:
+    metadata:
+      labels: { app: avida-cfo }
+    spec:
+      containers:
+        - name: avida-cfo
+          image: image-registry.openshift-image-registry.svc:5000/avida-cfo/avida-cfo:latest
+          ports: [{ containerPort: 8080 }]
+          envFrom: [{ configMapRef: { name: avida-cfo-config } }]
+          readinessProbe:
+            httpGet: { path: /api/health, port: 8080 }
+          livenessProbe:
+            httpGet: { path: /api/health, port: 8080 }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: avida-cfo
+spec:
+  selector: { app: avida-cfo }
+  ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: avida-cfo
+  annotations:
+    # SSE stream of the agent trace must not be cut by the router
+    haproxy.router.openshift.io/timeout: 180s
+spec:
+  to: { kind: Service, name: avida-cfo }
+  port: { targetPort: 8080 }
+  tls: { termination: edge, insecureEdgeTerminationPolicy: Redirect }

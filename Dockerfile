@@ -1,0 +1,25 @@
+# Single image: builds the Vue app, then serves it from FastAPI on :8080.
+# OpenShift builds this automatically: oc new-app <repo-url> --strategy=docker
+
+# --- 1) Frontend build --------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS frontend
+WORKDIR /opt/app-root/src
+COPY --chown=1001:0 frontend/package*.json ./
+RUN npm install --no-audit --no-fund
+COPY --chown=1001:0 frontend/ ./
+RUN npm run build
+
+# --- 2) Backend runtime -------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/python-311:latest
+WORKDIR /opt/app-root/src
+COPY --chown=1001:0 backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY --chown=1001:0 backend/ ./
+COPY --from=frontend --chown=1001:0 /opt/app-root/src/dist ./static
+
+# OpenShift runs with a random UID in group 0 – make files group-readable.
+RUN chmod -R g=u /opt/app-root/src
+USER 1001
+ENV STATIC_DIR=/opt/app-root/src/static PYTHONUNBUFFERED=1
+EXPOSE 8080
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

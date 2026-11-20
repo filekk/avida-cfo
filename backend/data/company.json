@@ -1,0 +1,17 @@
+{
+  "name": "Müller Feinmechanik GmbH",
+  "owner": "Petra Müller",
+  "city": "Frankfurt am Main",
+  "currency": "EUR",
+  "accounts": [
+    { "iban": "DE89 3704 0044 0532 0130 00", "name": "Business current account", "balance": 93000 }
+  ],
+  "safety_buffer": 15000,
+  "credit_offer": {
+    "product": "Business overdraft facility (Kontokorrentkredit)",
+    "bank": "Commerzbank (simulated offer)",
+    "indicative_rate_pct": 9.5,
+    "step": 5000,
+    "note": "Indicative, simulated terms for demo purposes only."
+  }
+}
