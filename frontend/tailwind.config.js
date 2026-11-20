@@ -53,11 +53,35 @@ export default {
       mono: ['"JetBrains Mono"', "ui-monospace", "Consolas", "monospace"],
     },
     extend: {
+      /*
+       * Type scale – the ONLY font sizes to use (no `text-[0.7rem]` one-offs). rem-based on purpose:
+       * the accessibility menu scales <html> font-size and everything follows.
+       * caption 13px = the floor (pills, badges, axis labels, eyebrows) · label 14px = secondary text.
+       */
+      fontSize: {
+        xs: ["0.8125rem", { lineHeight: "1.35" }], // safety net: never below 13px
+        caption: ["0.8125rem", { lineHeight: "1.35" }],
+        label: ["0.875rem", { lineHeight: "1.4" }],
+        body: ["1rem", { lineHeight: "1.6" }],
+        kpi: ["1.625rem", { lineHeight: "1.15", letterSpacing: "-0.015em" }],
+      },
       boxShadow: {
         card: "0 1px 2px 0 rgb(14 42 71 / 0.04)",
+        lift: "0 10px 28px -16px rgb(14 42 71 / 0.30)",
         float: "0 24px 60px -30px rgb(14 42 71 / 0.35)",
       },
-      letterSpacing: { eyebrow: ".12em" },
+      letterSpacing: { eyebrow: ".1em" },
+      /* Motion tokens – same curve & speeds everywhere (mirrored as CSS vars in main.css). */
+      transitionTimingFunction: {
+        DEFAULT: "cubic-bezier(0.22, 1, 0.36, 1)",
+        out: "cubic-bezier(0.22, 1, 0.36, 1)",
+        "in-out": "cubic-bezier(0.65, 0, 0.35, 1)",
+      },
+      transitionDuration: { DEFAULT: "200ms", fast: "150ms", base: "250ms", slow: "400ms" },
+      keyframes: {
+        rise: { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },
+      },
+      animation: { rise: "rise 400ms cubic-bezier(0.22, 1, 0.36, 1) both" },
     },
   },
   plugins: [],

@@ -32,7 +32,8 @@ const avoidable = computed(() => notAllowed.value.reduce((sum, f) => sum + f.imp
         <StatTile icon="piggyBank" tone="positive" label="You can avoid (12 months)" :value="eur(avoidable)" />
       </div>
     </BaseCard>
-    <div class="grid gap-3">
+    <!-- half-width cards read better than full-width bands (same grid as the overview) -->
+    <div class="grid gap-4 md:grid-cols-2">
       <FindingCard v-for="f in findings" :key="f.id" :finding="f" />
     </div>
   </template>

@@ -93,3 +93,81 @@
     color-scheme: dark;
   }
 }
+
+/* ============================================================================================
+ * Accessibility menu (composables/useA11y.ts → attributes on <html>, applied before first paint)
+ * ========================================================================================== */
+
+/* Text size – every size in the app is rem-based, so the root font-size scales the whole UI. */
+:root[data-text="lg"] { font-size: 112.5%; }
+:root[data-text="xl"] { font-size: 125%; }
+:root[data-text="xxl"] { font-size: 137.5%; }
+
+/*
+ * High contrast – stronger secondary text, visible borders (≥ 3:1), darker status colours.
+ * Ratios (WCAG, default → high): light muted 6.8 → 9.5:1 on surface, 6.2 → 8.3:1 on input, line 1.3 → 3.2:1;
+ * dark muted 7.1 → 10.7:1 on surface, 7.7 → 11.5:1 on input, line 1.3 → 3.3:1. Status colours ≥ 7.5:1 on their soft tints.
+ */
+:root[data-contrast="high"] {
+  --c-line: 125 147 170;        /* #7D93AA – borders 3.2:1 on white */
+  --c-input: 234 240 247;       /* #EAF0F7 – fields/tracks stay distinct from cards */
+  --c-grid: 200 213 227;        /* #C8D5E3 */
+  --c-fg: 8 30 54;              /* #081E36 */
+  --c-muted: 51 71 93;          /* #33475D – 9.5:1 on white */
+  --c-side-fg: 213 226 239;     /* #D5E2EF – 11:1 on navy */
+  --c-gold: 107 76 0;           /* #6B4C00 – 7.9:1 */
+  --c-mist-fg: 8 53 90;         /* #08355A – 10:1 on mist */
+  --c-positive: 7 82 71;        /* #075247 – 9.1:1 */
+  --c-negative: 142 26 18;      /* #8E1A12 – 9.1:1 */
+  --c-warn: 92 65 0;            /* #5C4100 – 9.6:1 */
+  --c-chart-alt: 142 26 18;
+}
+:root[data-contrast="high"][data-theme="dark"] {
+  --c-line: 90 116 145;         /* #5A7491 – 3.3:1 on surface */
+  --c-input: 13 29 49;
+  --c-grid: 46 74 107;          /* #2E4A6B */
+  --c-fg: 248 251 255;
+  --c-muted: 201 214 228;       /* #C9D6E4 – 10.7:1 on surface */
+  --c-side-fg: 201 214 228;
+  --c-gold: 255 214 112;
+  --c-mist-fg: 220 238 255;
+  --c-positive: 150 252 236;
+  --c-negative: 255 184 184;
+  --c-warn: 255 214 112;
+  --c-chart-alt: 255 184 184;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="high"]:not([data-theme="light"]) {
+    --c-line: 90 116 145;
+    --c-input: 13 29 49;
+    --c-grid: 46 74 107;
+    --c-fg: 248 251 255;
+    --c-muted: 201 214 228;
+    --c-side-fg: 201 214 228;
+    --c-gold: 255 214 112;
+    --c-mist-fg: 220 238 255;
+    --c-positive: 150 252 236;
+    --c-negative: 255 184 184;
+    --c-warn: 255 214 112;
+    --c-chart-alt: 255 184 184;
+  }
+}
+
+/* Underline links – every link (incl. links styled as buttons) gets a clear underline. */
+:root[data-links="underline"] a {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Readable spacing – a bit more air between letters, words and lines (WCAG 1.4.12 direction). */
+:root[data-spacing="wide"] body {
+  letter-spacing: 0.02em;
+  word-spacing: 0.08em;
+}
+:root[data-spacing="wide"] p,
+:root[data-spacing="wide"] li,
+:root[data-spacing="wide"] blockquote,
+:root[data-spacing="wide"] textarea {
+  line-height: 1.8;
+}

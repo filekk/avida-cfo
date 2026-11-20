@@ -15,7 +15,7 @@ withDefaults(defineProps<{ onDark?: boolean; showText?: boolean; size?: number }
 <template>
   <RouterLink
     :to="{ name: 'dashboard' }"
-    :class="['flex w-fit items-center gap-2.5 font-display text-[1.1rem] font-extrabold', onDark ? 'text-white' : 'text-fg']"
+    :class="['flex w-fit items-center gap-2.5 font-display text-lg font-extrabold', onDark ? 'text-white' : 'text-fg']"
     aria-label="Avida CFO, go to overview"
   >
     <img

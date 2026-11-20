@@ -3,12 +3,14 @@ import { computed } from "vue";
 import { getAudit } from "@/api";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import type { IconName } from "@/components/ui/icons";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
+import IconTile from "@/components/ui/IconTile.vue";
+import type { IconName } from "@/components/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
+import type { Tone } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
 import type { AuditEntry } from "@/types/api";
 import { fmtDateTime } from "@/utils/format";
@@ -17,13 +19,13 @@ import { fmtDateTime } from "@/utils/format";
 const { data: audit, loading, error, reload } = useAsyncData(getAudit);
 const entries = computed(() => (audit.value ? [...audit.value].reverse() : []));
 
-const EVENT: Record<string, { label: string; icon: IconName; node: string }> = {
-  sync_started: { label: "Check started", icon: "inbox", node: "bg-mist text-mist-fg" },
-  sync_finished: { label: "Check finished", icon: "checkCircle", node: "bg-mist text-mist-fg" },
-  approved: { label: "Approved", icon: "check", node: "bg-positive-soft text-positive" },
-  rejected: { label: "Declined", icon: "xCircle", node: "bg-input text-muted" },
+const EVENT: Record<string, { label: string; icon: IconName; tone: Tone }> = {
+  sync_started: { label: "Check started", icon: "inbox", tone: "info" },
+  sync_finished: { label: "Check finished", icon: "checkCircle", tone: "info" },
+  approved: { label: "Approved", icon: "check", tone: "positive" },
+  rejected: { label: "Declined", icon: "xCircle", tone: "neutral" },
 };
-const eventMeta = (e: AuditEntry) => EVENT[e.event] ?? { label: e.event, icon: "history" as const, node: "bg-input text-muted" };
+const eventMeta = (e: AuditEntry) => EVENT[e.event] ?? { label: e.event, icon: "history" as const, tone: "neutral" as const };
 
 function describe(e: AuditEntry): string {
   if (e.event === "sync_finished") return `${e.findings ?? 0} findings, ${e.actions ?? 0} proposed actions`;
@@ -43,23 +45,25 @@ function describe(e: AuditEntry): string {
 
   <BaseCard v-else-if="entries.length">
     <ol class="grid">
-      <li v-for="(e, i) in entries" :key="i" class="relative grid grid-cols-[2.25rem_1fr] gap-3 pb-5 last:pb-0">
+      <li
+        v-for="(e, i) in entries"
+        :key="`${e.time}-${e.event}-${i}`"
+        class="relative grid grid-cols-[2.5rem_1fr] gap-3 pb-6 animate-rise last:pb-0"
+      >
         <span
           v-if="i < entries.length - 1"
-          class="absolute bottom-0 left-[1.125rem] top-10 w-px -translate-x-1/2 bg-line"
+          class="absolute bottom-0 left-5 top-11 w-px -translate-x-1/2 bg-line"
           aria-hidden="true"
         />
-        <span :class="['grid h-9 w-9 place-items-center rounded-full', eventMeta(e).node]" aria-hidden="true">
-          <AppIcon :name="eventMeta(e).icon" />
-        </span>
-        <div class="grid gap-0.5 pt-1.5">
-          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+        <IconTile :icon="eventMeta(e).icon" :tone="eventMeta(e).tone" size="sm" round />
+        <div class="grid gap-1 pt-1.5">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <b class="font-semibold">{{ eventMeta(e).label }}</b>
-            <span class="flex items-center gap-1 text-[0.8rem] tabular-nums text-muted">
-              <AppIcon name="clock" :size="12" /> {{ fmtDateTime(e.time) }}
+            <span class="flex items-center gap-1.5 text-label tabular-nums text-muted">
+              <AppIcon name="clock" :size="14" /> {{ fmtDateTime(e.time) }}
             </span>
           </div>
-          <span v-if="describe(e)" class="text-sm text-muted">{{ describe(e) }}</span>
+          <span v-if="describe(e)" class="text-sm leading-snug text-muted">{{ describe(e) }}</span>
         </div>
       </li>
     </ol>

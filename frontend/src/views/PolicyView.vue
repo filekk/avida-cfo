@@ -4,8 +4,10 @@ import AutonomyLegend from "@/components/agent/AutonomyLegend.vue";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import IconTile from "@/components/ui/IconTile.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
+import { TONE_SOFT } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
 import { agentIcon } from "@/constants/agents";
 import { AUTONOMY, AUTONOMY_ORDER } from "@/constants/autonomy";
@@ -34,46 +36,46 @@ const applies = (row: PolicyRule, level: Autonomy) =>
   </AlertBanner>
   <SkeletonBlock v-else-if="loading && !policy" height="h-64" />
 
-  <BaseCard v-else-if="policy" title="Who may do what" :padded="false">
+  <BaseCard v-else-if="policy" title="Who may do what" :padded="false" class="animate-rise">
     <!-- relative: keeps the absolutely-positioned sr-only labels inside the scroll box (else they widen the page) -->
     <div class="relative overflow-x-auto">
-      <table class="w-full min-w-[640px] border-collapse text-sm">
+      <table class="w-full min-w-[680px] border-collapse">
         <thead>
           <tr>
-            <th class="border-b border-line px-5 py-3 text-left text-[0.72rem] font-semibold uppercase tracking-wider text-muted">
+            <th class="border-b border-line px-5 py-3 text-left align-bottom text-caption font-semibold uppercase tracking-eyebrow text-muted">
               Action
             </th>
-            <th v-for="l in AUTONOMY_ORDER" :key="l" class="w-[7.5rem] border-b border-line px-2 py-3 align-top font-semibold">
-              <span class="grid justify-items-center gap-1.5">
-                <span :class="['grid h-8 w-8 place-items-center rounded-lg', AUTONOMY[l].classes]">
-                  <AppIcon :name="AUTONOMY[l].icon" :size="15" />
-                </span>
-                <span class="text-[0.72rem] leading-tight text-muted">{{ AUTONOMY[l].label }}</span>
+            <th v-for="l in AUTONOMY_ORDER" :key="l" class="w-[8rem] border-b border-line px-2 py-3 align-top font-semibold">
+              <span class="grid justify-items-center gap-2">
+                <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" size="sm" :class="AUTONOMY[l].tile" />
+                <span class="text-caption leading-tight text-muted">{{ AUTONOMY[l].label }}</span>
               </span>
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in policy" :key="row.action" class="[&:not(:last-child)>td]:border-b [&>td]:border-line">
-            <td class="px-5 py-3">
+          <tr
+            v-for="row in policy"
+            :key="row.action"
+            class="transition-colors duration-fast hover:bg-input/60 [&:not(:last-child)>td]:border-b [&>td]:border-line"
+          >
+            <td class="px-5 py-3.5">
               <span class="flex items-center gap-3">
-                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-input text-muted" aria-hidden="true">
-                  <AppIcon :name="agentIcon(row.agent)" />
-                </span>
-                <span class="grid leading-tight">
+                <IconTile :icon="agentIcon(row.agent)" tone="neutral" size="sm" />
+                <span class="grid gap-0.5 leading-tight">
                   <b class="font-semibold">{{ row.action }}</b>
-                  <span class="text-[0.78rem] text-muted">{{ row.agent }}</span>
+                  <span class="text-label text-muted">{{ row.agent }}</span>
                 </span>
               </span>
             </td>
-            <td v-for="l in AUTONOMY_ORDER" :key="l" class="px-2 py-3 text-center">
+            <td v-for="l in AUTONOMY_ORDER" :key="l" class="px-2 py-3.5 text-center">
               <span
                 v-if="applies(row, l)"
-                :class="['inline-grid h-7 w-7 place-items-center rounded-full', AUTONOMY[l].classes]"
+                :class="['inline-grid h-8 w-8 place-items-center rounded-full', TONE_SOFT[AUTONOMY[l].tone], AUTONOMY[l].tile]"
               >
-                <AppIcon name="check" :size="14" /><span class="sr-only">{{ AUTONOMY[l].label }}</span>
+                <AppIcon name="check" :size="16" /><span class="sr-only">{{ AUTONOMY[l].label }}</span>
               </span>
-              <span v-else class="inline-block h-1.5 w-1.5 rounded-full bg-line" aria-hidden="true" />
+              <span v-else class="inline-block h-2 w-2 rounded-full bg-muted/40" aria-hidden="true" />
             </td>
           </tr>
         </tbody>

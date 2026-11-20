@@ -12,7 +12,10 @@ import StatTile from "@/components/ui/StatTile.vue";
 import { useDashboardStore } from "@/stores/dashboard";
 import { eur } from "@/utils/format";
 
-/** Every action proposed by the agents. Pending first; nothing happens without a click. */
+/**
+ * Every action proposed by the agents. Pending first; nothing happens without a click.
+ * One TransitionGroup → a decided card glides down to "Already decided" instead of jumping there.
+ */
 const store = useDashboardStore();
 const { actions, pendingActions, loading, dashboard, deciding, error, kpis } = storeToRefs(store);
 const decided = computed(() => actions.value.filter((a) => a.status !== "pending"));
@@ -37,7 +40,14 @@ const decided = computed(() => actions.value.filter((a) => a.status !== "pending
       </div>
     </BaseCard>
 
-    <section v-if="pendingActions.length" class="grid gap-4" aria-label="Waiting for you">
+    <TransitionGroup
+      tag="div"
+      class="grid gap-4"
+      move-class="transition-transform duration-slow"
+      enter-active-class="transition-[opacity,transform] duration-base"
+      enter-from-class="opacity-0 translate-y-2"
+    >
+      <h2 v-if="pendingActions.length" key="h-pending" class="sr-only">Waiting for you</h2>
       <ActionCard
         v-for="a in pendingActions"
         :key="a.id"
@@ -45,12 +55,9 @@ const decided = computed(() => actions.value.filter((a) => a.status !== "pending
         :busy="deciding.has(a.id)"
         @decide="(id, approve, body) => store.decide(id, approve, body)"
       />
-    </section>
-
-    <section v-if="decided.length" class="grid gap-4" aria-label="Already decided">
-      <h2 class="eyebrow mt-2">Already decided</h2>
+      <h2 v-if="decided.length" key="h-decided" class="eyebrow mt-2">Already decided</h2>
       <ActionCard v-for="a in decided" :key="a.id" :action="a" />
-    </section>
+    </TransitionGroup>
   </template>
 
   <EmptyState

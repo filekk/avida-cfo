@@ -10,11 +10,11 @@ withDefaults(defineProps<{ title?: string; eyebrow?: string; padded?: boolean; a
   <component :is="as" class="min-w-0 rounded-xl border border-line bg-surface shadow-card">
     <header
       v-if="title || eyebrow || $slots.actions"
-      :class="['flex flex-wrap items-center justify-between gap-2', padded ? 'px-4 pt-4 sm:px-5' : 'px-4 py-3 sm:px-5']"
+      :class="['flex flex-wrap items-center justify-between gap-x-3 gap-y-2', padded ? 'px-4 pt-4 sm:px-5 sm:pt-5' : 'px-4 py-3 sm:px-5']"
     >
-      <div class="grid gap-1.5">
+      <div class="grid gap-2">
         <span v-if="eyebrow" class="eyebrow">{{ eyebrow }}</span>
-        <h2 v-if="title" class="text-base font-bold">{{ title }}</h2>
+        <h2 v-if="title" class="text-lg font-bold leading-tight">{{ title }}</h2>
       </div>
       <div v-if="$slots.actions" class="flex flex-wrap items-center gap-2"><slot name="actions" /></div>
     </header>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppIcon from "@/components/ui/AppIcon.vue";
+import IconTile from "@/components/ui/IconTile.vue";
 import { AUTONOMY, AUTONOMY_ORDER } from "@/constants/autonomy";
 import AutonomyBadge from "./AutonomyBadge.vue";
 
@@ -9,22 +10,25 @@ withDefaults(defineProps<{ detailed?: boolean }>(), { detailed: false });
 
 <template>
   <ol v-if="detailed" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    <li v-for="(l, i) in AUTONOMY_ORDER" :key="l" class="relative grid content-start gap-3 rounded-xl bg-input/70 p-4">
+    <li v-for="(l, i) in AUTONOMY_ORDER" :key="l" class="relative grid content-start gap-3 rounded-xl bg-input p-4">
       <div class="flex items-center gap-3">
-        <span :class="['grid h-10 w-10 shrink-0 place-items-center rounded-xl', AUTONOMY[l].classes]">
-          <AppIcon :name="AUTONOMY[l].icon" :size="19" />
-        </span>
-        <span class="font-display text-2xl font-extrabold text-line" aria-hidden="true">{{ i + 1 }}</span>
+        <!-- step number: readable (muted on surface ≈ 6.5:1), not decorative grey; left of the tile so the
+             arrow to the next level on the right edge has room -->
+        <span
+          class="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-surface font-display text-label font-bold text-muted"
+          aria-hidden="true"
+        >{{ i + 1 }}</span>
+        <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" :class="AUTONOMY[l].tile" />
       </div>
       <AutonomyBadge :level="l" />
-      <span class="text-sm leading-snug text-muted">{{ AUTONOMY[l].description }}</span>
-      <!-- arrow to the next level (single row on lg) -->
+      <span class="text-label leading-snug text-muted">{{ AUTONOMY[l].description }}</span>
+      <!-- arrow to the next level (single row on lg), centred on the 12px gap -->
       <span
         v-if="i < AUTONOMY_ORDER.length - 1"
-        class="absolute -right-[1.05rem] top-7 z-10 hidden h-6 w-6 place-items-center rounded-full border border-line bg-surface text-muted lg:grid"
+        class="absolute -right-5 top-[1.625rem] z-10 hidden h-7 w-7 place-items-center rounded-full border border-line bg-surface text-muted lg:grid"
         aria-hidden="true"
       >
-        <AppIcon name="arrowRight" :size="13" />
+        <AppIcon name="arrowRight" :size="14" />
       </span>
     </li>
   </ol>
