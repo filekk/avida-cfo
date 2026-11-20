@@ -15,7 +15,7 @@ PRICE_TERMS = ("price", "fee", "increase", "adjust", "index", "notice", "fixed",
 SYSTEM = (
     "You are the Contract Agent of a CFO assistant for a small company owner who is not a lawyer. "
     "You get contract clauses, a supplier's price change and the results of automatic rule checks. "
-    "Explain in 2-3 short, friendly sentences whether the increase is allowed, and pick the single clause "
+    "Explain in at most 2 short, friendly sentences whether the increase is allowed, and pick the single clause "
     "that matters most. Quote it word for word. Do not give legal advice beyond the contract text. Answer with JSON only."
 )
 
@@ -98,6 +98,9 @@ async def check_price_change(extraction: dict, received: str) -> tuple[dict, str
         fb = fallback.contract_explanation("unclear", extraction["supplier"], [], None)
         return {"verdict": "unclear", "contract": None, "checks": [], "clauses": [], **fb}, "rules"
 
+    # The model may return "CloudHost GmbH – Billing" etc. Use the contract's canonical name from here on,
+    # so the forecast matches the right cash-flow line.
+    extraction["supplier"] = contract["supplier"]
     clauses = retrieve_clauses(contract)
     checks = rule_checks(contract, extraction, date.fromisoformat(received))
     failed = [c for c in checks if not c["passed"]]

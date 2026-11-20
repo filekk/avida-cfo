@@ -16,9 +16,9 @@ class Settings:
     # OpenAI-compatible endpoint exposed by vLLM on OpenShift AI, e.g.
     # http://<model>-predictor.<namespace>.svc.cluster.local:8080/v1
     llm_base_url: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
-    llm_model: str = os.getenv("LLM_MODEL", "qwen25-7b-instruct")
+    llm_model: str = os.getenv("LLM_MODEL", "granite-8b")
     llm_api_key: str = os.getenv("LLM_API_KEY", "EMPTY")
-    llm_timeout_s: float = float(os.getenv("LLM_TIMEOUT_S", "25"))
+    llm_timeout_s: float = float(os.getenv("LLM_TIMEOUT_S", "60"))
     llm_enabled: bool = _bool("LLM_ENABLED", True)
     # If the model is unreachable or returns garbage, use canned answers instead of failing the demo.
     demo_fallback: bool = _bool("DEMO_FALLBACK", True)

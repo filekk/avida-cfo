@@ -9,7 +9,7 @@ data:
   LLM_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
   # Must match the served model name (curl $LLM_BASE_URL/models)
   LLM_MODEL: "granite-8b"
-  LLM_TIMEOUT_S: "25"
+  LLM_TIMEOUT_S: "60"
   LLM_ENABLED: "true"
   DEMO_FALLBACK: "true"
   FORECAST_DAYS: "90"
