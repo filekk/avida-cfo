@@ -3,7 +3,7 @@
 Live backend (real Granite model on OpenShift AI):
 `https://avida-cfo-avida-cfo.apps.ocp.8c6kp.sandbox2571.opentlc.com`
 
-Interactivee docs (try every endpoint in the browser): **`/docs`** · machine-readable: `/openapi.json`
+Interactive docs (try every endpoint in the browser): **`/docs`** · machine-readable: `/openapi.json`
 
 > Developing the frontend locally? Don't run the backend – proxy `/api` to the cluster.
 > Vite: `server: { proxy: { "/api": { target: "<live URL>", changeOrigin: true, secure: false } } }`
@@ -44,11 +44,42 @@ es.addEventListener("error",  e => { showError(e.data ? JSON.parse(e.data).messa
 
 `trace` event:
 ```json
-{ "type": "trace", "agent": "Contract Agent", "autonomy": "recommendation",
+{ "type": "trace", "agent": "Legal Agent", "autonomy": "recommendation",
   "message": "CloudHost GmbH: increase is NOT allowed by the contract (§5.2).", "source": "llm" }
 ```
 
-- `agent`: `Inbox Agent` | `Contract Agent` | `Liquidity Agent`
+Handoff between agents (show as an arrow / chat bubble from one agent to another):
+```json
+{ "type": "trace", "agent": "Legal Agent", "to": "Negotiator Agent", "kind": "handoff", "autonomy": "analyzed",
+  "message": "Use §5.2 – Prices are fixed until 31 Aug 2027, but the increase starts on 01 Jan 2027." }
+```
+
+- `agent`: `Analyst Agent` | `Legal Agent` | `Negotiator Agent` (details in `Dashboard.agents`)
+- `to` + `kind: "handoff"` (optional): the step is a message from `agent` to `to`.
+
+### The three agents and how they collaborate
+
+| Agent | Role | Does |
+|---|---|---|
+| 📊 Analyst Agent | numbers | reads the inbox, forecasts 90 days in 3 scenarios, sizes the credit line, writes the briefing |
+| ⚖️ Legal Agent | lawyer | checks each price change against the contract; **reviews every draft email** before the owner sees it |
+| ✉️ Negotiator Agent | writer | drafts the reply from the lawyer's clause + the analyst's figures; revises once if the lawyer finds issues |
+
+Typical sequence of trace events:
+```
+Analyst  reads 3 emails → finds 2 price changes
+Analyst  → Legal       "Please check 2 price changes"
+Legal    verdicts (CloudHost: NOT allowed §5.2, PaperPro: allowed)
+Legal    → Analyst     "Verdicts: …"
+Analyst  forecast, lowest balance
+Analyst  → Negotiator  prices + yearly impact
+Legal    → Negotiator  clause + violations
+Negotiator draft written
+Negotiator → Legal     "Please review my draft"
+Legal    approved   (or: Legal → Negotiator "Found issues…", Negotiator revised, Legal approved)
+Negotiator ✋ waiting for approval (email)    Analyst ✋ waiting for approval (overdraft)
+Analyst  briefing ready
+```
 - `autonomy` (**must be visible in the UI – required by the challenge**):
 
 | value | label for the UI | meaning |
@@ -71,6 +102,15 @@ es.addEventListener("error",  e => { showError(e.data ? JSON.parse(e.data).messa
     "balance_today": 93000, "days_safe": 73,
     "min_balance": 10958, "min_date": "2027-02-03",
     "safety_buffer": 15000, "saved_liquidity": 0        // grows after approvals
+  },
+  "agents": [ { "name": "Analyst Agent", "role": "Analyst", "icon": "📊", "does": "…" }, … ],   // for an "our team" panel
+  "analysis": {                                        // Analyst's briefing; null before sync
+    "summary": "…max 2 sentences written by the model…",
+    "key_points": [ "If you follow the advice, your lowest balance is 10,958 EUR on 2027-02-03 (safety cushion: 15,000 EUR).",
+                    "If you accept every price increase, it drops to 9,488 EUR.",
+                    "Rejecting the CloudHost GmbH increase keeps 17,640 EUR per year in your company.", … ],  // exact, computed
+    "risk_level": "medium",                            // low | medium | high → colour
+    "source": "llm"
   },
   "scenarios": {                                       // before sync only "current" exists
     "current":     Forecast,                           // no price changes
@@ -121,14 +161,16 @@ es.addEventListener("error",  e => { showError(e.data ? JSON.parse(e.data).messa
   "id": "act-1", "type": "send_email",          // send_email | credit_application
   "title": "Reject the 15% price increase from CloudHost GmbH",
   "why": "…one-paragraph reason…",
-  "agent": "Liquidity Agent", "autonomy": "approval", "execution": "simulated",
+  "agent": "Negotiator Agent", "autonomy": "approval", "execution": "simulated",
   "status": "pending",                          // pending | executed | rejected
   "savings_12m": 17640,
   "payload": { "to": "billing@cloudhost.example", "body": "Subject: …\n\nDear …" },   // editable textarea
+  "reviewed_by": "Legal Agent",                 // send_email only
+  "review": { "approved": true, "issues": [], "rounds": 1 },   // "✔ Checked by the Legal Agent" badge; rounds 2 = was revised
   "result": "Email to … sent (simulated – nothing left the system)."                  // after approve
 }
 ```
-For `credit_application` the payload is:
+For `credit_application` (agent `Analyst Agent`) the payload is:
 ```jsonc
 { "product": "Business overdraft facility (Kontokorrentkredit)", "bank": "Commerzbank (simulated offer)",
   "amount": 5000, "gap": 4042, "from": "2027-02-01", "until": "2027-02-04", "days_needed": 4,

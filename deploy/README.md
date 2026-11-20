@@ -39,6 +39,9 @@ oc new-project avida-cfo
 
 # Builds the root Dockerfile inside OpenShift (frontend + backend in one image)
 oc new-app https://github.com/<org>/avida-cfo.git --name=avida-cfo --strategy=docker
+# IMPORTANT: without an explicit ref, the GitHub webhook only reacts to pushes to "master"
+# and silently ignores "main" (HTTP 200, but no build).
+oc patch bc avida-cfo --type=merge -p '{"spec":{"source":{"git":{"ref":"main"}}}}'
 oc logs -f bc/avida-cfo
 
 # Configuration (edit LLM_BASE_URL / LLM_MODEL first)

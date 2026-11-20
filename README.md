@@ -8,14 +8,18 @@ owner's approval, and all execution is simulated.
 
 ## Demo flow
 
-1. **Check my inbox** → three agents run, every step is streamed to the UI with its autonomy level.
-2. **Inbox Agent** finds two price increases (CloudHost +15%, PaperPro +3.5%) and ignores a newsletter.
-3. **Contract Agent** checks them against the contracts: CloudHost breaks the 24-month price guarantee (§5.2)
-   and the 90-day notice period; PaperPro is within its 5% indexation cap → accept.
-4. **Liquidity Agent** forecasts 90 days: in early February the balance falls below the 15 000 EUR cushion.
-   - Recommendation 1: reject the CloudHost increase (draft email, saves 17 640 EUR / year).
-   - Recommendation 2: 5 000 EUR overdraft as a bridge until the Bauer invoice is paid (10 000 EUR if the increase were accepted).
-5. Owner reads the split screen (email ↔ contract quote ↔ calculation), edits the draft and presses **Approve**
+1. **Check my inbox** → three collaborating agents run; every step and every hand-off between them is
+   streamed to the UI with its autonomy level.
+2. 📊 **Analyst Agent** reads the inbox: two price increases (CloudHost +15%, PaperPro +3.5%), one newsletter ignored
+   → hands the price changes to the lawyer.
+3. ⚖️ **Legal Agent** checks the contracts: CloudHost breaks the 24-month price guarantee (§5.2) and the 90-day
+   notice period; PaperPro is within its 5% indexation cap → verdicts back to the analyst.
+4. 📊 **Analyst Agent** forecasts 90 days in 3 scenarios: in early February the balance falls below the 15 000 EUR
+   cushion → proposes a 5 000 EUR overdraft bridge (10 000 EUR if the increase were accepted) and writes a briefing.
+5. ✉️ **Negotiator Agent** drafts the rejection to CloudHost from the lawyer's clause and the analyst's figures.
+6. ⚖️ **Legal Agent** reviews the draft (clause cited, agreed price stated, no placeholders, no internal financials
+   revealed); if it finds issues the Negotiator revises once (four-eyes principle).
+7. Owner reads the split screen (email ↔ contract quote ↔ calculation), edits the draft and presses **Approve**
    → simulated execution, "Saved by Avida" counter goes up.
 
 | Level | Examples |
@@ -29,10 +33,10 @@ owner's approval, and all execution is simulated.
 
 ```
 Vue 3 (Vite, Tailwind) ──SSE/REST──► FastAPI ──► orchestrator
-                                         │         ├─ Inbox Agent     (LLM: structured extraction)
-                                         │         ├─ Contract Agent  (rules decide, LLM explains + quotes)
-                                         │         └─ Liquidity Agent (deterministic forecast, LLM drafts email)
-                                         └──► vLLM on OpenShift AI (Qwen2.5-7B / Granite, OpenAI-compatible API)
+                                         │         ├─ Analyst Agent    (LLM extraction + deterministic forecast + LLM briefing)
+                                         │         ├─ Legal Agent      (rules decide, LLM explains; reviews drafts)
+                                         │         └─ Negotiator Agent (LLM drafts / revises the supplier email)
+                                         └──► vLLM on OpenShift AI (Granite 3.3 8B, FP8, OpenAI-compatible API)
 Jupyter workbench: contract PDFs → clause extraction + benchmark → contracts_index.json
 ```
 
@@ -45,8 +49,8 @@ every LLM output has a fallback so the demo survives a model outage (and the UI 
 backend/
   app/
     main.py            FastAPI: /api/dashboard, /api/sync (SSE), /api/actions/{id}/approve|reject, /api/policy, /api/audit
-    orchestrator.py    runs the 3 agents, emits trace events
-    agents/            inbox.py · contract.py · liquidity.py
+    orchestrator.py    coordinates the 3 agents and their hand-offs, emits trace events
+    agents/            analyst.py · legal.py · negotiator.py
     forecast.py        deterministic cash forecast + credit sizing
     llm.py             OpenAI-compatible client for vLLM (+ fallback)
     fallback.py        canned answers for offline demo
