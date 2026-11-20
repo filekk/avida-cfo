@@ -10,9 +10,11 @@ import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
+import IconTile from "@/components/ui/IconTile.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import StatTile from "@/components/ui/StatTile.vue";
+import { t } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
 import { eur } from "@/utils/format";
 
@@ -43,6 +45,7 @@ const partOpen = reactive<Record<DecisionCategory, Record<PartKey, boolean>>>({
   forecast: { pending: true, resolved: false },
 });
 
+/** English source text – translated in the template. */
 const COLUMNS = [
   {
     key: "emails" as const,
@@ -104,24 +107,25 @@ async function decide(id: string, approve: boolean, body?: string) {
 
 <template>
   <PageHeader
-    eyebrow="Needs your approval"
-    title="Action center"
-    description="Everything you can act on. Pick an item to see why Avida suggests it – then approve, edit or decline."
+    :eyebrow="t('Needs your approval')"
+    :title="t('Action center')"
+    :description="t('Everything you can act on. Pick an item to see why Avida suggests it – then approve, edit or decline.')"
   />
 
   <AlertBanner v-if="error" dismissible @dismiss="error = null">{{ error }}</AlertBanner>
   <SkeletonBlock v-if="!dashboard && loading" height="h-64" />
 
   <template v-else-if="items.length">
-    <BaseCard aria-label="Summary">
+    <BaseCard :aria-label="t('Summary')">
       <div class="grid gap-4 sm:grid-cols-3">
-        <StatTile icon="approval" tone="warn" label="Waiting for you" :value="String(pendingCount)" />
-        <StatTile icon="decisions" tone="info" label="Already approved" :value="String(approvedCount)" />
-        <StatTile icon="piggyBank" tone="positive" label="Saved by Avida (12 months)" :value="eur(kpis?.saved_liquidity ?? 0)" />
+        <StatTile icon="approval" tone="warn" :label="t('Waiting for you')" :value="String(pendingCount)" />
+        <StatTile icon="decisions" tone="info" :label="t('Already approved')" :value="String(approvedCount)" />
+        <StatTile icon="piggyBank" tone="positive" :label="t('Saved by Avida (12 months)')" :value="eur(kpis?.saved_liquidity ?? 0)" />
       </div>
     </BaseCard>
 
-    <Transition name="swap" mode="out-in">
+    <!-- board ↔ focus: the shared "rise" transition (fade out, soft rise in) -->
+    <Transition name="rise" mode="out-in">
       <!-- focus: one decision -->
       <DecisionFocus
         v-if="focused"
@@ -148,69 +152,57 @@ async function decide(id: string, approve: boolean, body?: string) {
           :aria-labelledby="`col-${col.key}`"
         >
           <header class="flex items-start gap-3">
-            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-mist text-mist-fg" aria-hidden="true">
-              <AppIcon :name="col.icon" :size="19" />
-            </span>
+            <IconTile :icon="col.icon" tone="info" size="sm" />
             <div class="grid gap-0.5">
-              <h2 :id="`col-${col.key}`" class="text-lg font-bold">{{ col.title }}</h2>
-              <p class="text-sm text-muted">{{ col.hint }}</p>
+              <h2 :id="`col-${col.key}`" class="text-lg font-bold">{{ t(col.title) }}</h2>
+              <p class="text-label text-muted">{{ t(col.hint) }}</p>
             </div>
           </header>
 
-          <div
-            v-for="part in col.parts"
-            :key="part.key"
-            :class="[
-              'grid content-start gap-2 transition-[opacity,filter]',
-              part.key === 'resolved'
-                ? 'opacity-60 saturate-50 hover:opacity-100 hover:saturate-100 has-[:focus-visible]:opacity-100 has-[:focus-visible]:saturate-100'
-                : '',
-            ]"
-          >
+          <div v-for="part in col.parts" :key="part.key" class="grid content-start gap-2">
             <h3>
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-input/60"
+                class="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-input/60"
                 :aria-expanded="partOpen[col.key][part.key]"
                 :aria-controls="`part-${col.key}-${part.key}`"
                 @click="partOpen[col.key][part.key] = !partOpen[col.key][part.key]"
               >
                 <AppIcon
                   :name="part.key === 'pending' ? 'approval' : 'checkCircle'"
-                  :size="16"
+                  :size="18"
                   :class="part.key === 'pending' ? 'text-warn' : 'text-muted'"
                 />
-                <span class="eyebrow !text-fg">{{ part.title }}</span>
+                <span class="eyebrow !text-fg">{{ t(part.title) }}</span>
                 <span
                   :class="[
-                    'min-w-[1.4rem] rounded-full px-1.5 text-center text-[0.72rem] font-bold leading-5',
+                    'min-w-[1.75rem] rounded-full px-2 py-0.5 text-center text-caption font-bold leading-tight transition-colors duration-base',
                     part.key === 'pending' && part.items.length ? 'bg-sun text-sun-on' : 'bg-input text-muted',
                   ]"
                 >{{ part.items.length }}</span>
                 <AppIcon
                   name="chevronDown"
-                  :class="['ml-auto shrink-0 text-muted transition-transform duration-300', partOpen[col.key][part.key] ? 'rotate-180' : '']"
+                  :size="18"
+                  :class="['ml-auto shrink-0 text-muted transition-transform duration-base', partOpen[col.key][part.key] ? 'rotate-180' : '']"
                 />
               </button>
             </h3>
 
+            <!-- open/close: grid-rows 0fr ↔ 1fr animates the real height (no max-height guessing) -->
             <div
               :id="`part-${col.key}-${part.key}`"
               :class="[
-                'grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none',
+                'grid transition-[grid-template-rows] duration-base',
                 partOpen[col.key][part.key] ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
               ]"
               :inert="!partOpen[col.key][part.key]"
             >
               <div class="min-h-0 overflow-hidden">
-                <div
-                  v-if="part.items.length"
-                  class="scroll-part grid gap-3 p-1 lg:max-h-[30rem] lg:overflow-y-auto"
-                >
+                <div v-if="part.items.length" class="scroll-part grid gap-3 p-1 lg:max-h-[30rem] lg:overflow-y-auto">
                   <DecisionTile v-for="item in part.items" :key="item.key" :item="item" @open="openItem(item.key)" />
                 </div>
-                <p v-else class="rounded-lg border border-dashed border-line px-4 py-4 text-center text-sm text-muted">
-                  {{ part.empty }}
+                <p v-else class="rounded-lg border border-dashed border-line px-4 py-4 text-center text-label text-muted">
+                  {{ t(part.empty) }}
                 </p>
               </div>
             </div>
@@ -223,35 +215,17 @@ async function decide(id: string, approve: boolean, body?: string) {
   <EmptyState
     v-else
     icon="decisions"
-    title="Nothing here yet"
-    description="Let Avida check your inbox first. Everything it finds and suggests shows up here."
+    :title="t('Nothing here yet')"
+    :description="t('Use “{button}” at the top. Everything Avida finds and suggests shows up here.', { button: t('Check my inbox') })"
   >
-    <BaseButton :to="{ name: 'dashboard' }" icon="arrowRight">Go to overview</BaseButton>
+    <BaseButton :to="{ name: 'dashboard' }" variant="secondary" icon="arrowRight">{{ t("Go to overview") }}</BaseButton>
   </EmptyState>
 </template>
 
 <style scoped>
-/* Board ↔ focus: a short cross-fade. */
-.swap-enter-active,
-.swap-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
-}
-.swap-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-.swap-leave-to {
-  opacity: 0;
-}
 /* Thin, theme-aware scrollbar for the scrollable parts. */
 .scroll-part {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--c-line)) transparent;
-}
-@media (prefers-reduced-motion: reduce) {
-  .swap-enter-active,
-  .swap-leave-active {
-    transition: none;
-  }
 }
 </style>

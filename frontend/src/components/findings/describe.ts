@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { Finding } from "@/types/api";
 import { eur, fmtDate, pct } from "@/utils/format";
 
@@ -7,6 +8,7 @@ import { eur, fmtDate, pct } from "@/utils/format";
  *   payment_delay              → "14 days late", invoice, due → new payment date
  *   no figures in the email    → "No figures", the agents ask for them
  * Every card and the Action center use this, so the three kinds look the same everywhere.
+ * Texts are translated here (t() reads the reactive locale) → call it at render time (computed / template).
  */
 export interface FindingFacts {
   party: string;
@@ -28,15 +30,15 @@ const LEGAL_FORM = /\s+(GmbH|AG|KG|UG|SE|e\.K\.|OHG|GbR)(?=\s|$).*$/;
 
 export function describeFinding(f: Finding): FindingFacts {
   const x = f.extraction;
-  const party = x.party || x.supplier || x.customer || "Unknown";
+  const party = x.party || x.supplier || x.customer || t("Unknown");
   const shortParty = party.replace(LEGAL_FORM, "");
 
-  if (!x.figures_stated) {
+  if (x.figures_stated === false) {
     return {
       party,
       shortParty,
-      figure: "No figures",
-      sub: "The email announces a change but gives no exact numbers.",
+      figure: t("No figures"),
+      sub: t("The email announces a change but gives no exact numbers."),
       priceBar: null,
       stats: [],
       key: null,
@@ -44,18 +46,23 @@ export function describeFinding(f: Finding): FindingFacts {
   }
 
   if (f.kind === "payment_delay") {
+    const late = x.days_late ?? f.impact.days_late;
     return {
       party,
       shortParty,
-      figure: `${x.days_late ?? f.impact.days_late ?? "?"} days late`,
-      sub: `Invoice ${x.invoice ?? ""} · due ${fmtDate(x.due_date)} → now ${fmtDate(x.new_payment_date)}`,
+      figure: late != null ? t("{n} days late", { n: late }) : t("Late payment"),
+      sub: t("Invoice {invoice} · due {due} → now {now}", {
+        invoice: x.invoice ?? "",
+        due: fmtDate(x.due_date),
+        now: fmtDate(x.new_payment_date),
+      }),
       priceBar: null,
       stats: [
-        { icon: "euro", label: "Invoice amount", value: eur(x.amount) },
-        { icon: "clock", label: "Days late", value: String(x.days_late ?? f.impact.days_late ?? "–") },
-        { icon: "chart", label: "Lowest balance drops by", value: eur(f.impact.lowest_balance_effect) },
+        { icon: "euro", label: t("Invoice amount"), value: eur(x.amount) },
+        { icon: "clock", label: t("Days late"), value: late != null ? String(late) : "–" },
+        { icon: "chart", label: t("Lowest balance drops by"), value: eur(f.impact.lowest_balance_effect) },
       ],
-      key: { label: "Invoice", value: eur(x.amount) },
+      key: { label: t("Invoice"), value: eur(x.amount) },
     };
   }
 
@@ -63,13 +70,13 @@ export function describeFinding(f: Finding): FindingFacts {
     party,
     shortParty,
     figure: pct(x.increase_pct ?? 0),
-    sub: `from ${fmtDate(x.effective_date)}`,
+    sub: t("from {date}", { date: fmtDate(x.effective_date) }),
     priceBar: x.old_monthly != null && x.new_monthly != null ? { from: x.old_monthly, to: x.new_monthly } : null,
     stats: [
-      { icon: "euro", label: "Extra per month", value: eur(f.impact.monthly) },
-      { icon: "chart", label: "Within your forecast", value: eur(f.impact.in_horizon) },
-      { icon: "calendar", label: "Next 12 months", value: eur(f.impact.next_12_months) },
+      { icon: "euro", label: t("Extra per month"), value: eur(f.impact.monthly) },
+      { icon: "chart", label: t("Within your forecast"), value: eur(f.impact.in_horizon) },
+      { icon: "calendar", label: t("Next 12 months"), value: eur(f.impact.next_12_months) },
     ],
-    key: { label: "Extra / year", value: eur(f.impact.next_12_months) },
+    key: { label: t("Extra / year"), value: eur(f.impact.next_12_months) },
   };
 }

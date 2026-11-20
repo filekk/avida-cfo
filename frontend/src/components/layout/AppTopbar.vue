@@ -2,23 +2,27 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
+import InboxCheck from "@/components/sync/InboxCheck.vue";
+import { openPopovers } from "@/composables/usePopover";
+import { t } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
 import { fmtDate } from "@/utils/format";
 import AccessibilityMenu from "./AccessibilityMenu.vue";
 import AppLogo from "./AppLogo.vue";
+import LanguageSwitch from "./LanguageSwitch.vue";
 import NavLinks from "./NavLinks.vue";
 import ThemeToggle from "./ThemeToggle.vue";
 
 /**
- * Prototype ".topbar": page title + context line on the left, tools on the right.
- * One row at every width (the title truncates) → the accessibility menu always stays top-right.
- * Below lg the bar (title + nav, tall at large text sizes) glides away while scrolling down and comes back
- * on the first scroll up – the content gets the screen, navigation is one flick away. Never hides while
- * something inside it has focus (e.g. the open accessibility menu).
+ * Prototype ".topbar": page title + context line on the left; on the right the "Check my inbox" box (the main
+ * action, reachable from every page) and the tools: theme · language · accessibility (always top-right).
+ * On phones the theme toggle lives inside the accessibility menu (Colours) to keep the bar uncluttered.
+ * Below lg the bar glides away while scrolling down and comes back on the first scroll up. It never hides while
+ * a pop-up is open or something inside it has focus.
  */
 const route = useRoute();
 const { dashboard } = storeToRefs(useDashboardStore());
-const title = computed(() => (route.meta.title as string | undefined) ?? "Avida CFO");
+const title = computed(() => t((route.meta.title as string | undefined) ?? "Avida CFO"));
 
 const bar = ref<HTMLElement | null>(null);
 const hidden = ref(false);
@@ -31,7 +35,8 @@ function update() {
   const y = window.scrollY;
   const dy = y - lastY;
   if (Math.abs(dy) < 8) return; // ignore jitter
-  const busy = !!bar.value?.contains(document.activeElement) || !!bar.value?.matches(":hover");
+  const busy =
+    openPopovers.value > 0 || !!bar.value?.contains(document.activeElement) || !!bar.value?.matches(":hover");
   hidden.value = !desktop?.matches && dy > 0 && y > (bar.value?.offsetHeight ?? 0) && !busy;
   lastY = y;
 }
@@ -53,6 +58,7 @@ onBeforeUnmount(() => {
   desktop?.removeEventListener("change", show);
 });
 watch(() => route.fullPath, show);
+watch(openPopovers, (n) => n > 0 && show());
 </script>
 
 <template>
@@ -64,8 +70,10 @@ watch(() => route.fullPath, show);
     ]"
     @focusin="show"
   >
-    <div class="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
-      <div class="flex min-w-0 flex-1 items-center gap-3">
+    <!-- flex-wrap + rem min-width on the title: one row normally; at large text sizes on phones the tools move
+         to a second row instead of squeezing the title to "Ihr Gel…" -->
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+      <div class="flex min-w-[min(100%,9rem)] flex-1 items-center gap-3">
         <!-- below lg the sidebar (and its logo) is hidden -->
         <AppLogo class="lg:hidden" :on-dark="false" :show-text="false" :size="36" />
         <div class="min-w-0">
@@ -76,9 +84,11 @@ watch(() => route.fullPath, show);
           </p>
         </div>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
-        <slot name="actions" />
-        <ThemeToggle />
+      <div class="ml-auto flex shrink-0 items-center gap-2">
+        <InboxCheck />
+        <span class="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
+        <ThemeToggle class="hidden sm:grid" />
+        <LanguageSwitch />
         <AccessibilityMenu />
       </div>
     </div>

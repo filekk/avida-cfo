@@ -1,6 +1,12 @@
+import { locale, t } from "@/i18n";
+
 /**
  * Minimal fetch wrapper. All requests go to same-origin `/api` by default
  * (Vite proxy in dev, FastAPI in production). Override with VITE_API_BASE if ever needed.
+ *
+ * Every request carries `lang=en|de` (the language chosen in the UI). PROPOSED contract extension
+ * (frontend/CONTRACT_PROPOSALS.md): today only /api/ask* on backend-dev reads it; FastAPI ignores unknown
+ * query parameters, so sending it everywhere is harmless and starts working as soon as the backend supports it.
  */
 export const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
@@ -15,7 +21,7 @@ export class ApiError extends Error {
   }
 }
 
-export const apiUrl = (path: string) => `${API_BASE}/api${path}`;
+export const apiUrl = (path: string) => `${API_BASE}/api${path}${path.includes("?") ? "&" : "?"}lang=${locale.value}`;
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -30,14 +36,14 @@ export async function request<T>(method: Method, path: string, body?: unknown, s
     });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiError("Cannot reach the server. Check your connection.", 0);
+    throw new ApiError(t("Cannot reach the server. Check your connection."), 0);
   }
 
   const text = await res.text();
   const data = text ? safeJson(text) : undefined;
   if (!res.ok) {
     const detail = (data as { detail?: string } | undefined)?.detail;
-    throw new ApiError(detail ?? `Request failed (${res.status})`, res.status, data);
+    throw new ApiError(detail ?? t("Request failed ({status})", { status: res.status }), res.status, data);
   }
   return data as T;
 }

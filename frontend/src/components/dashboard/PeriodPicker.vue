@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { MIN_PERIOD_DAYS, PERIOD_PRESETS } from "@/composables/useForecastPeriod";
+import { t } from "@/i18n";
 
 /**
  * "How far ahead?" – Week · Month · 3 months · Year · Custom. A sun pill slides to the chosen option.
@@ -107,7 +108,7 @@ onBeforeUnmount(() => {
       ref="group"
       class="relative flex flex-wrap items-center rounded-xl border border-line bg-input p-1"
       role="group"
-      aria-label="Forecast period"
+      :aria-label="t('Forecast period')"
     >
       <!-- sliding sun pill behind the chosen option -->
       <span
@@ -140,7 +141,7 @@ onBeforeUnmount(() => {
         @focus="isDisabled(p.days) && showHint()"
         @blur="hideHint"
       >
-        {{ p.label }}
+        {{ t(p.label) }}
       </button>
 
       <!-- custom: pencil chip + "[45] days" field that slides open inside the control -->
@@ -157,7 +158,7 @@ onBeforeUnmount(() => {
           @click="openCustom"
         >
           <AppIcon name="pencil" :size="15" />
-          <span :class="customOpen ? 'sr-only' : 'sr-only sm:not-sr-only'">Custom</span>
+          <span :class="customOpen ? 'sr-only' : 'sr-only sm:not-sr-only'">{{ t("Custom") }}</span>
         </button>
         <div
           :class="[
@@ -166,7 +167,7 @@ onBeforeUnmount(() => {
           ]"
         >
           <div class="flex min-w-0 items-center gap-1.5 overflow-hidden">
-            <label :for="`${uid}-days`" class="sr-only">Number of days to show (up to {{ max }})</label>
+            <label :for="`${uid}-days`" class="sr-only">{{ t("Number of days to show (up to {max})", { max }) }}</label>
             <input
               :id="`${uid}-days`"
               ref="input"
@@ -181,7 +182,7 @@ onBeforeUnmount(() => {
               @keydown.enter.prevent="apply"
               @blur="apply"
             />
-            <span class="whitespace-nowrap pr-3 text-label font-semibold text-sun-on">days</span>
+            <span class="whitespace-nowrap pr-3 text-label font-semibold text-sun-on">{{ t("days") }}</span>
           </div>
         </div>
       </div>
@@ -196,7 +197,7 @@ onBeforeUnmount(() => {
         class="absolute right-0 top-full z-20 mt-2 flex w-max max-w-[15rem] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-label text-fg shadow-lift"
       >
         <AppIcon name="info" :size="16" class="mt-0.5 shrink-0 text-mist-fg" />
-        Avida forecasts {{ max }} days for now.
+        {{ t("Avida forecasts {max} days for now.", { max }) }}
       </p>
     </Transition>
   </div>

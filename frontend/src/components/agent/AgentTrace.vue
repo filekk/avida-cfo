@@ -1,24 +1,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import ShimmerText from "@/components/sync/ShimmerText.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import BaseCard from "@/components/ui/BaseCard.vue";
 import IconTile from "@/components/ui/IconTile.vue";
-import { agentIcon } from "@/constants/agents";
-import type { Autonomy, TraceEvent } from "@/types/api";
 import type { Tone } from "@/components/ui/tones";
+import { agentIcon, isHandoff } from "@/constants/agents";
+import { t } from "@/i18n";
+import type { Autonomy, TraceEvent } from "@/types/api";
+import { prefersReducedMotion } from "@/utils/motion";
 import AutonomyBadge from "./AutonomyBadge.vue";
 import SourceTag from "./SourceTag.vue";
 
 /**
- * Log of agent steps streamed from /api/sync, drawn as a timeline (agent icon on a line).
- * Folded: the first 3 steps + a faded peek of the 4th; the arrow at the bottom unfolds the rest.
- * Height is measured and animated, so opening/closing and new streamed steps never jump.
+ * The agents' steps streamed from /api/sync, as a chat-like timeline (newest at the bottom, like a conversation).
+ * Lives in the inbox-check pop-up: own scroll area that follows new steps (unless you scrolled up to read),
+ * the newest step shimmers while the check runs, three dots show that more is coming.
+ * Every step shows the agent and its autonomy badge (challenge requirement). Backend messages stay as sent.
  */
 const props = defineProps<{ events: TraceEvent[]; running: boolean }>();
-
-const VISIBLE = 3;
-const open = ref(false);
-const canFold = computed(() => props.events.length > VISIBLE);
 
 const NODE: Record<Autonomy, Tone> = {
   analyzed: "info",
@@ -27,102 +26,136 @@ const NODE: Record<Autonomy, Tone> = {
   simulated: "neutral",
 };
 
-// --- measured height --------------------------------------------------------------------------
 const list = ref<HTMLOListElement | null>(null);
-const height = ref<number | null>(null);
-/** px of the 4th step left visible (faded) – the fade covers only this strip, never the 3rd step */
-const peekPx = ref(0);
+let follow = true; // stop auto-scrolling when the owner scrolls up to read
+/** Soft fades at the edges that have more steps behind them (top when scrolled, bottom when not at the end). */
+const edges = ref({ top: false, bottom: false });
 
-function measure() {
-  const ol = list.value;
-  if (!ol) return;
-  const items = ol.children as HTMLCollectionOf<HTMLElement>;
-  const peek = items[VISIBLE];
-  // ~half of the 4th step's first line peeks out under the 3 full steps
-  peekPx.value = peek ? Math.round(Math.min(peek.offsetHeight, 80) * 0.55) : 0;
-  height.value = open.value || !peek ? ol.scrollHeight : peek.offsetTop + peekPx.value;
+function measureEdges() {
+  const el = list.value;
+  if (!el) return;
+  const rest = el.scrollHeight - el.scrollTop - el.clientHeight;
+  edges.value = { top: el.scrollTop > 4, bottom: rest > 4 };
+}
+function onScroll() {
+  const el = list.value;
+  if (el) follow = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  measureEdges();
+}
+function toBottom(smooth: boolean) {
+  const el = list.value;
+  if (!el) return;
+  el.scrollTo({ top: el.scrollHeight, behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" });
+  measureEdges();
 }
 
+watch(
+  () => props.events.length,
+  (n, was) => {
+    if (!n) follow = true;
+    nextTick(() => (follow ? toBottom((was ?? 0) > 0) : measureEdges()));
+  },
+);
+
+// The pop-up is hidden with v-show: while hidden nothing can scroll. When it is shown again (size goes 0 → N)
+// jump straight to the latest step – unless the owner had scrolled up to read.
 let ro: ResizeObserver | null = null;
+let wasVisible = false;
 onMounted(() => {
-  ro = new ResizeObserver(measure);
-  watch(list, (el, prev) => {
-    if (prev) ro?.unobserve(prev);
-    if (el) ro?.observe(el);
-    measure();
-  }, { immediate: true });
+  ro = new ResizeObserver(() => {
+    const visible = !!list.value?.clientHeight;
+    if (visible && !wasVisible && follow) toBottom(false);
+    else measureEdges();
+    wasVisible = visible;
+  });
+  if (list.value) ro.observe(list.value);
 });
 onBeforeUnmount(() => ro?.disconnect());
-watch([() => props.events.length, open], () => nextTick(measure));
-// a new sync starts folded again
-watch(() => props.running, (r) => r && (open.value = false));
+
+const FADE = "1.5rem";
+const mask = computed(() => {
+  const { top, bottom } = edges.value;
+  if (!top && !bottom) return undefined;
+  const g = `linear-gradient(to bottom, ${top ? "transparent" : "#000"} 0, #000 ${FADE}, #000 calc(100% - ${FADE}), ${bottom ? "transparent" : "#000"} 100%)`;
+  return { maskImage: g, WebkitMaskImage: g };
+});
 </script>
 
 <template>
-  <BaseCard v-if="events.length || running" title="What your assistant did">
-    <template #actions>
-      <span
-        :class="[
-          'inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-caption font-semibold',
-          running ? 'bg-warn-soft text-warn' : 'bg-positive-soft text-positive',
-        ]"
-        aria-live="polite"
-      >
-        <span :class="['h-2 w-2 rounded-full', running ? 'animate-pulse bg-warn' : 'bg-positive']" aria-hidden="true" />
-        {{ running ? "Working" : "Done" }} · {{ events.length }} {{ events.length === 1 ? "step" : "steps" }}
-      </span>
-    </template>
-
-    <div
-      id="trace-steps"
-      class="relative overflow-hidden transition-[height] duration-slow ease-out"
-      :style="height !== null ? { height: `${height}px` } : undefined"
+  <ol
+    ref="list"
+    class="sync-scroll grid max-h-[17rem] content-start overflow-y-auto overscroll-contain pr-1"
+    aria-live="polite"
+    :aria-label="t('What your assistant did')"
+    :style="mask"
+    @scroll.passive="onScroll"
+  >
+    <li
+      v-for="(e, i) in events"
+      :key="i"
+      class="relative grid animate-rise grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
     >
-      <ol ref="list" class="grid" aria-label="Steps">
-        <li v-for="(e, i) in events" :key="i" class="relative grid grid-cols-[2.5rem_1fr] gap-3 pb-5 last:pb-0 animate-rise">
-          <span
-            v-if="i < events.length - 1 || running"
-            class="absolute bottom-0 left-5 top-11 w-px -translate-x-1/2 bg-line"
-            aria-hidden="true"
-          />
-          <IconTile :icon="agentIcon(e.agent)" :tone="NODE[e.autonomy]" size="sm" round />
-          <div class="grid gap-1.5 pt-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-label font-semibold text-muted">{{ e.agent }}</span>
-              <AutonomyBadge :level="e.autonomy" />
-            </div>
-            <p class="leading-snug">{{ e.message }} <SourceTag :source="e.source" /></p>
-          </div>
-        </li>
-        <li v-if="running" class="grid grid-cols-[2.5rem_1fr] items-center gap-3 text-muted">
-          <span class="grid h-10 w-10 place-items-center rounded-full border-2 border-dashed border-sun" aria-hidden="true">
-            <AppIcon name="loader" :size="16" class="animate-spin" />
-          </span>
-          Working…
-        </li>
-      </ol>
-      <!-- fade-out over the peeking 4th step -->
-      <div
-        :class="[
-          'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-surface via-surface/70 to-surface/20 transition-opacity duration-slow',
-          canFold && !open ? 'opacity-100' : 'opacity-0',
-        ]"
-        :style="{ height: `${peekPx + 4}px` }"
+      <!-- timeline line to the next step -->
+      <span
+        v-if="i < events.length - 1 || running"
+        class="absolute bottom-0 left-5 top-11 w-px -translate-x-1/2 bg-line"
         aria-hidden="true"
       />
-    </div>
+      <IconTile
+        :icon="isHandoff(e) ? 'messageSquare' : agentIcon(e.agent)"
+        :tone="NODE[e.autonomy] ?? 'neutral'"
+        size="sm"
+        round
+      />
+      <div class="grid min-w-0 gap-1 pt-0.5">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span class="flex min-w-0 flex-wrap items-center gap-1 text-label font-semibold text-muted">
+            {{ t(e.agent) }}
+            <template v-if="isHandoff(e)">
+              <AppIcon name="arrowRight" :size="14" aria-hidden="true" />
+              <span class="sr-only">{{ t("to") }}</span>
+              {{ t(e.to!) }}
+            </template>
+          </span>
+          <AutonomyBadge :level="e.autonomy" />
+        </div>
+        <p class="text-label leading-snug text-fg [overflow-wrap:anywhere]">
+          <ShimmerText :active="running && i === events.length - 1">{{ e.message }}</ShimmerText>
+          <SourceTag :source="e.source" />
+        </p>
+      </div>
+    </li>
 
-    <div v-if="canFold" class="mt-2 flex justify-center">
-      <button
-        type="button"
-        class="group flex items-center gap-2 rounded-full border border-line bg-surface px-4 py-2 text-label font-semibold text-fg hover:border-fg/40 hover:shadow-lift"
-        aria-controls="trace-steps"
-        :aria-expanded="open"
-        @click="open = !open"
-      >
-        {{ open ? "Show less" : `Show all ${events.length} steps` }}
-        <AppIcon name="chevronDown" :size="18" :class="['transition-transform duration-base', open ? 'rotate-180' : 'group-hover:translate-y-0.5']" />
-      </button>
-    </div>
-  </BaseCard>
+    <!-- more is coming -->
+    <li v-if="running" class="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3" aria-hidden="true">
+      <span class="grid h-10 w-10 place-items-center">
+        <span class="flex gap-1">
+          <span v-for="d in 3" :key="d" class="typing-dot h-1.5 w-1.5 rounded-full bg-muted" :style="{ animationDelay: `${(d - 1) * 160}ms` }" />
+        </span>
+      </span>
+      <span class="text-caption text-muted">{{ t("Working…") }}</span>
+    </li>
+  </ol>
 </template>
+
+<style scoped>
+.sync-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--c-line)) transparent;
+}
+.typing-dot {
+  animation: typing 1.2s ease-in-out infinite;
+}
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+</style>

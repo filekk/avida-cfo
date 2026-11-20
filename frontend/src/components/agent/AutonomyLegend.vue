@@ -2,6 +2,7 @@
 import AppIcon from "@/components/ui/AppIcon.vue";
 import IconTile from "@/components/ui/IconTile.vue";
 import { AUTONOMY, AUTONOMY_ORDER } from "@/constants/autonomy";
+import { t } from "@/i18n";
 import AutonomyBadge from "./AutonomyBadge.vue";
 
 /** detailed = the four levels as a left-to-right flow (agent alone → you decide → sandbox); otherwise a row of badges. */
@@ -21,7 +22,7 @@ withDefaults(defineProps<{ detailed?: boolean }>(), { detailed: false });
         <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" :class="AUTONOMY[l].tile" />
       </div>
       <AutonomyBadge :level="l" />
-      <span class="text-label leading-snug text-muted">{{ AUTONOMY[l].description }}</span>
+      <span class="text-label leading-snug text-muted">{{ t(AUTONOMY[l].description) }}</span>
       <!-- arrow to the next level (single row on lg), centred on the 12px gap -->
       <span
         v-if="i < AUTONOMY_ORDER.length - 1"

@@ -3,6 +3,7 @@ import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { NAV_ITEMS, type NavItem } from "@/constants/navigation";
+import { t, tn } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
 
 /**
@@ -24,7 +25,7 @@ const waiting = (item: NavItem) => item.badge === "pendingActions" && badge(item
 </script>
 
 <template>
-  <nav :aria-label="'Main'">
+  <nav :aria-label="t('Main navigation')">
     <ul :class="orientation === 'vertical' ? 'grid gap-1' : 'flex gap-1 overflow-x-auto'">
       <li v-for="item in NAV_ITEMS" :key="item.to">
         <RouterLink
@@ -42,7 +43,7 @@ const waiting = (item: NavItem) => item.badge === "pendingActions" && badge(item
         >
           <span v-if="waiting(item)" class="nav-glow pointer-events-none absolute inset-0 rounded-lg" aria-hidden="true" />
           <AppIcon :name="item.icon" :size="orientation === 'vertical' ? 20 : 18" />
-          <span class="flex-1">{{ item.label }}</span>
+          <span class="flex-1">{{ t(item.label) }}</span>
           <Transition name="fade">
             <span
               v-if="badge(item)"
@@ -53,7 +54,10 @@ const waiting = (item: NavItem) => item.badge === "pendingActions" && badge(item
                   ? 'bg-sun text-sun-on'
                   : orientation === 'vertical' ? 'bg-white/10 text-white' : 'bg-mist text-mist-fg',
               ]"
-            >{{ badge(item) }}<span v-if="waiting(item)" class="sr-only"> waiting for your decision</span></span>
+            >
+              <span aria-hidden="true">{{ badge(item) }}</span>
+              <span class="sr-only">{{ tn(badge(item), "1 waiting", "{n} waiting") }}</span>
+            </span>
           </Transition>
         </RouterLink>
       </li>

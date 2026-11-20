@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppIcon from "@/components/ui/AppIcon.vue";
 import type { IconName } from "@/components/ui/icons";
+import { t } from "@/i18n";
 import AppLogo from "./AppLogo.vue";
 
 /** Page footer: brand + the three honesty notes as icon chips (visible on mobile too, unlike the sidebar). */
@@ -18,7 +19,7 @@ const NOTES: { icon: IconName; text: string }[] = [
       <ul class="flex flex-wrap gap-x-5 gap-y-2 text-label text-muted">
         <li v-for="n in NOTES" :key="n.text" class="flex items-center gap-1.5">
           <AppIcon :name="n.icon" :size="16" />
-          {{ n.text }}
+          {{ t(n.text) }}
         </li>
       </ul>
     </div>

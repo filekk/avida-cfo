@@ -7,6 +7,7 @@ import IconTile from "@/components/ui/IconTile.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { VERDICT } from "@/constants/autonomy";
+import { t } from "@/i18n";
 import type { Finding } from "@/types/api";
 import { describeFinding } from "./describe";
 import PriceBar from "./PriceBar.vue";
@@ -15,10 +16,9 @@ import { verdictTone } from "./verdict";
 /**
  * The core of "explainable", drawn as a 3-step flow: what the email says → what the contract says → verdict,
  * with the money underneath. The full email and the formula stay one click away instead of filling the screen.
- */
-/**
  * `bare`:    no frame and no header – the parent (Action center focus view) already shows both.
  * `stacked`: always vertical (email ↓ contract ↓ verdict), for narrow containers.
+ * Email, contract text, explanation, check details and the calculation come from the backend and stay as delivered.
  */
 const props = defineProps<{ finding: Finding; bare?: boolean; stacked?: boolean }>();
 const showEmail = ref(false);
@@ -29,7 +29,7 @@ const c = computed(() => props.finding.contract);
 const d = computed(() => describeFinding(props.finding));
 
 const TOGGLE =
-  "group flex w-fit items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-gold underline-offset-4 hover:underline";
+  "group flex w-fit items-center gap-1.5 rounded-lg py-1 text-left text-sm font-semibold text-gold underline-offset-4 hover:underline";
 </script>
 
 <template>
@@ -44,16 +44,16 @@ const TOGGLE =
           <span class="text-label text-muted">{{ d.sub }}</span>
         </div>
       </div>
-      <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="14" />{{ v.label }}</StatusPill>
+      <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="14" />{{ t(v.label) }}</StatusPill>
     </header>
 
     <div :class="['grid gap-3', bare ? '' : 'p-4 sm:p-5', stacked ? '' : 'lg:grid-cols-[1fr_auto_1fr_auto_1fr]']">
       <!-- 1 · the email -->
-      <section class="grid content-start gap-3 rounded-xl bg-input p-4" aria-label="What the email says">
+      <section class="grid content-start gap-3 rounded-xl bg-input p-4" :aria-label="t('What the email says')">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="flex items-center gap-2.5 text-base font-bold">
             <IconTile icon="mail" tone="neutral" size="sm" class="!bg-surface" />
-            The email says
+            {{ t("The email says") }}
           </span>
           <AutonomyBadge level="analyzed" />
         </div>
@@ -61,7 +61,7 @@ const TOGGLE =
         <PriceBar v-if="d.priceBar" :from="d.priceBar.from" :to="d.priceBar.to" :tone="tone.bar" />
         <p v-else class="text-sm leading-relaxed text-muted">{{ d.sub }}</p>
         <button type="button" :class="TOGGLE" :aria-expanded="showEmail" @click="showEmail = !showEmail">
-          {{ showEmail ? "Hide the email" : `Read the email from ${finding.email.from_name}` }}
+          {{ showEmail ? t("Hide the email") : t("Read the email from {name}", { name: finding.email.from_name }) }}
           <AppIcon name="chevronDown" :size="18" :class="['transition-transform duration-base', showEmail ? 'rotate-180' : '']" />
         </button>
         <CollapseTransition>
@@ -81,21 +81,21 @@ const TOGGLE =
       </span>
 
       <!-- 2 · the contract -->
-      <section class="grid content-start gap-3 rounded-xl bg-input p-4" aria-label="What your contract says">
+      <section class="grid content-start gap-3 rounded-xl bg-input p-4" :aria-label="t('What your contract says')">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="flex items-center gap-2.5 text-base font-bold">
             <IconTile icon="document" tone="neutral" size="sm" class="!bg-surface" />
-            Your contract says
+            {{ t("Your contract says") }}
           </span>
           <AutonomyBadge level="analyzed" />
         </div>
-        <p class="text-sm font-semibold">{{ c.contract?.title ?? "No contract on file" }}</p>
+        <p class="text-sm font-semibold">{{ c.contract?.title ?? t("No contract on file") }}</p>
         <blockquote v-if="c.quote" class="rounded-r-lg border-l-4 border-sun bg-surface p-3">
           <p class="italic leading-relaxed">“{{ c.quote }}”</p>
           <footer class="mt-2 flex flex-wrap gap-x-2 text-label font-semibold text-muted">
             <span>{{ c.clause_id }}</span>
             <span v-if="c.clause?.title">· {{ c.clause.title }}</span>
-            <span v-if="c.clause?.page">· page {{ c.clause.page }}</span>
+            <span v-if="c.clause?.page">· {{ t("page {n}", { n: c.clause.page }) }}</span>
           </footer>
         </blockquote>
       </section>
@@ -107,17 +107,17 @@ const TOGGLE =
       </span>
 
       <!-- 3 · the verdict -->
-      <section :class="['grid content-start gap-3 rounded-xl p-4', tone.panel]" aria-label="Verdict">
+      <section :class="['grid content-start gap-3 rounded-xl p-4', tone.panel]" :aria-label="t('Verdict')">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="flex items-center gap-2.5 text-base font-bold">
             <IconTile icon="scale" tone="neutral" size="sm" class="!bg-surface" />
-            Verdict
+            {{ t("Verdict") }}
           </span>
           <AutonomyBadge level="recommendation" />
         </div>
         <p class="flex items-center gap-2.5 font-display text-xl font-bold leading-tight">
           <AppIcon :name="v.icon" :size="30" :class="tone.text === 'text-fg' ? 'text-positive' : tone.text" />
-          {{ v.label }}
+          {{ t(v.label) }}
         </p>
         <p class="leading-relaxed">{{ c.explanation_simple }}</p>
         <ul v-if="c.checks.length" class="grid gap-2.5 border-t border-fg/10 pt-3">
@@ -128,7 +128,7 @@ const TOGGLE =
               :class="['mt-0.5', chk.passed ? 'text-positive' : 'text-negative']"
             />
             <span class="grid gap-0.5 leading-snug">
-              <b>{{ chk.check }}<span class="sr-only">{{ chk.passed ? " (passed)" : " (failed)" }}</span></b>
+              <b>{{ chk.check }}<span class="sr-only"> {{ chk.passed ? t("(passed)") : t("(failed)") }}</span></b>
               <span class="text-label text-muted">{{ chk.detail }} · {{ chk.clause_id }}</span>
             </span>
           </li>
@@ -142,7 +142,7 @@ const TOGGLE =
         <StatTile v-for="s in d.stats" :key="s.label" :icon="s.icon" :label="s.label" :value="s.value" :tone="tone.stat" />
       </div>
       <button type="button" :class="TOGGLE" :aria-expanded="showCalc" @click="showCalc = !showCalc">
-        <AppIcon name="calculator" :size="18" /> {{ showCalc ? "Hide calculation" : "Show calculation" }}
+        <AppIcon name="calculator" :size="18" /> {{ showCalc ? t("Hide calculation") : t("Show calculation") }}
         <AppIcon name="chevronDown" :size="18" :class="['transition-transform duration-base', showCalc ? 'rotate-180' : '']" />
       </button>
       <CollapseTransition>

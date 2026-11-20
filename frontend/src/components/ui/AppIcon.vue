@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ICONS, type IconName } from "./icons";
 
+// v-html below is safe: static, trusted SVG paths from icons.ts.
+// Keep the template to ONE root element and NO leading HTML comment: in dev Vue keeps comments, a comment +
+// <svg> becomes a fragment, and <Transition mode="out-in"> never finishes leaving a fragment → the icon vanished.
 withDefaults(defineProps<{ name: IconName; size?: number }>(), { size: 16 });
 </script>
 
 <template>
-  <!-- eslint-disable-next-line vue/no-v-html – static, trusted paths from icons.ts -->
   <svg
     :width="size"
     :height="size"

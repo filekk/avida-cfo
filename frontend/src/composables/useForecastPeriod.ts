@@ -1,4 +1,5 @@
 import { ref, watch } from "vue";
+import { t, tn } from "@/i18n";
 
 /**
  * How far ahead the owner wants to look (chart + payments). Module-level → shared by every caller and
@@ -10,6 +11,7 @@ import { ref, watch } from "vue";
  */
 export interface PeriodPreset {
   days: number;
+  /** English – translate where it is shown: t(p.label) */
   label: string;
 }
 export const PERIOD_PRESETS: PeriodPreset[] = [
@@ -40,8 +42,11 @@ watch(days, (v) => {
   }
 });
 
-/** "7 days" · "30 days" · "12 months" … for titles like "Your money, next …". */
-export const periodLabel = (d: number) => (d === 365 ? "12 months" : `${d} ${d === 1 ? "day" : "days"}`);
+/**
+ * "7 days" · "30 days" · "12 months" … for titles like "Your money, next …" – translated on every call
+ * (t reads the reactive locale), so titles follow a language switch.
+ */
+export const periodLabel = (d: number) => (d === 365 ? t("12 months") : tn(d, "{n} day", "{n} days"));
 
 export function useForecastPeriod() {
   return { days };

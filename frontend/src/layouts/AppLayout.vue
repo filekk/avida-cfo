@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watch } from "vue";
 import AppFooter from "@/components/layout/AppFooter.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 import AppTopbar from "@/components/layout/AppTopbar.vue";
+import { locale } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
 
 /** Main shell (prototype "Panel aplikacji"): navy sidebar + topbar + scrollable content + footer. */
 const store = useDashboardStore();
 onMounted(() => store.load());
+
+// Language switch → fetch the dashboard again with the new `lang` (backend texts follow once the backend
+// supports it – see frontend/CONTRACT_PROPOSALS.md). Not while a check is streaming its own result.
+watch(locale, () => {
+  if (!store.syncing) store.load(true);
+});
 </script>
 
 <template>

@@ -58,6 +58,4 @@ export const router = createRouter({
   scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
 });
 
-router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · Avida CFO` : "Avida CFO";
-});
+// document.title is set in App.vue (follows the page AND the chosen language).

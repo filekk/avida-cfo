@@ -25,9 +25,9 @@ withDefaults(
 </script>
 
 <template>
-  <!-- container query: the CARD decides (icon beside the text only when the card itself is wide enough),
-       so the layout works for any grid width and any accessibility text size -->
   <div class="rounded-xl border border-line bg-surface p-4 shadow-card [container-type:inline-size] lg:p-5">
+    <!-- container query: the CARD decides (icon beside the text only when the card itself is wide enough),
+         so the layout works for any grid width and any accessibility text size -->
     <div class="flex flex-col gap-3 [@container(min-width:13rem)]:flex-row [@container(min-width:13rem)]:items-start">
       <IconTile v-if="icon" :icon="icon" :tone="tone === 'neutral' ? 'info' : tone" />
       <div class="grid min-w-0 content-start gap-1">

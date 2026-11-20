@@ -52,6 +52,8 @@ Vue 3 SPA (Vite, Tailwind, Pinia, vue-router) ──REST + SSE──► FastAPI 
 5. "Innovations for all generations": plain language, large touch targets, readable contrast (WCAG AA), works on mobile.
 6. **No emoji anywhere in the UI.** Icons come only from Lucide (ISC) via `AppIcon`. Every asset has to be
    free/open-source with its licence listed in `frontend/THIRD_PARTY_LICENSES.md`. It's a competition entry, so nothing paid or unclear.
+7. **Two languages (EN/DE).** Every UI string goes through `t()` from `frontend/src/i18n` with a German entry; the UI
+   sends `?lang=` to the API (proposal for the backend: `frontend/CONTRACT_PROPOSALS.md`).
 
 ## Commands
 

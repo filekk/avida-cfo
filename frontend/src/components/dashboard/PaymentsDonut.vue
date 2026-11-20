@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import IconTile from "@/components/ui/IconTile.vue";
+import { t, tn } from "@/i18n";
 import type { Outflow } from "@/types/api";
 import { eur, fmtDayMonth, pct } from "@/utils/format";
 import { prefersReducedMotion as reducedMotion } from "@/utils/motion";
@@ -124,22 +125,25 @@ onBeforeUnmount(() => {
 
 // --- copy ------------------------------------------------------------------------------------
 const share = (s: number) => pct(Math.round(s * 100), false);
-const paymentsText = (n: number) => `${n} ${n === 1 ? "payment" : "payments"}`;
+const paymentsText = (n: number) => tn(n, "{n} payment", "{n} payments");
 const datesText = (dates: string[]) => dates.map(fmtDayMonth).join(" · ");
 const summary = computed(
   () =>
-    `Biggest payments in the next ${props.periodLabel}: ` +
-    groups.value.map((g) => `${g.label} ${eur(g.total)} (${share(g.share)})`).join(", ") +
-    `. Total ${eur(total.value)}.`,
+    t("Biggest payments in the next {period}: {list}. Total {total}.", {
+      period: props.periodLabel,
+      list: groups.value.map((g) => `${g.label} ${eur(g.total)} (${share(g.share)})`).join(", "),
+      total: eur(total.value),
+    }),
 );
 </script>
 
 <template>
-  <!-- empty: nothing big due in this window -->
   <div v-if="!groups.length" class="grid min-h-[16rem] place-content-center justify-items-center gap-3 text-center animate-rise">
+    <!-- empty: nothing big due in this window (comment inside the root → the component stays ONE element,
+         a leading comment would make it a fragment that never finishes leaving an out-in Transition) -->
     <IconTile icon="pieChart" tone="info" size="lg" />
-    <p class="font-semibold">No big payments in the next {{ periodLabel }}</p>
-    <p class="max-w-[16rem] text-label text-muted">Avida looks at your biggest single payments. None of them falls in this period.</p>
+    <p class="font-semibold">{{ t("No big payments in this period") }}</p>
+    <p class="max-w-[16rem] text-label text-muted">{{ t("Avida looks at your biggest single payments. None of them falls in this period.") }}</p>
   </div>
 
   <div v-else class="grid gap-4" @keydown.esc="pinned = null">
@@ -186,9 +190,9 @@ const summary = computed(
               activeKey ? 'scale-95 opacity-0' : 'scale-100 opacity-100',
             ]"
           >
-            <span class="text-caption font-semibold text-muted">Total</span>
+            <span class="text-caption font-semibold text-muted">{{ t("Total") }}</span>
             <b class="font-display text-2xl font-bold leading-tight tabular-nums">{{ eur(total) }}</b>
-            <span class="text-caption text-muted">in {{ paymentsText(count) }}</span>
+            <span class="text-caption text-muted">{{ tn(count, "in {n} payment", "in {n} payments") }}</span>
           </div>
           <!-- one layer per payment, crossfaded -->
           <div
@@ -208,7 +212,7 @@ const summary = computed(
     </div>
 
     <!-- legend: always label + amount + share; on hover/focus the second line swaps count → dates -->
-    <ul class="grid gap-1" aria-label="Payments">
+    <ul class="grid gap-1" :aria-label="t('Payments')">
       <li v-for="g in groups" :key="g.key" class="animate-rise">
         <button
           type="button"
@@ -259,7 +263,7 @@ const summary = computed(
 
     <p class="flex items-start gap-1.5 text-caption text-muted">
       <AppIcon name="info" :size="14" class="mt-0.5" />
-      Your biggest single payments only (top 5 of the forecast). Smaller costs are left out.
+      {{ t("Your biggest single payments only (top 5 of the forecast). Smaller costs are left out.") }}
     </p>
   </div>
 </template>
