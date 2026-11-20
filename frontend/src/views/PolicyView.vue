@@ -11,9 +11,13 @@ import { TONE_SOFT } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
 import { agentIcon } from "@/constants/agents";
 import { AUTONOMY, AUTONOMY_ORDER } from "@/constants/autonomy";
+import { t } from "@/i18n";
 import type { Autonomy, PolicyRule } from "@/types/api";
 
-/** The autonomy matrix (GET /api/policy) – "who may do what", drawn as action × level with marks instead of text. */
+/**
+ * The autonomy matrix (GET /api/policy) – "who may do what", drawn as action × level with marks instead of text.
+ * The action names come from the backend and stay as delivered; agent names and levels are translated.
+ */
 const { data: policy, loading, error, reload } = useAsyncData(getPolicy);
 
 const applies = (row: PolicyRule, level: Autonomy) =>
@@ -22,33 +26,33 @@ const applies = (row: PolicyRule, level: Autonomy) =>
 
 <template>
   <PageHeader
-    eyebrow="You stay in control"
-    title="What your agents may do"
-    description="Reading and calculating: on their own. Anything that leaves your company: only after your click."
+    :eyebrow="t('You stay in control')"
+    :title="t('What your agents may do')"
+    :description="t('Reading and calculating: on their own. Anything that leaves your company: only after your click.')"
   />
 
-  <BaseCard title="The four levels">
+  <BaseCard :title="t('The four levels')">
     <AutonomyLegend detailed />
   </BaseCard>
 
   <AlertBanner v-if="error">
-    {{ error }} <button type="button" class="ml-2 underline" @click="reload">Try again</button>
+    {{ error }} <button type="button" class="ml-2 underline" @click="reload">{{ t("Try again") }}</button>
   </AlertBanner>
   <SkeletonBlock v-else-if="loading && !policy" height="h-64" />
 
-  <BaseCard v-else-if="policy" title="Who may do what" :padded="false" class="animate-rise">
+  <BaseCard v-else-if="policy" :title="t('Who may do what')" :padded="false" class="animate-rise">
     <!-- relative: keeps the absolutely-positioned sr-only labels inside the scroll box (else they widen the page) -->
     <div class="relative overflow-x-auto">
       <table class="w-full min-w-[680px] border-collapse">
         <thead>
           <tr>
             <th class="border-b border-line px-5 py-3 text-left align-bottom text-caption font-semibold uppercase tracking-eyebrow text-muted">
-              Action
+              {{ t("Action") }}
             </th>
             <th v-for="l in AUTONOMY_ORDER" :key="l" class="w-[8rem] border-b border-line px-2 py-3 align-top font-semibold">
               <span class="grid justify-items-center gap-2">
                 <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" size="sm" :class="AUTONOMY[l].tile" />
-                <span class="text-caption leading-tight text-muted">{{ AUTONOMY[l].label }}</span>
+                <span class="text-caption leading-tight text-muted">{{ t(AUTONOMY[l].label) }}</span>
               </span>
             </th>
           </tr>
@@ -64,7 +68,7 @@ const applies = (row: PolicyRule, level: Autonomy) =>
                 <IconTile :icon="agentIcon(row.agent)" tone="neutral" size="sm" />
                 <span class="grid gap-0.5 leading-tight">
                   <b class="font-semibold">{{ row.action }}</b>
-                  <span class="text-label text-muted">{{ row.agent }}</span>
+                  <span class="text-label text-muted">{{ t(row.agent) }}</span>
                 </span>
               </span>
             </td>
@@ -73,7 +77,7 @@ const applies = (row: PolicyRule, level: Autonomy) =>
                 v-if="applies(row, l)"
                 :class="['inline-grid h-8 w-8 place-items-center rounded-full', TONE_SOFT[AUTONOMY[l].tone], AUTONOMY[l].tile]"
               >
-                <AppIcon name="check" :size="16" /><span class="sr-only">{{ AUTONOMY[l].label }}</span>
+                <AppIcon name="check" :size="16" /><span class="sr-only">{{ t(AUTONOMY[l].label) }}</span>
               </span>
               <span v-else class="inline-block h-2 w-2 rounded-full bg-muted/40" aria-hidden="true" />
             </td>

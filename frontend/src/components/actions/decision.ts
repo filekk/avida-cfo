@@ -1,11 +1,15 @@
 import type { IconName } from "@/components/ui/icons";
-import type { Action, Finding } from "@/types/api";
+import type { Tone } from "@/components/ui/tones";
 import { describeFinding } from "@/components/findings/describe";
+import { t } from "@/i18n";
+import type { Action, Finding } from "@/types/api";
 import { eur, fmtDayMonth } from "@/utils/format";
 
 /**
  * One item in the Action center. Either an action to approve (optionally explained by the finding it came from),
  * or a finding with nothing to approve (e.g. a price change that is within the contract).
+ * Labels below are English source text – translate where shown (`t(STATUS[s].label)`); the helpers that build
+ * text (gist, keyFigure) call t() themselves, so call them at render time (computed / template).
  */
 export interface DecisionItem {
   key: string;
@@ -15,7 +19,6 @@ export interface DecisionItem {
 
 export type DecisionState = "pending" | "review" | "executed" | "rejected" | "no-action";
 export type DecisionCategory = "emails" | "forecast";
-type Tone = "accent" | "warn" | "positive" | "neutral" | "info";
 
 export function decisionState(item: DecisionItem): DecisionState {
   if (item.action) return item.action.status;
@@ -49,33 +52,37 @@ export function iconOf(item: DecisionItem): IconName {
   return item.action.type === "send_email" ? "send" : "landmark";
 }
 
-/** A two-word gist for the small tile: "CloudHost +15 %" / "Reject the increase". */
+/** A two-word gist for the small tile: "CloudHost +15 %" / "Reject the increase" (translated). */
 export function gist(item: DecisionItem): { title: string; hint: string } {
   const { action: a, finding: f } = item;
   if (a?.type === "credit_application") {
-    return { title: "Overdraft", hint: `Bridge ${fmtDayMonth(a.payload.from)} – ${fmtDayMonth(a.payload.until)}` };
+    return {
+      title: t("Overdraft"),
+      hint: t("Bridge {from} – {until}", { from: fmtDayMonth(a.payload.from), until: fmtDayMonth(a.payload.until) }),
+    };
   }
   if (f) {
+    // price change / late payment / email without figures – describeFinding() words all three (translated)
     const d = describeFinding(f);
-    const hint = {
+    const HINT: Record<string, string> = {
       reject: "Reject the increase",
       accept: "Within your contract",
       remind: "Remind them to pay on time",
       review: "Ask for the exact figures",
-    }[f.recommendation];
-    return { title: `${d.shortParty} · ${d.figure}`, hint };
+    };
+    return { title: `${d.shortParty} · ${d.figure}`, hint: t(HINT[f.recommendation] ?? "Check it yourself") };
   }
-  return { title: a?.title ?? "Decision", hint: "" };
+  return { title: a?.title ?? t("Decision"), hint: "" };
 }
 
-/** The one number worth seeing on the tile. */
+/** The one number worth seeing on the tile (label translated; `tone` = text colour class). */
 export function keyFigure(item: DecisionItem): { label: string; value: string; tone: string } | null {
   const { action: a, finding: f } = item;
-  if (a?.type === "credit_application") return { label: "Amount", value: eur(a.payload.amount), tone: "" };
+  if (a?.type === "credit_application") return { label: t("Amount"), value: eur(a.payload.amount), tone: "" };
   if (a && a.savings_12m > 0) {
     return a.status === "rejected"
-      ? { label: "Would have saved", value: eur(a.savings_12m), tone: "text-muted" }
-      : { label: "You save / year", value: eur(a.savings_12m), tone: "text-positive" };
+      ? { label: t("Would have saved"), value: eur(a.savings_12m), tone: "text-muted" }
+      : { label: t("You save / year"), value: eur(a.savings_12m), tone: "text-positive" };
   }
   if (f) {
     const k = describeFinding(f).key;

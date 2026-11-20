@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { AUTONOMY } from "@/constants/autonomy";
+import { t } from "@/i18n";
 import type { Autonomy } from "@/types/api";
 
 /**
@@ -16,9 +17,9 @@ defineProps<{ level: Autonomy }>();
       'inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-caption font-semibold leading-tight',
       AUTONOMY[level].classes,
     ]"
-    :title="AUTONOMY[level].description"
+    :title="t(AUTONOMY[level].description)"
   >
     <AppIcon :name="AUTONOMY[level].icon" :size="14" />
-    {{ AUTONOMY[level].label }}
+    {{ t(AUTONOMY[level].label) }}
   </span>
 </template>

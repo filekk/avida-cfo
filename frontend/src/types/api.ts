@@ -21,9 +21,9 @@ export interface TraceEvent {
   message: string;
   source?: AnswerSource;
   email_id?: string;
-  /** Handoff: the step is a message from `agent` to `to`. */
-  to?: AgentName;
-  kind?: "handoff";
+  /** Handoff: the step is a message from `agent` to `to` (shown as "A → B"). */
+  to?: string;
+  kind?: "handoff" | (string & {});
 }
 export interface SyncResultEvent {
   type: "result";
@@ -218,6 +218,8 @@ export interface Dashboard {
   analysis?: { summary: string; key_points: string[]; risk_level: "low" | "medium" | "high"; source?: AnswerSource } | null;
   findings: Finding[];
   actions: Action[];
+  /** PROPOSED (frontend/CONTRACT_PROPOSALS.md): language the backend wrote its texts in, echoing `?lang=`. */
+  lang?: "en" | "de";
 }
 
 // ---- Misc endpoints -----------------------------------------------------------------------------

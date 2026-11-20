@@ -12,13 +12,18 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import type { Tone } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
+import { t, tn } from "@/i18n";
 import type { AuditEntry } from "@/types/api";
 import { fmtDateTime } from "@/utils/format";
 
-/** Audit log (GET /api/audit) – everything that happened, newest first, as a timeline. */
+/**
+ * Audit log (GET /api/audit) – everything that happened, newest first, as a timeline.
+ * Event names are translated; the details of approved/declined actions come from the backend as delivered.
+ */
 const { data: audit, loading, error, reload } = useAsyncData(getAudit);
 const entries = computed(() => (audit.value ? [...audit.value].reverse() : []));
 
+/** English labels – translated where shown. */
 const EVENT: Record<string, { label: string; icon: IconName; tone: Tone }> = {
   sync_started: { label: "Check started", icon: "inbox", tone: "info" },
   sync_finished: { label: "Check finished", icon: "checkCircle", tone: "info" },
@@ -28,7 +33,11 @@ const EVENT: Record<string, { label: string; icon: IconName; tone: Tone }> = {
 const eventMeta = (e: AuditEntry) => EVENT[e.event] ?? { label: e.event, icon: "history" as const, tone: "neutral" as const };
 
 function describe(e: AuditEntry): string {
-  if (e.event === "sync_finished") return `${e.findings ?? 0} findings, ${e.actions ?? 0} proposed actions`;
+  if (e.event === "sync_finished") {
+    const f = Number(e.findings ?? 0);
+    const a = Number(e.actions ?? 0);
+    return `${tn(f, "{n} finding", "{n} findings")}, ${tn(a, "{n} proposed action", "{n} proposed actions")}`;
+  }
   if (e.event === "approved") return `${e.title ?? ""} – ${e.result ?? ""}`;
   if (e.event === "rejected") return String(e.title ?? "");
   return "";
@@ -36,8 +45,8 @@ function describe(e: AuditEntry): string {
 </script>
 
 <template>
-  <PageHeader eyebrow="Audit log" title="What happened" description="Every check and decision, newest first.">
-    <BaseButton variant="secondary" icon="refresh" :loading="loading" @click="reload">Refresh</BaseButton>
+  <PageHeader :eyebrow="t('Audit log')" :title="t('What happened')" :description="t('Every check and decision, newest first.')">
+    <BaseButton variant="secondary" icon="refresh" :loading="loading" @click="reload">{{ t("Refresh") }}</BaseButton>
   </PageHeader>
 
   <AlertBanner v-if="error">{{ error }}</AlertBanner>
@@ -58,7 +67,7 @@ function describe(e: AuditEntry): string {
         <IconTile :icon="eventMeta(e).icon" :tone="eventMeta(e).tone" size="sm" round />
         <div class="grid gap-1 pt-1.5">
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <b class="font-semibold">{{ eventMeta(e).label }}</b>
+            <b class="font-semibold">{{ t(eventMeta(e).label) }}</b>
             <span class="flex items-center gap-1.5 text-label tabular-nums text-muted">
               <AppIcon name="clock" :size="14" /> {{ fmtDateTime(e.time) }}
             </span>
@@ -69,5 +78,10 @@ function describe(e: AuditEntry): string {
     </ol>
   </BaseCard>
 
-  <EmptyState v-else icon="history" title="Nothing has happened yet" description="Run an inbox check on the overview." />
+  <EmptyState
+    v-else
+    icon="history"
+    :title="t('Nothing has happened yet')"
+    :description="t('Use “{button}” at the top of the page.', { button: t('Check my inbox') })"
+  />
 </template>

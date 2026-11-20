@@ -46,8 +46,12 @@ running sync survives navigation.
 - **Colours: semantic tokens only** (`bg-surface`, `text-muted`, `bg-sun`, `text-positive`…). The default Tailwind
   palette is disabled on purpose, so `bg-slate-100` won't compile. Dark mode works by swapping variables, so you
   don't need `dark:` variants for colours. See `.claude/rules/design-system.md`.
-- Money and dates go through `utils/format.ts`. Never call `toLocaleString` ad hoc in templates.
-- UI copy is **English** (backend messages are English). Keep it plain and short, aimed at a non-finance owner.
+- Money and dates go through `utils/format.ts` (dates follow the UI language, money is always de-DE). Never call
+  `toLocaleString` ad hoc in templates.
+- UI copy: **English source + German translation** via `src/i18n` (`t()` / `tn()`, dictionaries in `src/i18n/de/<area>.ts`,
+  language switch in the top bar, `?lang=` sent with every API call – see `CONTRACT_PROPOSALS.md`). Keep it plain and
+  short, aimed at a non-finance owner. Backend messages are shown as delivered (English today).
+- Top-bar pop-ups (inbox check, language, accessibility) share `composables/usePopover.ts` – same open/close behaviour.
 - Accessibility: real `<button>` / `<a>` elements (`BaseButton :to` renders a RouterLink), visible focus (global sun outline),
   `aria-live` for streaming content, `role="alert"` for errors, labels on inputs, contrast ≥ 4.5:1.
 - Loading → `SkeletonBlock`. Empty → `EmptyState` with a way forward. Error → `AlertBanner` with "Try again".
@@ -60,4 +64,5 @@ running sync survives navigation.
 ## Definition of done for a front-end change
 
 `npm run build` passes (vue-tsc + vite), there are no console errors, the flow works against a local backend
-(`LLM_ENABLED=false`), and it has been checked at 390 px width and in dark mode. Use the `frontend-verify` skill.
+(`LLM_ENABLED=false`), and it has been checked at 390 px width, in dark mode, in German (no missing strings) and in
+high contrast. Use the `frontend-verify` skill.

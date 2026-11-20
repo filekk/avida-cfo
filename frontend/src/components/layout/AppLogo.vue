@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import logoUrl from "@/assets/brand/avida-logo.png";
+import { t } from "@/i18n";
 
 /**
  * Brand mark (navy tile with the sun "AV" arrow) + wordmark. `onDark` = on the navy sidebar,
@@ -16,7 +17,7 @@ withDefaults(defineProps<{ onDark?: boolean; showText?: boolean; size?: number }
   <RouterLink
     :to="{ name: 'dashboard' }"
     :class="['flex w-fit items-center gap-2.5 font-display text-lg font-extrabold', onDark ? 'text-white' : 'text-fg']"
-    aria-label="Avida CFO, go to overview"
+    :aria-label="t('Avida CFO, go to overview')"
   >
     <img
       :src="logoUrl"

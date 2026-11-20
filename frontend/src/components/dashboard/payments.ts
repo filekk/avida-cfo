@@ -41,13 +41,15 @@ export function groupPayments(outflows: Outflow[]): PaymentGroup[] {
 }
 
 /**
- * Categorical slice colours – design tokens only, distinguishable in light AND dark, ordered so neighbours
- * contrast (navy/mint → sun → deep blue → sky → steel). No positive/negative/chart-alt: those mean good/bad money.
+ * Categorical slice colours – the `slice-1…5` tokens (tokens.css). By default they are the Aurum colours
+ * (navy/mint → sun → deep blue → sky → steel, neighbours contrast in light AND dark); in High contrast they
+ * become 5 distinct hues on black instead of all turning yellow. No positive/negative/chart-alt: those mean
+ * good/bad money.
  */
 export const SLICES = [
-  { stroke: "stroke-chart-line", bg: "bg-chart-line" },
-  { stroke: "stroke-sun", bg: "bg-sun" },
-  { stroke: "stroke-mist-fg", bg: "bg-mist-fg" },
-  { stroke: "stroke-sky", bg: "bg-sky" },
-  { stroke: "stroke-muted", bg: "bg-muted" },
+  { stroke: "stroke-slice-1", bg: "bg-slice-1" },
+  { stroke: "stroke-slice-2", bg: "bg-slice-2" },
+  { stroke: "stroke-slice-3", bg: "bg-slice-3" },
+  { stroke: "stroke-slice-4", bg: "bg-slice-4" },
+  { stroke: "stroke-slice-5", bg: "bg-slice-5" },
 ] as const;

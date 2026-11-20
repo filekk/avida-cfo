@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "@/i18n";
 import AppIcon from "./AppIcon.vue";
 
 withDefaults(defineProps<{ tone?: "error" | "info" | "warn"; dismissible?: boolean }>(), { tone: "error" });
@@ -24,7 +25,7 @@ const TONES = {
       class="flex items-center gap-1 rounded-md px-1.5 text-label font-semibold underline-offset-4 hover:underline"
       @click="$emit('dismiss')"
     >
-      <AppIcon name="x" :size="16" /> Close
+      <AppIcon name="x" :size="16" /> {{ t("Close") }}
     </button>
   </div>
 </template>

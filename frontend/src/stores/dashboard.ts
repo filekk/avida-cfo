@@ -1,9 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { ApiError, approveAction, getDashboard, rejectAction, resetDemo, startSync } from "@/api";
+import { t } from "@/i18n";
 import type { Action, Dashboard, TraceEvent } from "@/types/api";
 
-const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : "Something went wrong.");
+const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
 /**
  * Single source of truth for the demo flow:

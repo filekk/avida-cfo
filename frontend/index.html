@@ -21,6 +21,9 @@
         if (a.motion === "reduce" || a.motion === "full") d.dataset.motion = a.motion;
         if (a.links === true) d.dataset.links = "underline";
         if (a.spacing === true) d.dataset.spacing = "wide";
+        // language (i18n/index.ts): correct <html lang> for screen readers from the first paint
+        const l = localStorage.getItem("avida-lang");
+        if (l === "en" || l === "de") d.lang = l;
       } catch {}
     </script>
   </head>

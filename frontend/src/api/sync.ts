@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { Dashboard, SyncErrorEvent, SyncResultEvent, TraceEvent } from "@/types/api";
 import { apiUrl } from "./http";
 
@@ -34,7 +35,7 @@ export function startSync({ onTrace, onResult, onError }: SyncHandlers): () => v
   es.addEventListener("error", (e) => {
     if (finished) return;
     const data = (e as MessageEvent<string>).data;
-    let message = "Connection to the assistant was lost.";
+    let message = t("Connection to the assistant was lost.");
     if (data) {
       try {
         message = (JSON.parse(data) as SyncErrorEvent).message;

@@ -46,6 +46,8 @@ export default {
       warn: { DEFAULT: token("warn"), soft: token("warn-soft") },
 
       chart: { line: token("chart-line"), alt: token("chart-alt") },
+      // categorical slices (payments donut) – same as the Aurum colours by default, 5 distinct hues in high contrast
+      slice: { 1: token("slice-1"), 2: token("slice-2"), 3: token("slice-3"), 4: token("slice-4"), 5: token("slice-5") },
     },
     fontFamily: {
       display: ['"Plus Jakarta Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
