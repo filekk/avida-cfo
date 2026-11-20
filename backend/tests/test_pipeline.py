@@ -29,6 +29,7 @@ def _finding(d: dict, party: str) -> dict:
 
 
 def test_forecast_before_sync():
+    client.post("/api/reset")  # the store is global – other test files may have synced already
     d = client.get("/api/dashboard").json()
     assert d["kpis"]["min_balance"] == 11000
     assert d["findings"] == []

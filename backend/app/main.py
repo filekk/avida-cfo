@@ -9,8 +9,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from typing import Literal
 
+from pydantic import BaseModel, Field
+
+from . import ask as ask_cfo
 from .config import settings
 from .llm import llm
 from .orchestrator import initial_dashboard, run_pipeline
@@ -25,6 +28,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 class Decision(BaseModel):
     edited_body: str | None = None
+
+
+Lang = Literal["en", "de"]
+
+
+class Question(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+    lang: Lang = "en"
 
 
 @app.get("/api/health")
@@ -95,6 +106,18 @@ def _decide(action_id: str, approve: bool, decision: Decision | None):
         raise HTTPException(404, "unknown action")
     action = store.decide(action_id, approve, decision.edited_body if decision else None)
     return {"action": action, "saved_liquidity": store.saved_liquidity}
+
+
+@app.get("/api/ask/suggestions")
+def ask_suggestions(lang: Lang = "en"):
+    """Questions that fit the current situation (change after a sync), in the site's language."""
+    return ask_cfo.public_suggestions(ask_cfo.current_dashboard(), lang)
+
+
+@app.post("/api/ask")
+async def ask(q: Question):
+    """'Ask your CFO': the right agent answers from the numbers already computed (guarded, with fallback)."""
+    return await ask_cfo.ask(q.question.strip(), q.lang)
 
 
 @app.get("/api/policy")

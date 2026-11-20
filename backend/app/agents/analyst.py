@@ -93,19 +93,23 @@ def sanitize(r: dict, email: dict) -> dict:
     return {"kind": "other", "party": party, "summary": summary, "figures_stated": False}
 
 
-_NUM_TOKEN = re.compile(r"\d[\d.,]*\d|\d")
+NUM_TOKEN = re.compile(r"\d[\d.,]*\d|\d")
+
+
+def readings(tok: str) -> set[float]:
+    """One number token read both ways: '9,800.00' (English) and '14.000,00' (German)."""
+    out: set[float] = set()
+    for candidate in (tok.replace(",", ""), tok.replace(".", "").replace(",", ".")):
+        try:
+            out.add(round(float(candidate), 2))
+        except ValueError:
+            pass
+    return out
 
 
 def amounts_in(text: str) -> set[float]:
-    """All amounts in a text, read both ways: '9,800.00' (English) and '14.000,00' (German)."""
-    out: set[float] = set()
-    for tok in _NUM_TOKEN.findall(text):
-        for candidate in (tok.replace(",", ""), tok.replace(".", "").replace(",", ".")):
-            try:
-                out.add(round(float(candidate), 2))
-            except ValueError:
-                pass
-    return out
+    """All amounts in a text, in both readings."""
+    return set().union(*(readings(t) for t in NUM_TOKEN.findall(text)))
 
 
 def _num(v) -> float:
@@ -179,14 +183,16 @@ def impact(extraction: dict) -> dict:
 def delay_impact(extraction: dict, adjustments: list[Adjustment], delays: list[Delay]) -> dict:
     """Late customer payment: costs nothing, but moves cash – how much lower does the lowest balance get?"""
     this = to_delay(extraction)
-    late = forecast(adjustments, delays)["min_balance"]
-    on_time = forecast(adjustments, [d for d in delays if d != this])["min_balance"]
+    late_f = forecast(adjustments, delays)
+    on_time_f = forecast(adjustments, [d for d in delays if d != this])
+    late, on_time = late_f["min_balance"], on_time_f["min_balance"]
     effect = round(on_time - late, 2)
     return {
         "monthly": 0.0, "in_horizon": 0.0, "next_12_months": 0.0,
         "amount": extraction["amount"], "days_late": extraction["days_late"],
         "due_date": extraction["due_date"], "new_payment_date": extraction["new_payment_date"],
-        "min_balance_on_time": on_time, "min_balance_late": late, "lowest_balance_effect": effect,
+        "min_balance_on_time": on_time, "min_date_on_time": on_time_f["min_date"],
+        "min_balance_late": late, "min_date_late": late_f["min_date"], "lowest_balance_effect": effect,
         "calculation": (
             f"EUR {extraction['amount']:,.2f} arrives {extraction['days_late']} days later "
             f"({this.due:%d %b %Y} → {this.new_date:%d %b %Y}). Lowest balance: {on_time:,.0f} EUR if paid on time, "
