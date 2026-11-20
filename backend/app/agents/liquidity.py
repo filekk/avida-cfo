@@ -10,7 +10,7 @@ from ..forecast import Adjustment, expand_items, run_forecast, size_credit_line
 from ..llm import llm
 
 DRAFT_SYSTEM = (
-    "You are the Negotiation assistant of a small German company. Write a short, polite but firm email in English "
+    "You are the Negotiation assistant of a small German company. Write a short (max 150 words), polite but firm email in English "
     "rejecting a supplier's price increase that contradicts the contract. Quote the clause word for word. "
     "Start with a 'Subject:' line. Sign with the owner's name and company. No placeholders, no markdown."
 )
@@ -77,7 +77,7 @@ async def draft_rejection(extraction: dict, contract_result: dict) -> tuple[str,
         f"Clause {clause['id']} {clause['title']}: \"{clause['text']}\"\n"
         "Problems found: " + "; ".join(c["detail"] for c in contract_result["checks"] if not c["passed"])
     )
-    return await llm.text(DRAFT_SYSTEM, user, fb)
+    return await llm.text(DRAFT_SYSTEM, user, fb, max_tokens=450)
 
 
 def headline(f: dict) -> str:

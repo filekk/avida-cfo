@@ -50,3 +50,14 @@ def test_full_happy_path():
     r = client.post(f"/api/actions/{email['id']}/approve", json={}).json()
     assert r["action"]["status"] == "executed"
     assert r["saved_liquidity"] == 17640
+
+
+def test_supplier_name_is_normalised_to_contract(monkeypatch):
+    """Real models return e.g. 'CloudHost GmbH – Billing'; the forecast must still hit the CloudHost line."""
+    from app import fallback
+
+    noisy = dict(fallback.EXTRACTIONS["mail-001"], supplier="CloudHost GmbH – Billing")
+    monkeypatch.setitem(fallback.EXTRACTIONS, "mail-001", noisy)
+    d = _sync()
+    assert d["scenarios"]["if_accepted"]["min_balance"] == 9488
+    assert d["scenarios"]["recommended"]["min_balance"] == 10958

@@ -36,12 +36,12 @@ class LLM:
         except Exception as e:  # noqa: BLE001
             return {"ok": False, "base_url": settings.llm_base_url, "reason": str(e)}
 
-    async def _complete(self, system: str, user: str, **kwargs) -> str:
+    async def _complete(self, system: str, user: str, max_tokens: int = 400, **kwargs) -> str:
         resp = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=0.1,
-            max_tokens=900,
+            max_tokens=max_tokens,
             **kwargs,
         )
         return resp.choices[0].message.content or ""
@@ -66,11 +66,11 @@ class LLM:
         except Exception as e:  # noqa: BLE001
             return self._fail("json", e, fallback)
 
-    async def text(self, system: str, user: str, fallback: str) -> tuple[str, str]:
+    async def text(self, system: str, user: str, fallback: str, max_tokens: int = 400) -> tuple[str, str]:
         if not settings.llm_enabled:
             return fallback, "fallback"
         try:
-            out = (await self._complete(system, user)).strip()
+            out = (await self._complete(system, user, max_tokens=max_tokens)).strip()
             if not out:
                 raise ValueError("empty completion")
             return out, "llm"

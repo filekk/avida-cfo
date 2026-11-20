@@ -7,7 +7,7 @@ SYSTEM = (
     "Read one email and decide whether a supplier announces a change of a recurring price. "
     "Extract the numbers exactly as written in the email. Amounts are monthly net EUR. "
     "Dates in ISO format YYYY-MM-DD. If the email is not about a price change, set is_price_change to false "
-    "and leave the other fields empty or 0. Answer with JSON only."
+    "and leave the other fields empty or 0. The summary is at most 15 words. Answer with JSON only."
 )
 
 SCHEMA = {
@@ -19,7 +19,7 @@ SCHEMA = {
         "new_monthly": {"type": "number"},
         "increase_pct": {"type": "number"},
         "effective_date": {"type": "string"},
-        "summary": {"type": "string", "description": "One plain-language sentence for a non-expert."},
+        "summary": {"type": "string", "description": "Max 15 words, plain language, e.g. 'CloudHost raises hosting by 15% from 1 Jan 2027.'"},
     },
     "required": ["is_price_change", "supplier", "old_monthly", "new_monthly", "increase_pct", "effective_date", "summary"],
 }
