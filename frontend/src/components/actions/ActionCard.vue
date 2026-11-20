@@ -13,10 +13,12 @@ import { eur, eurCents, fmtDayMonth } from "@/utils/format";
  * Emits the decision; the parent (store) talks to the API.
  */
 /**
- * `compact`: embedded inside the finding detail card, which already explains the "why" and the savings.
- * No frame of its own (the parent card is the frame), only the draft and the buttons.
+ * `embedded`: rendered inside another card (Action center row) – no frame and no header of its own,
+ *             the parent shows the title and badges.
+ * `compact`:  also hides the "why" and the savings, for when the parent already explains them
+ *             (the finding's email → contract → verdict flow).
  */
-const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean }>();
+const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean; embedded?: boolean }>();
 const emit = defineEmits<{ decide: [id: string, approve: boolean, editedBody?: string] }>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
@@ -35,12 +37,12 @@ const decline = () => emit("decide", props.action.id, false);
 <template>
   <article
     :class="
-      compact
-        ? 'grid gap-5 p-5'
+      embedded
+        ? 'grid gap-5'
         : ['grid gap-5 rounded-xl border bg-surface p-5', pending ? 'border-sun shadow-float' : 'border-line']
     "
   >
-    <div class="flex items-start gap-4">
+    <div v-if="!embedded" class="flex items-start gap-4">
       <span
         :class="['grid h-12 w-12 shrink-0 place-items-center rounded-xl', pending ? 'bg-sun text-sun-on' : 'bg-input text-muted']"
         aria-hidden="true"
