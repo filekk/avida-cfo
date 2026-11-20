@@ -99,3 +99,19 @@ def test_upload_unknown_contract_without_model_is_rejected():
 
 def test_upload_empty_file():
     assert client.post("/api/contracts/upload", files={"file": ("x.pdf", b"", "application/pdf")}).status_code == 422
+
+
+def test_clean_drops_implausible_values():
+    pages = extraction.pages_from_markdown(CLOUDHOST.decode())
+    raw = {
+        "counterparty": "CloudHost GmbH", "role": "supplier", "title": "MSA", "start_date": "2025-09-01",
+        "monthly_fee": None, "fixed_price_until": "2024-08-31", "price_change_notice_days": -5,
+        "max_annual_increase_pct": 250, "payment_terms_days": 30, "changes_require_written_agreement": False,
+        "clauses": [],
+    }
+    ex = extraction.clean(raw, pages)
+    assert ex["fixed_price_until"] is None  # ends before the start
+    assert ex["max_annual_increase_pct"] is None  # 250 % is not plausible
+    assert ex["price_change_notice_days"] is None  # negative
+    assert ex["payment_terms_days"] == 30  # plausible -> kept
+    assert any("250" in w for w in ex["warnings"])
