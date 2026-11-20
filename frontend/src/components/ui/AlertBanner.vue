@@ -12,9 +12,19 @@ const TONES = {
 </script>
 
 <template>
-  <div :role="tone === 'error' ? 'alert' : 'status'" :class="['flex items-start gap-3 rounded-xl px-4 py-3 font-medium', TONES[tone]]">
-    <AppIcon name="alert" :size="18" class="mt-0.5" />
+  <div
+    :role="tone === 'error' ? 'alert' : 'status'"
+    :class="['flex items-start gap-3 rounded-xl px-4 py-3.5 font-medium animate-rise', TONES[tone]]"
+  >
+    <AppIcon name="alert" :size="20" class="mt-0.5" />
     <div class="flex-1"><slot /></div>
-    <button v-if="dismissible" type="button" class="text-sm font-semibold underline" @click="$emit('dismiss')">Close</button>
+    <button
+      v-if="dismissible"
+      type="button"
+      class="flex items-center gap-1 rounded-md px-1.5 text-label font-semibold underline-offset-4 hover:underline"
+      @click="$emit('dismiss')"
+    >
+      <AppIcon name="x" :size="16" /> Close
+    </button>
   </div>
 </template>

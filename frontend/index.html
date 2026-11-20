@@ -9,10 +9,18 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="theme-color" content="#0E2A47" />
     <script>
-      // Apply the saved theme before first paint (avoids a light→dark flash).
+      // Apply the saved theme + accessibility settings before first paint (no flash, no text-size jump).
+      // Keep in sync with composables/useTheme.ts and composables/useA11y.ts.
       try {
+        const d = document.documentElement;
         const t = localStorage.getItem("avida-theme");
-        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        if (t === "light" || t === "dark") d.dataset.theme = t;
+        const a = JSON.parse(localStorage.getItem("avida-a11y") || "{}");
+        if (a.text === "lg" || a.text === "xl" || a.text === "xxl") d.dataset.text = a.text;
+        if (a.contrast === "high") d.dataset.contrast = "high";
+        if (a.motion === "reduce" || a.motion === "full") d.dataset.motion = a.motion;
+        if (a.links === true) d.dataset.links = "underline";
+        if (a.spacing === true) d.dataset.spacing = "wide";
       } catch {}
     </script>
   </head>

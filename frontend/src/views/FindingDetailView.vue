@@ -18,8 +18,11 @@ const action = computed(() => (finding.value?.action_id ? store.actionById(findi
 </script>
 
 <template>
-  <RouterLink :to="{ name: 'findings' }" class="flex w-fit items-center gap-1.5 text-sm font-semibold text-gold hover:underline">
-    <AppIcon name="arrowLeft" /> All findings
+  <RouterLink
+    :to="{ name: 'findings' }"
+    class="group flex w-fit items-center gap-1.5 rounded-lg py-1 text-base font-semibold text-gold underline-offset-4 hover:underline"
+  >
+    <AppIcon name="arrowLeft" :size="18" class="transition-transform duration-base group-hover:-translate-x-1" /> All findings
   </RouterLink>
 
   <SkeletonBlock v-if="!dashboard && loading" height="h-96" />

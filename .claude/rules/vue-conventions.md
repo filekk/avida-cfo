@@ -9,7 +9,7 @@ paths:
 - **No `export` in `<script setup>`.** Shared types and helpers go in a sibling `.ts` file (e.g. `dashboard/chart.ts`).
 - Imports: `@/…` alias, in this order: vue/pinia/router → `@/api` → components → constants/types/utils.
 - Components are **presentational**: data in via props, decisions out via emits. Only views and stores touch
-  `@/api` or stores. (Exception: layout widgets like `LlmStatus`/`NavLinks` may read stores.)
+  `@/api` or stores. (Exception: layout widgets like `NavLinks`/`AppSidebar` may read stores.)
 - Global, cross-view state → Pinia setup store in `stores/` (`useXxxStore`). Destructure with `storeToRefs`.
   View-local read-only fetch → `useAsyncData(fetcher)`.
 - Never call `fetch` outside `src/api/`. New endpoint → new function in the matching `api/*.ts`, re-exported from `api/index.ts`.

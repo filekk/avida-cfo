@@ -11,6 +11,13 @@ const layout = computed(() => (route.meta.layout === "blank" ? BlankLayout : App
 
 <template>
   <component :is="layout">
-    <RouterView />
+    <!-- page change = quick fade out, soft rise in (shared "page" transition in main.css) -->
+    <RouterView v-slot="{ Component, route: r }">
+      <Transition name="page" mode="out-in">
+        <div :key="r.path" class="grid grid-cols-[minmax(0,1fr)] content-start gap-5">
+          <component :is="Component" />
+        </div>
+      </Transition>
+    </RouterView>
   </component>
 </template>

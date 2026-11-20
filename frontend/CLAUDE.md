@@ -12,16 +12,18 @@ router/index.ts      routes (lazy views), RouteMeta typing, document.title
 layouts/             AppLayout (navy sidebar + topbar, Aurum "Panel aplikacji"), BlankLayout
 views/               one file per route, named *View.vue. Composes components and reads stores
 components/
-  ui/                generic building blocks: BaseButton, BaseCard, StatusPill, EmptyState, AlertBanner,
-                     SkeletonBlock, PageHeader, AppIcon (+ icons.ts)
-  layout/            AppSidebar, AppTopbar, NavLinks, LlmStatus, ThemeToggle, AppLogo
-  agent/             AutonomyBadge, AutonomyLegend, AgentTrace, SourceTag (challenge-specific)
-  dashboard/         HeadlineBanner, KpiCard, ForecastChart (+ chart.ts helpers)
+  ui/                generic building blocks: BaseButton, BaseCard, StatusPill, StatTile, IconTile, EmptyState,
+                     AlertBanner, SkeletonBlock, PageHeader, CollapseTransition, AnimatedNumber,
+                     AppIcon (+ icons.ts), tones.ts (shared tone → colour maps)
+  layout/            AppSidebar, AppTopbar, NavLinks, ThemeToggle, AccessibilityMenu, AppLogo, AppFooter
+  agent/             AutonomyBadge, AutonomyLegend, AgentTrace, AgentPipeline, SourceTag (challenge-specific)
+  dashboard/         HeadlineBanner, SafetyRing, KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts)
   findings/          FindingCard (list item), FindingSplit (email ↔ contract ↔ calculation)
   actions/           ActionCard (editable email / credit offer + Approve / Not now)
 api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError), one module per area, index.ts
 stores/              Pinia setup stores: dashboard (demo flow), system (config, LLM health)
-composables/         useTheme, useAsyncData (view-local fetches)
+composables/         useTheme, useA11y (accessibility menu), useForecastPeriod (chart window),
+                     useTweenedNumber, useAsyncData (view-local fetches)
 types/api.ts         TS mirror of docs/API.md, the single source of types
 constants/           autonomy labels/colours, verdicts, navigation
 utils/format.ts      eur(), fmtDate()… all formatting lives here

@@ -41,5 +41,6 @@ behind the build, challenges, results & next steps), and the repository URL.
 - The **autonomy level is visible everywhere** an agent did or proposes something.
 - **Explainability on screen:** email ↔ contract clause (quote + page) ↔ calculation ("Show calculation").
 - **Control:** an editable draft, Approve / Not now, a "simulated" label on every execution, plus the policy and history pages.
-- **Honesty:** an "AI online/offline" indicator, and "cached answer" when the backend used a fallback.
+- **Honesty:** "cached answer" (`SourceTag`) when the backend used a fallback. (The topbar "AI online" pill was
+  removed on 2026-11-20 at the owner's request – too technical for the target user.)
 - **For every generation:** one headline sentence, large buttons, plain words, good contrast, mobile, dark mode.

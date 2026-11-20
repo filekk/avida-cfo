@@ -42,15 +42,42 @@ colours in `tailwind.config.js`. **The default Tailwind palette is disabled.** U
 ## Typography
 
 - `font-display` (Plus Jakarta Sans 500–800): headings, KPI values, logo.
-- `font-sans` (Inter 400–600): body, 15px base, line-height 1.6.
+- `font-sans` (Inter 400–600): body, **16px** base (`text-body`), line-height 1.6.
 - `font-mono` (JetBrains Mono 500): calculations, email drafts, codes.
 - Numbers in tables/KPIs: `tabular-nums`. Small uppercase labels: `.eyebrow` utility.
+- **Type scale (tailwind.config.js) – the only sizes to use, no `text-[0.7rem]` one-offs:**
+  `text-caption` 13px = the floor (pills, badges, axis labels, eyebrows) · `text-label` 14px (secondary text,
+  sub lines) · `text-sm`/`text-base`/`text-lg`/`text-xl`… · `text-kpi` 26px (KPI values). Everything is rem-based,
+  so the accessibility menu's text size (font-size on `<html>`) scales the whole UI. Never put text below 13px,
+  never glue a label to a number (keep a gap).
+
+## Shared building blocks (use these, don't re-type the classes)
+
+- **Tones** – `components/ui/tones.ts`: `TONE_SOFT` (pill/tile background + text), `TONE_TEXT` (value colour),
+  `TONE_TREND` (trend icon). Green = good for the owner's money, red = bad. Same red/green everywhere.
+- **`IconTile`** – every icon square/circle: `sm` 40px (dense rows, timelines) · `md` 48px (KPIs, stat tiles) ·
+  `lg` 56px (pipeline, empty states); `tone`, `round`, default slot for a letter.
+- **`StatusPill`** – every pill (trend, verdict, status). `AutonomyBadge` has the same size/shape.
+- **`StatTile`** – icon + label + value; `KpiCard` – dashboard KPIs (`tone` colours value + tile, amount glides
+  via `AnimatedNumber`).
+
+## Motion (no jumps, ever)
+
+- Tokens: `duration-fast` 150ms · `duration-base` 250ms · `duration-slow` 400ms, default easing
+  `cubic-bezier(.22,1,.36,1)` (CSS vars `--dur-*`, `--ease-out` in main.css). Interactive elements ease
+  colours/shadow/transform by default (base layer rule).
+- Vue transitions: `fade`, `rise` (blocks appearing), `page` (route change, App.vue), `<CollapseTransition>` for
+  anything that opens/closes (measured height – no max-height hacks), `animate-rise` for list items.
+- Values that change animate (`AnimatedNumber`, ring arcs). Reserve space for hover read-outs → no layout shift.
+- Reduced motion: the OS setting and the accessibility menu (`html[data-motion="reduce"]`) cut every
+  transition to 1ms. JS animations must check it too (see `useTweenedNumber`).
 
 ## Shapes & layout (from the prototype mock)
 
 - Cards: `rounded-xl border border-line bg-surface` (`BaseCard`). Pills: `rounded-full` (`StatusPill`).
 - App shell: 232px navy sidebar (≥ lg), sticky topbar, content `max-w-6xl`, gaps 12–20px.
-- KPI row: 4 columns on desktop, 2 on mobile. One `highlight` (sun) KPI max.
+- KPI row: `auto-fit` grid with a rem minimum (4 columns on desktop, 2 on phones, 1 on phones at large text);
+  `KpiCard` switches icon-beside/icon-above via a container query. Good/bad numbers use `tone` (green/red), not the sun.
 - Below `lg` the sidebar disappears and `NavLinks orientation="horizontal"` shows in the topbar.
 - Icons: **Lucide only** (ISC licence), 24×24 stroke-2 inline SVG in `components/ui/icons.ts`, rendered with
   `<AppIcon name>`. To add one, copy the inner SVG from lucide.dev and keep the Lucide name in a comment.

@@ -9,7 +9,7 @@ const props = withDefaults(defineProps<{ source?: AnswerSource; onlyFallback?: b
 <template>
   <span
     v-if="props.source && (!props.onlyFallback || props.source === 'fallback')"
-    class="text-xs italic text-muted"
+    class="whitespace-nowrap text-caption italic text-muted"
     :title="props.source === 'fallback' ? 'The AI model was unavailable – this is a prepared answer.' : undefined"
   >
     ({{ SOURCE_LABEL[props.source] }})

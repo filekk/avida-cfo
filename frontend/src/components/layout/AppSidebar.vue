@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import AnimatedNumber from "@/components/ui/AnimatedNumber.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { useDashboardStore } from "@/stores/dashboard";
-import { eur } from "@/utils/format";
 import AppLogo from "./AppLogo.vue";
 import NavLinks from "./NavLinks.vue";
 
-/** Navy column: logo, navigation, "Saved by Avida" card pinned to the bottom. */
+/** Navy column: logo, navigation, "Saved by Avida" card pinned to the bottom (the amount glides up after approvals). */
 const { kpis } = storeToRefs(useDashboardStore());
 </script>
 
@@ -16,13 +16,14 @@ const { kpis } = storeToRefs(useDashboardStore());
     <NavLinks orientation="vertical" />
     <div class="flex-1" />
     <div class="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3.5">
-      <div class="flex items-center gap-2.5">
-        <span class="grid h-9 w-9 place-items-center rounded-lg bg-mint/15 text-mint">
+      <div class="flex items-center gap-3">
+        <!-- on-navy tile (IconTile tones are for light surfaces): same 40px sm size -->
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-mint/15 text-mint" aria-hidden="true">
           <AppIcon name="piggyBank" :size="18" />
         </span>
-        <span class="text-[0.8rem] font-semibold leading-tight text-side-fg">Saved by Avida<br />next 12 months</span>
+        <span class="text-label font-semibold leading-tight text-white/85">Saved by Avida<br />next 12 months</span>
       </div>
-      <span class="font-display text-2xl font-bold tabular-nums text-mint">{{ eur(kpis?.saved_liquidity ?? 0) }}</span>
+      <AnimatedNumber :value="kpis?.saved_liquidity ?? 0" class="font-display text-2xl font-bold text-mint" />
     </div>
   </aside>
 </template>

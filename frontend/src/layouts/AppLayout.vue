@@ -15,7 +15,7 @@ onMounted(() => store.load());
     <AppSidebar />
     <div class="flex min-w-0 flex-1 flex-col">
       <AppTopbar />
-      <main id="main" class="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)] content-start gap-5 px-4 py-5 sm:px-6 sm:py-7">
+      <main id="main" class="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-5 sm:px-6 sm:py-7">
         <slot />
       </main>
       <AppFooter />
