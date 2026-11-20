@@ -1,0 +1,26 @@
+[
+  {
+    "id": "mail-001",
+    "from": "billing@cloudhost.example",
+    "from_name": "CloudHost GmbH – Billing",
+    "subject": "Important: price adjustment for your hosting plan from 1 January 2027",
+    "received": "2026-11-20",
+    "body": "Dear Ms Müller,\n\ndue to rising energy and hardware costs we are forced to adjust our prices. From 1 January 2027 the monthly fee for your plan \"Business ERP Hosting\" will increase by 15% from EUR 9,800.00 to EUR 11,270.00.\n\nThe new price will be charged automatically with the January invoice. No action is required on your side.\n\nThank you for your understanding.\n\nKind regards,\nCloudHost GmbH Billing Team"
+  },
+  {
+    "id": "mail-002",
+    "from": "service@paperpro.example",
+    "from_name": "PaperPro GmbH",
+    "subject": "Annual price indexation 2027",
+    "received": "2026-11-20",
+    "body": "Dear customer,\n\nin accordance with section 4 of our supply agreement, prices are adjusted annually to the consumer price index. From 1 January 2027 your monthly office supplies package will cost EUR 1,242.00 instead of EUR 1,200.00 (+3.5%).\n\nBest regards,\nPaperPro GmbH"
+  },
+  {
+    "id": "mail-003",
+    "from": "events@ihk-frankfurt.example",
+    "from_name": "IHK Frankfurt",
+    "subject": "Invitation: SME New Year's reception 2027",
+    "received": "2026-11-19",
+    "body": "Dear members,\n\nwe cordially invite you to our New Year's reception on 15 January 2027 at 18:00. Please register by 20 December.\n\nYour IHK team"
+  }
+]
