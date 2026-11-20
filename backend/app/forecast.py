@@ -31,6 +31,21 @@ class Adjustment:
     label: str
 
 
+@dataclass
+class Delay:
+    """A customer pays an expected inflow later than agreed."""
+
+    counterparty: str
+    due: date
+    new_date: date
+    label: str
+
+
+def pay_date(year: int, month: int, day: int) -> date:
+    """Recurring item on day 30/31 falls on the last day of shorter months."""
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
 def _month_iter(start: date, end: date):
     y, m = start.year, start.month
     while (y, m) <= (end.year, end.month):
@@ -38,7 +53,13 @@ def _month_iter(start: date, end: date):
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
 
-def expand_items(cashflows: dict, start: date, days: int, adjustments: list[Adjustment] | None = None) -> list[CashItem]:
+def expand_items(
+    cashflows: dict,
+    start: date,
+    days: int,
+    adjustments: list[Adjustment] | None = None,
+    delays: list[Delay] | None = None,
+) -> list[CashItem]:
     """Turn recurring + one-off definitions into dated items within [start, start+days)."""
     end = start + timedelta(days=days - 1)
     adjustments = adjustments or []
@@ -46,8 +67,7 @@ def expand_items(cashflows: dict, start: date, days: int, adjustments: list[Adju
 
     for rec in cashflows.get("recurring_monthly", []):
         for y, m in _month_iter(start, end):
-            day = min(rec["day"], calendar.monthrange(y, m)[1])
-            d = date(y, m, day)
+            d = pay_date(y, m, rec["day"])
             if not (start <= d <= end):
                 continue
             amount = float(rec["amount"])
@@ -63,6 +83,16 @@ def expand_items(cashflows: dict, start: date, days: int, adjustments: list[Adju
         d = date.fromisoformat(one["date"])
         if start <= d <= end:
             items.append(CashItem(d, float(one["amount"]), one["label"], one["category"], one["counterparty"]))
+
+    for dl in delays or []:
+        # Move the customer's inflow closest to the agreed due date (±3 days); drop it if it now falls after the horizon.
+        candidates = [i for i in items if i.counterparty == dl.counterparty and i.amount > 0 and abs((i.date - dl.due).days) <= 3]
+        if not candidates:
+            continue
+        it = min(candidates, key=lambda i: abs((i.date - dl.due).days))
+        items.remove(it)
+        if dl.new_date <= end:
+            items.append(CashItem(dl.new_date, it.amount, f"{it.label} ({dl.label})", it.category, it.counterparty))
 
     items.sort(key=lambda i: (i.date, -i.amount))
     return items

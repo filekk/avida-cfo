@@ -22,5 +22,29 @@
     "subject": "Invitation: SME New Year's reception 2027",
     "received": "2026-11-19",
     "body": "Dear members,\n\nwe cordially invite you to our New Year's reception on 15 January 2027 at 18:00. Please register by 20 December.\n\nYour IHK team"
+  },
+  {
+    "id": "mail-004",
+    "from": "ap@bauer-maschinenbau.example",
+    "from_name": "Bauer Maschinenbau AG – Accounts Payable",
+    "subject": "Payment run postponed – SAP migration in January 2027",
+    "received": "2026-11-19",
+    "body": "Dear Ms Müller,\n\nwe are migrating our finance system to SAP S/4HANA in January 2027. During the migration no payments can be released. All supplier invoices due between 1 and 31 January 2027 will therefore be paid with our first payment run after go-live on 4 February 2027.\n\nThis concerns your invoice RE-2026-1187 for the December deliveries over EUR 38,000.00, due on 5 January 2027.\n\nThank you for your understanding.\n\nKind regards,\nAndreas Keller\nAccounts Payable, Bauer Maschinenbau AG"
+  },
+  {
+    "id": "mail-005",
+    "from": "vertrieb@stahlhandel-nord.example",
+    "from_name": "Stahlhandel Nord GmbH – Vertrieb",
+    "subject": "Anpassung der Materialpreise zum 01.01.2027",
+    "received": "2026-11-18",
+    "body": "Sehr geehrte Frau Müller,\n\naufgrund der gestiegenen Notierungen für Walzstahl und Aluminium passen wir gemäß § 6 unseres Rahmenliefervertrags die Preise für Ihre monatliche Materiallieferung zum 1. Januar 2027 um 6 % an. Der monatliche Betrag steigt damit von 14.000,00 EUR auf 14.840,00 EUR (netto).\n\nFür Rückfragen stehen wir Ihnen gerne zur Verfügung.\n\nMit freundlichen Grüßen\nJens Petersen\nStahlhandel Nord GmbH"
+  },
+  {
+    "id": "mail-006",
+    "from": "info@it-kraus.example",
+    "from_name": "IT-Service Kraus e.K.",
+    "subject": "Information about our prices for 2027",
+    "received": "2026-11-20",
+    "body": "Dear customers,\n\nrising wages and licence costs unfortunately force us to adjust our service fees moderately from 1 January 2027. You will receive the new price list for your support contract in the course of December.\n\nThank you for your loyalty.\n\nBest regards,\nTobias Kraus\nIT-Service Kraus e.K."
   }
 ]

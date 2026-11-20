@@ -11,16 +11,23 @@ const showCalc = ref(false);
 const VERDICT = {
   violates: { text: "Not allowed by your contract", cls: "bg-rose-600" },
   allowed: { text: "Allowed by your contract", cls: "bg-emerald-600" },
-  unclear: { text: "No contract found – please check", cls: "bg-slate-500" },
+  unclear: { text: "Cannot be checked – please review", cls: "bg-slate-500" },
 };
 const v = computed(() => VERDICT[props.f.contract.verdict]);
+
+const title = computed(() => {
+  const x = props.f.extraction;
+  if (!x.figures_stated) return `${x.party}: change announced – no figures given`;
+  if (props.f.kind === "payment_delay") return `${x.party}: pays invoice ${x.invoice} ${x.days_late} days late`;
+  return `${x.party}: +${x.increase_pct}% from ${fmtDate(x.effective_date!)}`;
+});
 </script>
 
 <template>
   <article class="overflow-hidden rounded-2xl bg-white shadow-sm">
     <header :class="['flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-white', v.cls]">
       <span class="text-lg font-bold">
-        {{ f.extraction.supplier }}: +{{ f.extraction.increase_pct }}% from {{ fmtDate(f.extraction.effective_date) }}
+        {{ title }}
       </span>
       <span class="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">{{ v.text }}</span>
     </header>
@@ -56,8 +63,14 @@ const v = computed(() => VERDICT[props.f.contract.verdict]);
     </div>
 
     <footer class="flex flex-wrap items-center gap-x-8 gap-y-2 bg-slate-50 px-5 py-3">
-      <span>Extra cost: <b>{{ eur(f.impact.monthly) }}</b>/month</span>
-      <span>Next 12 months: <b>{{ eur(f.impact.next_12_months) }}</b></span>
+      <template v-if="f.kind === 'payment_delay' && f.extraction.figures_stated">
+        <span>Arrives: <b>{{ fmtDate(f.extraction.due_date!) }} → {{ fmtDate(f.extraction.new_payment_date!) }}</b></span>
+        <span>Lowest balance: <b>{{ eur(-(f.impact.lowest_balance_effect ?? 0)) }}</b></span>
+      </template>
+      <template v-else-if="f.extraction.figures_stated">
+        <span>Extra cost: <b>{{ eur(f.impact.monthly) }}</b>/month</span>
+        <span>Next 12 months: <b>{{ eur(f.impact.next_12_months) }}</b></span>
+      </template>
       <button class="text-sm text-sky-700 underline" @click="showCalc = !showCalc">
         {{ showCalc ? "Hide calculation" : "Show calculation" }}
       </button>

@@ -1,19 +1,19 @@
 """Coordinates the three collaborating agents and streams every step as a trace event (SSE).
 
-    Analyst ──price changes──► Legal ──verdicts──► Analyst (forecast, impact, credit)
-       │                         │                     │
-       └──prices, impact──► Negotiator ◄──clause───────┘
-                               │  draft
-                               ▼
-                             Legal (review) ──issues──► Negotiator (revise once)
-                               │
-                               ▼
-                             Owner (approve / reject)
+    Analyst ──changes──► Legal ──verdicts──► Analyst (forecast, impact, credit)
+       │                   │                     │
+       └──figures──► Negotiator ◄──clause────────┘        (one negotiation per finding, all in parallel)
+                         │  draft
+                         ▼
+                       Legal (review) ──issues──► Negotiator (revise once)
+                         │
+                         ▼
+                       Owner (approve / reject)
 """
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from typing import AsyncIterator, Awaitable, Callable
 
 from . import data
 from .agents import analyst, legal, negotiator
@@ -24,12 +24,37 @@ AGENTS = [
     {"name": analyst.NAME, "role": "Analyst", "icon": "📊",
      "does": "Reads the inbox, forecasts your cash and explains the numbers."},
     {"name": legal.NAME, "role": "Lawyer", "icon": "⚖️",
-     "does": "Checks every price change against your contracts and reviews outgoing emails."},
+     "does": "Checks every change against your contracts and reviews outgoing emails."},
     {"name": negotiator.NAME, "role": "Negotiator", "icon": "✉️",
-     "does": "Writes the reply to the supplier, based on the lawyer's findings and the analyst's numbers."},
+     "does": "Writes the replies to suppliers and customers, based on the lawyer's findings and the analyst's numbers."},
 ]
 
-VERDICT_TXT = {"violates": "NOT allowed by the contract", "allowed": "allowed by the contract", "unclear": "no contract found"}
+A, L, N = analyst.NAME, legal.NAME, negotiator.NAME
+
+# recommendation per (kind, verdict); anything missing → "review"
+RECOMMEND = {
+    ("price_change", "violates"): "reject",
+    ("price_change", "allowed"): "accept",
+    ("payment_delay", "violates"): "remind",
+    ("payment_delay", "allowed"): "accept",
+}
+
+# which email the Negotiator writes for a finding (None = nothing to write)
+def _task(f: dict) -> str | None:
+    if f["recommendation"] == "reject":
+        return "reject_price"
+    if f["recommendation"] == "remind":
+        return "payment_reminder"
+    if f["recommendation"] == "review" and f["kind"] == "price_change":
+        return "ask_details"
+    return None
+
+
+class SyncAlreadyRunning(RuntimeError):
+    pass
+
+
+_running = False  # one sync at a time – a second click must not wipe the first run's actions
 
 
 def _trace(agent: str, autonomy: str, message: str, **extra) -> dict:
@@ -74,10 +99,127 @@ def _dashboard(scenarios: dict, recommended: dict, findings: list, analysis: dic
     }
 
 
+# --- trace texts ------------------------------------------------------------------
+
+def _found_line(mail: dict, ex: dict) -> str:
+    if ex["kind"] == "price_change":
+        return (f"Price change found: {ex['summary']}" if ex["figures_stated"]
+                else f"Price change announced by {ex['party']}, but the email gives no figures – I won't guess.")
+    if ex["kind"] == "payment_delay":
+        return f"Late customer payment: {ex['summary']}"
+    return f"Ignored: \"{mail['subject']}\" – not about prices or payments."
+
+
+def _ask_line(ex: dict) -> str:
+    if not ex["figures_stated"]:
+        return f"{ex['party']} (no figures)"
+    if ex["kind"] == "payment_delay":
+        return f"{ex['party']} pays {ex['days_late']} days late"
+    return f"{ex['party']} +{ex['increase_pct']}%"
+
+
+def _verdict_line(ex: dict, res: dict) -> str:
+    clause = f" ({res['clause_id']})" if res.get("clause_id") else ""
+    if res["verdict"] == "unclear":
+        why = "no figures in the email" if not ex["figures_stated"] else "no contract on file"
+        return f"{ex['party']}: cannot check – {why}. Please review."
+    what = "paying later" if ex["kind"] == "payment_delay" else "the increase"
+    ok = "allowed" if res["verdict"] == "allowed" else "NOT allowed"
+    return f"{ex['party']}: {what} is {ok} by the contract{clause}."
+
+
+# --- one negotiation (runs concurrently with the others) ---------------------------
+
+async def _negotiate(f: dict, emit: Callable[[dict], Awaitable[None]]) -> dict:
+    task, ex, res, imp = f["task"], f["extraction"], f["contract"], f["impact"]
+    name = ex["party"]
+    violations = " ".join(c["detail"] for c in res["checks"] if not c["passed"])
+
+    if task == "reject_price":
+        await emit(_handoff(A, N, f"{name}: agreed EUR {ex['old_monthly']:,.0f}/month, announced "
+                                  f"EUR {ex['new_monthly']:,.0f}. Worth {imp['next_12_months']:,.0f} EUR/year."))
+        await emit(_handoff(L, N, f"{name}: use {res['clause_id']} – {violations}"))
+    elif task == "payment_reminder":
+        await emit(_handoff(A, N, f"{name}: invoice {ex['invoice']} (EUR {ex['amount']:,.0f}) arriving "
+                                  f"{ex['days_late']} days late lowers your lowest balance by "
+                                  f"{imp['lowest_balance_effect']:,.0f} EUR."))
+        await emit(_handoff(L, N, f"{name}: use {res['clause_id']} – {violations}"))
+    else:
+        await emit(_handoff(L, N, f"{name}: no figures and no contract on file – please ask for the exact prices."))
+
+    body, src = await negotiator.draft(task, ex, res, imp)
+    await emit(_trace(N, ANALYZED, f"Draft to {name} written.", source=src))
+    await emit(_handoff(N, L, f"Please review my draft to {name} before the owner sees it."))
+
+    review, rsrc = await legal.review_draft(body, task, ex, res)
+    rounds = 1
+    if review["approved"]:
+        ok_txt = "tone is right" if task == "ask_details" else "clause, figures and tone are right"
+        await emit(_trace(L, ANALYZED, f"Draft to {name} approved – {ok_txt}.", source=rsrc))
+    else:
+        await emit(_trace(L, ANALYZED, f"Draft to {name}: found issues. " + " ".join(review["issues"]),
+                          source=rsrc, to=N, kind="handoff"))
+        body, src = await negotiator.revise(task, body, review["issues"], ex, res, imp)
+        await emit(_trace(N, ANALYZED, f"Draft to {name} revised.", source=src))
+        review, rsrc = await legal.review_draft(body, task, ex, res)
+        rounds = 2
+        await emit(_trace(L, ANALYZED, f"Revised draft to {name} approved." if review["approved"]
+                          else f"Draft to {name} still not perfect – please check it before sending: "
+                               + " ".join(review["issues"]), source=rsrc))
+    return {"body": body, "source": src, "review": review, "rounds": rounds}
+
+
+def _email_action(f: dict, n: dict) -> dict:
+    ex, res, imp, mail = f["extraction"], f["contract"], f["impact"], f["email"]
+    name = ex["party"]
+    if f["task"] == "reject_price":
+        title = f"Reject the {ex['increase_pct']:.0f}% price increase from {name}"
+        why = f"{res['explanation_simple']} Saves {imp['next_12_months']:,.0f} EUR over 12 months."
+        savings = imp["next_12_months"]
+    elif f["task"] == "payment_reminder":
+        title = f"Ask {name} to pay invoice {ex['invoice']} on time"
+        why = (f"{res['explanation_simple']} If they pay on the agreed date, your lowest balance is "
+               f"{imp['lowest_balance_effect']:,.0f} EUR higher.")
+        savings = 0.0
+    else:
+        title = f"Ask {name} for the exact new prices"
+        why = res["explanation_simple"]
+        savings = 0.0
+    return store.add_action(
+        type="send_email",
+        agent=N,
+        reviewed_by=L,
+        finding_id=f["id"],
+        title=title,
+        why=why,
+        savings_12m=savings,
+        payload={"to": mail["from"], "body": n["body"]},
+        review={"approved": n["review"]["approved"], "issues": n["review"]["issues"], "rounds": n["rounds"]},
+        source=n["source"],
+    )
+
+
+# --- the pipeline -------------------------------------------------------------------
+
 async def run_pipeline() -> AsyncIterator[dict]:
+    global _running
+    if _running:
+        raise SyncAlreadyRunning("A check is already running – please wait for it to finish.")
+    _running = True
+    background: list[asyncio.Task] = []
+    try:
+        async for ev in _pipeline(background):
+            yield ev
+    finally:
+        # Client disconnected or error: don't leave LLM calls running in the background.
+        for t in background:
+            t.cancel()
+        _running = False
+
+
+async def _pipeline(background: list[asyncio.Task]) -> AsyncIterator[dict]:
     store.reset()
     store.log("sync_started")
-    A, L, N = analyst.NAME, legal.NAME, negotiator.NAME
 
     # 1) Analyst reads the inbox ---------------------------------------------------
     mails = data.inbox()
@@ -85,45 +227,41 @@ async def run_pipeline() -> AsyncIterator[dict]:
     await _pause()
     # All emails go to vLLM at once – it batches them.
     read = await asyncio.gather(*(analyst.read_email(m) for m in mails))
-    price_changes = []
+    relevant = []
     for mail, (ex, src) in zip(mails, read):
-        if ex["is_price_change"]:
-            price_changes.append((mail, ex))
-            yield _trace(A, ANALYZED, f"Price change found: {ex['summary']}", source=src, email_id=mail["id"])
-        else:
-            yield _trace(A, ANALYZED, f"Ignored: \"{mail['subject']}\" – not about prices.", source=src)
+        if ex["kind"] != "other":
+            relevant.append((mail, ex))
+        yield _trace(A, ANALYZED, _found_line(mail, ex), source=src, email_id=mail["id"])
         await _pause()
 
-    if price_changes:
-        yield _handoff(A, L, f"Please check {len(price_changes)} price change(s): "
-                             + ", ".join(f"{ex['supplier']} +{ex['increase_pct']}%" for _, ex in price_changes) + ".")
+    if relevant:
+        yield _handoff(A, L, f"Please check {len(relevant)} change(s) against the contracts: "
+                             + ", ".join(_ask_line(ex) for _, ex in relevant) + ".")
         await _pause()
 
     # 2) Legal checks the contracts -----------------------------------------------
-    results = await asyncio.gather(*(legal.check_price_change(ex, mail["received"]) for mail, ex in price_changes))
+    results = await asyncio.gather(*(legal.check(ex, mail["received"]) for mail, ex in relevant))
     checked = []
-    for (mail, ex), (res, src) in zip(price_changes, results):
+    for (mail, ex), (res, src) in zip(relevant, results):
         checked.append((mail, ex, res))
-        yield _trace(
-            L, RECOMMENDATION,
-            f"{ex['supplier']}: increase is {VERDICT_TXT[res['verdict']]}"
-            + (f" ({res['clause_id']})." if res.get("clause_id") else "."),
-            source=src,
-        )
+        yield _trace(L, RECOMMENDATION, _verdict_line(ex, res), source=src)
         await _pause()
 
     if checked:
-        yield _handoff(L, A, "Verdicts: " + "; ".join(f"{ex['supplier']} → {res['verdict']}" for _, ex, res in checked) + ".")
+        yield _handoff(L, A, "Verdicts: " + "; ".join(f"{ex['party']} → {res['verdict']}" for _, ex, res in checked) + ".")
         await _pause()
 
     # 3) Analyst: forecast, impact, credit (deterministic) ---------------------------
     yield _trace(A, ANALYZED, f"Forecasting your cash for the next {settings.forecast_days} days in 3 scenarios…")
-    all_adj = [analyst.to_adjustment(ex) for _, ex, _ in checked]
-    legit_adj = [analyst.to_adjustment(ex) for _, ex, r in checked if r["verdict"] == "allowed"]
+    prices = [(ex, res) for _, ex, res in checked if ex["kind"] == "price_change" and ex["figures_stated"]]
+    delays = [analyst.to_delay(ex) for _, ex, _ in checked if ex["kind"] == "payment_delay" and ex["figures_stated"]]
+    all_adj = [analyst.to_adjustment(ex) for ex, _ in prices]
+    # Prudent planning: only increases that break the contract are left out; late payments are assumed to happen.
+    plan_adj = [analyst.to_adjustment(ex) for ex, res in prices if res["verdict"] != "violates"]
     scenarios = {
         "current": analyst.forecast([]),
-        "if_accepted": analyst.forecast(all_adj),
-        "recommended": analyst.forecast(legit_adj),
+        "if_accepted": analyst.forecast(all_adj, delays),
+        "recommended": analyst.forecast(plan_adj, delays),
     }
     rec = scenarios["recommended"]
     yield _trace(
@@ -135,54 +273,45 @@ async def run_pipeline() -> AsyncIterator[dict]:
 
     findings = []
     for mail, ex, res in checked:
-        rec_txt = {"violates": "reject", "allowed": "accept"}.get(res["verdict"], "review")
-        findings.append({"id": mail["id"], "email": mail, "extraction": ex, "contract": res,
-                         "impact": analyst.impact(ex), "recommendation": rec_txt})
+        imp = (analyst.delay_impact(ex, plan_adj, delays) if ex["kind"] == "payment_delay" and ex["figures_stated"]
+               else analyst.impact(ex) if ex["kind"] == "price_change"
+               else {"monthly": 0.0, "in_horizon": 0.0, "next_12_months": 0.0, "calculation": "No figures in the email."})
+        f = {"id": mail["id"], "kind": ex["kind"], "email": mail, "extraction": ex, "contract": res, "impact": imp,
+             "recommendation": RECOMMEND.get((ex["kind"], res["verdict"]), "review")}
+        f["task"] = _task(f)
+        findings.append(f)
     credit = analyst.credit_proposal(rec)
 
     # The briefing (LLM) runs in the background while the Negotiator works.
     briefing_task = asyncio.create_task(analyst.briefing(scenarios, findings, credit))
+    background.append(briefing_task)
 
-    # 4) Negotiator drafts, Legal reviews, Negotiator revises -------------------------
-    for f in (f for f in findings if f["recommendation"] == "reject"):
-        ex, res, imp, mail = f["extraction"], f["contract"], f["impact"], f["email"]
-        yield _handoff(A, N, f"{ex['supplier']}: agreed EUR {ex['old_monthly']:,.0f}/month, "
-                             f"announced EUR {ex['new_monthly']:,.0f}. Worth {imp['next_12_months']:,.0f} EUR/year.")
-        yield _handoff(L, N, f"Use {res['clause_id']} – " + "; ".join(c["detail"] for c in res["checks"] if not c["passed"]))
+    # 4) Negotiator drafts, Legal reviews – one negotiation per finding, all in parallel ----
+    to_write = [f for f in findings if f["task"]]
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def run(f: dict) -> dict:
+        try:
+            return await _negotiate(f, queue.put)
+        finally:
+            await queue.put(None)  # "this negotiation is done"
+
+    tasks = [asyncio.create_task(run(f)) for f in to_write]
+    background.extend(tasks)
+    remaining = len(tasks)
+    while remaining:
+        ev = await queue.get()
+        if ev is None:
+            remaining -= 1
+            continue
+        yield ev
         await _pause()
 
-        body, src = await negotiator.draft(ex, res, imp)
-        yield _trace(N, ANALYZED, f"Draft reply to {ex['supplier']} written.", source=src)
-        yield _handoff(N, L, "Please review my draft before it goes to the owner.")
-
-        review, rsrc = await legal.review_draft(body, ex, res)
-        rounds = [{"draft": body, "review": review}]
-        if review["approved"]:
-            yield _trace(L, ANALYZED, "Draft approved – clause quoted correctly, figures match.", source=rsrc)
-        else:
-            yield _trace(L, ANALYZED, "Found issues: " + " ".join(review["issues"]), source=rsrc, to=N, kind="handoff")
-            body, src = await negotiator.revise(body, review["issues"], ex, res, imp)
-            review, rsrc = await legal.review_draft(body, ex, res)
-            rounds.append({"draft": body, "review": review})
-            yield _trace(N, ANALYZED, "Draft revised.", source=src)
-            yield _trace(L, ANALYZED, "Revised draft approved." if review["approved"]
-                         else "Still not perfect – please check the email before sending: " + " ".join(review["issues"]),
-                         source=rsrc)
-        await _pause()
-
-        action = store.add_action(
-            type="send_email",
-            agent=N,
-            reviewed_by=L,
-            title=f"Reject the {ex['increase_pct']:.0f}% price increase from {ex['supplier']}",
-            why=f"{res['explanation_simple']} Saves {imp['next_12_months']:,.0f} EUR over 12 months.",
-            savings_12m=imp["next_12_months"],
-            payload={"to": mail["from"], "body": body},
-            review={"approved": review["approved"], "issues": review["issues"], "rounds": len(rounds)},
-            source=src,
-        )
+    # Actions are created in inbox order, so ids are stable between runs.
+    for f, t in zip(to_write, tasks):
+        action = _email_action(f, t.result())
         f["action_id"] = action["id"]
-        yield _trace(N, APPROVAL, f"Waiting for your approval: {action['title']}.", source=src)
+        yield _trace(N, APPROVAL, f"Waiting for your approval: {action['title']}.", source=action["source"])
 
     if credit:
         credit_if_accepted = analyst.credit_proposal(scenarios["if_accepted"])

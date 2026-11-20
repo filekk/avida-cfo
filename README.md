@@ -10,16 +10,21 @@ owner's approval, and all execution is simulated.
 
 1. **Check my inbox** → three collaborating agents run; every step and every hand-off between them is
    streamed to the UI with its autonomy level.
-2. 📊 **Analyst Agent** reads the inbox: two price increases (CloudHost +15%, PaperPro +3.5%), one newsletter ignored
-   → hands the price changes to the lawyer.
-3. ⚖️ **Legal Agent** checks the contracts: CloudHost breaks the 24-month price guarantee (§5.2) and the 90-day
-   notice period; PaperPro is within its 5% indexation cap → verdicts back to the analyst.
-4. 📊 **Analyst Agent** forecasts 90 days in 3 scenarios: in early February the balance falls below the 15 000 EUR
-   cushion → proposes a 5 000 EUR overdraft bridge (10 000 EUR if the increase were accepted) and writes a briefing.
-5. ✉️ **Negotiator Agent** drafts the rejection to CloudHost from the lawyer's clause and the analyst's figures.
-6. ⚖️ **Legal Agent** reviews the draft (clause cited, agreed price stated, no placeholders, no internal financials
-   revealed); if it finds issues the Negotiator revises once (four-eyes principle).
-7. Owner reads the split screen (email ↔ contract quote ↔ calculation), edits the draft and presses **Approve**
+2. 📊 **Analyst Agent** reads 6 emails (English and German): CloudHost +15%, PaperPro +3.5%, Stahlhandel Nord +6%
+   (German), the key customer Bauer announces paying a 38 000 EUR invoice 30 days late (SAP migration),
+   IT-Service Kraus announces "moderate" increases **without figures** (Avida doesn't guess), one newsletter ignored.
+   Every extracted amount is checked against the email text.
+3. ⚖️ **Legal Agent** checks the contracts: CloudHost breaks the price guarantee (§5.2) and the notice period;
+   PaperPro and Stahlhandel are within their caps; Bauer's contract fixes 30-day payment terms (§7.1) and forbids
+   one-sided changes (§7.2); Kraus cannot be checked (no figures, no contract) → verdicts back to the analyst.
+4. 📊 **Analyst Agent** forecasts 90 days in 3 scenarios, planning prudently with Bauer's late payment: the account
+   would be 27 882 EUR overdrawn on 3 Feb and **payroll on 28 Jan would not be covered** → proposes a 45 000 EUR
+   overdraft for 14 days (max. 164 EUR interest) and writes a briefing.
+5. ✉️ **Negotiator Agent** drafts three emails in parallel: rejection to CloudHost, a friendly payment reminder to
+   Bauer, a request for exact prices to Kraus.
+6. ⚖️ **Legal Agent** reviews every draft (clause cited, figures stated, no placeholders, no internal financials
+   revealed – also in German); if it finds issues the Negotiator revises once (four-eyes principle).
+7. Owner reads the split screen (email ↔ contract quote ↔ calculation), edits the drafts and presses **Approve**
    → simulated execution, "Saved by Avida" counter goes up.
 
 | Level | Examples |
@@ -79,8 +84,8 @@ pytest -q
 cd frontend && npm install && npm run dev            # http://localhost:5173
 ```
 
-To use the cluster model locally: `oc port-forward -n avida-models svc/qwen25-7b-instruct-predictor 8000:8080`
-and set `LLM_BASE_URL=http://localhost:8000/v1`.
+To use the cluster model locally: `oc port-forward -n avida-models deploy/granite-8b-predictor 8001:8080`
+and set `LLM_BASE_URL=http://localhost:8001/v1`.
 
 ## Deploy to OpenShift AI
 
