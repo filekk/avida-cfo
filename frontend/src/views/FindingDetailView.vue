@@ -25,14 +25,15 @@ const action = computed(() => (finding.value?.action_id ? store.actionById(findi
   <SkeletonBlock v-if="!dashboard && loading" height="h-96" />
 
   <template v-else-if="finding">
-    <FindingSplit :finding="finding" />
-    <ActionCard
-      v-if="action"
-      :action="action"
-      :busy="deciding.has(action.id)"
-      compact
-      @decide="(id, approve, body) => store.decide(id, approve, body)"
-    />
+    <FindingSplit :finding="finding">
+      <ActionCard
+        v-if="action"
+        :action="action"
+        :busy="deciding.has(action.id)"
+        compact
+        @decide="(id, approve, body) => store.decide(id, approve, body)"
+      />
+    </FindingSplit>
   </template>
 
   <EmptyState

@@ -71,9 +71,10 @@ const columns = computed(() => [
       </div>
     </BaseCard>
 
-    <div class="grid items-start gap-5 lg:grid-cols-2">
-      <section v-for="col in columns" :key="col.key" class="grid gap-4" :aria-labelledby="`col-${col.key}`">
-        <header class="flex items-start gap-3">
+    <!-- lg: 2 columns × 2 rows (headers, then cards) so both columns start at the same height -->
+    <div class="grid gap-x-5 gap-y-4 lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-[auto_1fr]">
+      <template v-for="(col, i) in columns" :key="col.key">
+        <header :class="['flex items-start gap-3', i > 0 ? 'mt-4 lg:mt-0' : '']">
           <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-mist text-mist-fg" aria-hidden="true">
             <AppIcon :name="col.icon" :size="18" />
           </span>
@@ -83,7 +84,13 @@ const columns = computed(() => [
           </div>
         </header>
 
-        <TransitionGroup tag="div" name="decision" class="relative grid gap-4">
+        <TransitionGroup
+          v-if="col.items.length"
+          tag="section"
+          name="decision"
+          class="relative grid gap-4"
+          :aria-labelledby="`col-${col.key}`"
+        >
           <ActionCard
             v-for="a in col.items"
             :key="a.id"
@@ -92,14 +99,13 @@ const columns = computed(() => [
             @decide="(id, approve, body) => store.decide(id, approve, body)"
           />
         </TransitionGroup>
-
         <p
-          v-if="!col.items.length"
-          class="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted"
+          v-else
+          class="grid place-items-center rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted"
         >
           {{ col.empty }}
         </p>
-      </section>
+      </template>
     </div>
   </template>
 
