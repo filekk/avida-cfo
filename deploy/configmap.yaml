@@ -6,9 +6,9 @@ metadata:
 data:
   # Internal URL of the vLLM InferenceService (check: oc get inferenceservice, oc get svc)
   # Pattern: http://<isvc-name>-predictor.<model-namespace>.svc.cluster.local:8080/v1
-  LLM_BASE_URL: "http://qwen25-7b-instruct-predictor.avida-models.svc.cluster.local:8080/v1"
+  LLM_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
   # Must match the served model name (curl $LLM_BASE_URL/models)
-  LLM_MODEL: "qwen25-7b-instruct"
+  LLM_MODEL: "granite-8b"
   LLM_TIMEOUT_S: "25"
   LLM_ENABLED: "true"
   DEMO_FALLBACK: "true"

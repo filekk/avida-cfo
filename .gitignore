@@ -8,3 +8,8 @@ __pycache__/
 .env
 backend/static/
 *.pdf.tmp
+
+# local cluster diagnostics (contain cluster URLs)
+cluster-info.txt
+*.kubeconfig
+kubeconfig

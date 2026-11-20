@@ -9,27 +9,27 @@ Two projects (namespaces):
 
 ## 1. Model on vLLM (hard criterion + bonus)
 
-In the **OpenShift AI dashboard**:
+Our cluster: 1 node, 32 CPU, ~121 GB RAM, **1x NVIDIA L4 (24 GB)**. Check yours with `bash deploy/check-cluster.sh`.
 
-1. *Data Science Projects* → **Create project** `avida-models`.
-2. Check the GPU first: `oc describe node | grep -A3 nvidia.com/gpu` (how much VRAM decides the model size).
-3. *Models* → **Deploy model** → serving runtime **vLLM NVIDIA GPU ServingRuntime for KServe**.
-   - Model: `Qwen/Qwen2.5-7B-Instruct` (or `ibm-granite/granite-3.3-8b-instruct`) – from the model catalog / an OCI modelcar / S3 connection.
-   - Deployment name: `qwen25-7b-instruct` (this becomes the served model name and the service name).
-   - 1 GPU, *no* external route needed (the app calls it inside the cluster). Token auth: off for internal use, or put the token into `LLM_API_KEY`.
-   - Additional runtime args:
-     ```
-     --max-model-len=16384
-     --enable-auto-tool-choice
-     --tool-call-parser=hermes        # Qwen; use "granite" for Granite
-     ```
-4. Test from inside the cluster:
-   ```bash
-   oc -n avida-models get inferenceservice
-   oc -n avida-models run curl --rm -it --image=registry.access.redhat.com/ubi9/ubi -- \
-     curl -s http://qwen25-7b-instruct-predictor.avida-models.svc.cluster.local:8080/v1/models
-   ```
-   If the port differs, check `oc -n avida-models get svc`.
+We serve **Granite 3.3 8B Instruct** (bf16, fits the L4) from the Red Hat modelcar catalog with the
+RHOAI vLLM runtime (`registry.redhat.io/rhaiis/vllm-cuda-rhel9`):
+
+```bash
+oc apply -f deploy/model/granite-8b.yaml          # Namespace + ServingRuntime + InferenceService
+oc -n avida-models get isvc granite-8b -w         # first start: ~15 min (16 GB image pull)
+```
+
+- Endpoint (cluster-internal, no auth): `http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1`, model name `granite-8b`.
+- Only one GPU: any other model holding it must be stopped first
+  (`oc annotate isvc <name> -n <ns> serving.kserve.io/stop=true --overwrite`; `=false` starts it again).
+  We stopped the sample `llama-32-3b-instruct` in `my-first-model`.
+- Shows up in the OpenShift AI dashboard under *Data Science Projects → avida-models → Models*.
+- Other modelcars: `quay.io/redhat-ai-services/modelcar-catalog:<tag>` (e.g. `qwen3-8b`, `granite-4.0-h-tiny`).
+
+Test from inside the cluster (the app pod has Python):
+```bash
+oc -n avida-cfo exec deploy/avida-cfo -- python -c "import urllib.request as u;print(u.urlopen('http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1/models').read().decode())"
+```
 
 ## 2. App
 
