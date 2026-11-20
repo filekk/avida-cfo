@@ -8,7 +8,7 @@ import StatTile from "@/components/ui/StatTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { VERDICT } from "@/constants/autonomy";
 import type { Finding } from "@/types/api";
-import { eur, fmtDate, pct } from "@/utils/format";
+import { describeFinding } from "./describe";
 import PriceBar from "./PriceBar.vue";
 import { verdictTone } from "./verdict";
 
@@ -26,7 +26,7 @@ const showCalc = ref(false);
 const v = computed(() => VERDICT[props.finding.contract.verdict]);
 const tone = computed(() => verdictTone(props.finding.contract.verdict));
 const c = computed(() => props.finding.contract);
-const ex = computed(() => props.finding.extraction);
+const d = computed(() => describeFinding(props.finding));
 
 const TOGGLE =
   "group flex w-fit items-center gap-1.5 rounded-lg py-1 text-sm font-semibold text-gold underline-offset-4 hover:underline";
@@ -36,12 +36,12 @@ const TOGGLE =
   <article :class="bare ? '' : 'overflow-hidden rounded-xl border border-line bg-surface shadow-card'">
     <header v-if="!bare" class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
       <div class="flex min-w-0 items-center gap-3">
-        <IconTile tone="neutral" class="!text-fg">{{ ex.supplier.charAt(0) }}</IconTile>
+        <IconTile tone="neutral" class="!text-fg">{{ d.party.charAt(0) }}</IconTile>
         <div class="grid min-w-0 gap-0.5">
           <h2 class="text-xl font-bold leading-tight">
-            {{ ex.supplier }}: <span :class="tone.text">{{ pct(ex.increase_pct) }}</span>
+            {{ d.party }}: <span :class="tone.text">{{ d.figure }}</span>
           </h2>
-          <span class="text-label text-muted">from {{ fmtDate(ex.effective_date) }}</span>
+          <span class="text-label text-muted">{{ d.sub }}</span>
         </div>
       </div>
       <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="14" />{{ v.label }}</StatusPill>
@@ -57,8 +57,9 @@ const TOGGLE =
           </span>
           <AutonomyBadge level="analyzed" />
         </div>
-        <p :class="['font-display text-3xl font-extrabold tabular-nums', tone.text]">{{ pct(ex.increase_pct) }}</p>
-        <PriceBar :from="ex.old_monthly" :to="ex.new_monthly" :tone="tone.bar" />
+        <p :class="['font-display text-3xl font-extrabold tabular-nums', tone.text]">{{ d.figure }}</p>
+        <PriceBar v-if="d.priceBar" :from="d.priceBar.from" :to="d.priceBar.to" :tone="tone.bar" />
+        <p v-else class="text-sm leading-relaxed text-muted">{{ d.sub }}</p>
         <button type="button" :class="TOGGLE" :aria-expanded="showEmail" @click="showEmail = !showEmail">
           {{ showEmail ? "Hide the email" : `Read the email from ${finding.email.from_name}` }}
           <AppIcon name="chevronDown" :size="18" :class="['transition-transform duration-base', showEmail ? 'rotate-180' : '']" />
@@ -137,10 +138,8 @@ const TOGGLE =
 
     <!-- the money: red = what the increase costs you (if not allowed), navy = a legitimate cost -->
     <footer :class="['grid gap-4', bare ? 'mt-4 rounded-xl bg-input/50 p-4' : 'border-t border-line bg-input/50 px-5 py-4']">
-      <div :class="['grid gap-4', stacked ? 'sm:grid-cols-2' : 'sm:grid-cols-3']">
-        <StatTile icon="euro" label="Extra per month" :value="eur(finding.impact.monthly)" :tone="tone.stat" />
-        <StatTile icon="chart" label="Within your forecast" :value="eur(finding.impact.in_horizon)" :tone="tone.stat" />
-        <StatTile icon="calendar" label="Next 12 months" :value="eur(finding.impact.next_12_months)" :tone="tone.stat" />
+      <div v-if="d.stats.length" :class="['grid gap-4', stacked ? 'sm:grid-cols-2' : 'sm:grid-cols-3']">
+        <StatTile v-for="s in d.stats" :key="s.label" :icon="s.icon" :label="s.label" :value="s.value" :tone="tone.stat" />
       </div>
       <button type="button" :class="TOGGLE" :aria-expanded="showCalc" @click="showCalc = !showCalc">
         <AppIcon name="calculator" :size="18" /> {{ showCalc ? "Hide calculation" : "Show calculation" }}

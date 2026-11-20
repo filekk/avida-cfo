@@ -6,7 +6,7 @@ import IconTile from "@/components/ui/IconTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { RECOMMENDATION, VERDICT } from "@/constants/autonomy";
 import type { Finding } from "@/types/api";
-import { eur, fmtDate, pct } from "@/utils/format";
+import { describeFinding } from "./describe";
 import PriceBar from "./PriceBar.vue";
 import { verdictTone } from "./verdict";
 
@@ -17,7 +17,7 @@ import { verdictTone } from "./verdict";
 const props = defineProps<{ finding: Finding }>();
 const v = computed(() => VERDICT[props.finding.contract.verdict]);
 const tone = computed(() => verdictTone(props.finding.contract.verdict));
-const ex = computed(() => props.finding.extraction);
+const d = computed(() => describeFinding(props.finding));
 </script>
 
 <template>
@@ -26,22 +26,22 @@ const ex = computed(() => props.finding.extraction);
     class="group grid content-start gap-4 rounded-xl border border-line bg-surface p-4 shadow-card transition-[border-color,box-shadow,transform] duration-base hover:-translate-y-0.5 hover:border-fg/30 hover:shadow-lift sm:p-5"
   >
     <div class="flex items-start gap-3">
-      <IconTile tone="neutral" class="!text-fg">{{ ex.supplier.charAt(0) }}</IconTile>
+      <IconTile tone="neutral" class="!text-fg">{{ d.party.charAt(0) }}</IconTile>
       <div class="grid min-w-0 flex-1 gap-1">
-        <h3 class="text-lg font-bold leading-tight">{{ ex.supplier }}</h3>
+        <h3 class="text-lg font-bold leading-tight">{{ d.party }}</h3>
         <span class="flex flex-wrap items-center gap-x-1.5 text-label text-muted">
-          <AppIcon name="calendar" :size="14" /> from {{ fmtDate(ex.effective_date) }}
+          <AppIcon name="calendar" :size="14" /> {{ d.sub }}
         </span>
       </div>
       <div class="grid shrink-0 justify-items-end gap-1 leading-tight">
-        <span :class="['font-display text-2xl font-extrabold tabular-nums', tone.text]">{{ pct(ex.increase_pct) }}</span>
-        <span :class="['text-label font-semibold tabular-nums', tone.text === 'text-fg' ? 'text-muted' : tone.text]">
-          {{ eur(finding.impact.next_12_months) }} / year
+        <span :class="['font-display text-2xl font-extrabold tabular-nums', tone.text]">{{ d.figure }}</span>
+        <span v-if="d.key" :class="['text-label font-semibold tabular-nums', tone.text === 'text-fg' ? 'text-muted' : tone.text]">
+          {{ d.key.label }} {{ d.key.value }}
         </span>
       </div>
     </div>
 
-    <PriceBar :from="ex.old_monthly" :to="ex.new_monthly" :tone="tone.bar" />
+    <PriceBar v-if="d.priceBar" :from="d.priceBar.from" :to="d.priceBar.to" :tone="tone.bar" />
 
     <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="14" />{{ v.label }}</StatusPill>
 
