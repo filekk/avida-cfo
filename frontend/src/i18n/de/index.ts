@@ -3,6 +3,7 @@ import actions from "./actions";
 import ask from "./ask";
 import chart from "./chart";
 import common from "./common";
+import contracts from "./contracts";
 import dashboard from "./dashboard";
 import layout from "./layout";
 import pages from "./pages";
@@ -19,7 +20,8 @@ import sync from "./sync";
  *   a11y      – accessibility menu, theme toggle
  *   actions   – Action center, decision tiles/focus, action cards, findings split
  *   pages     – policy, history, not-found
- *   ask       – Ask your CFO, contracts page, Analyst briefing, Legal review of drafts
+ *   ask       – Ask your CFO, Analyst briefing, Legal review of drafts
+ *   contracts – contracts page (list + upload)
  * Same English text in two files → keep the same German (later files win on merge).
  */
 export const DE: Record<string, string> = {
@@ -32,4 +34,5 @@ export const DE: Record<string, string> = {
   ...actions,
   ...pages,
   ...ask,
+  ...contracts,
 };

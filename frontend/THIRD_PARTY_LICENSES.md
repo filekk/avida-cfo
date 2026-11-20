@@ -4,7 +4,7 @@ Every bundled asset is free and open source. Nothing is paid, and none of the li
 
 | Asset | Where | Licence |
 |---|---|---|
-| Lucide icons (inline SVG paths) | `src/components/ui/icons.ts` | ISC |
+| Lucide icons (inline SVG paths) | `src/components/ui/icons.ts`, `src/components/layout/A11yFigure.vue` (animated "accessibility") | ISC |
 | Plus Jakarta Sans | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-plus-jakarta-sans.txt`) |
 | Inter | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-inter.txt`) |
 | JetBrains Mono | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-jetbrains-mono.txt`) |

@@ -5,8 +5,10 @@ import type { IconName } from "@/components/ui/icons";
 import { TEXT_SIZES, useA11y, type Contrast } from "@/composables/useA11y";
 import { usePopover } from "@/composables/usePopover";
 import { useTheme, type ThemeChoice } from "@/composables/useTheme";
+import { useWheelchairEgg } from "@/composables/useWheelchairEgg";
 import { t } from "@/i18n";
 import { pct } from "@/utils/format";
+import A11yFigure from "./A11yFigure.vue";
 
 /**
  * Accessibility settings, top-right on every page. Open/close behaviour is the shared top-bar pop-up
@@ -23,6 +25,14 @@ const { open, root, trigger, close, onPointerEnter, onPointerLeave, onTriggerCli
   onKeyboardOpen: () => nextTick(() => panel.value?.querySelector<HTMLElement>("input:checked")?.focus()),
 });
 const panelId = `a11y-panel-${useId()}`;
+
+// --- trigger icon -------------------------------------------------------------------------------
+// Standing figure by default; the footer easter egg (useWheelchairEgg) swaps in the wheelchair figure, which rolls
+// and waves while a mouse/pen hovers the trigger (touch has no hover). Both icons share one grid cell and cross-fade.
+const { wheelchair } = useWheelchairEgg();
+const hovered = ref(false);
+const ICON_SWAP = "col-start-1 row-start-1 transition-[opacity,transform] duration-slow ease-out";
+const ICON_HIDDEN = "scale-50 opacity-0";
 
 // --- options (English; translated in the template) ----------------------------------------------
 const textIndex = computed(() => TEXT_SIZES.findIndex((s) => s.value === prefs.text));
@@ -102,8 +112,11 @@ const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card trans
       :aria-expanded="open"
       :aria-controls="panelId"
       @click="onTriggerClick"
+      @pointerenter="hovered = $event.pointerType !== 'touch'"
+      @pointerleave="hovered = false"
     >
-      <AppIcon name="accessibility" :size="20" />
+      <AppIcon name="personStanding" :size="20" :class="[ICON_SWAP, wheelchair && `${ICON_HIDDEN} -rotate-45`]" />
+      <A11yFigure :size="20" :moving="wheelchair && hovered" :class="[ICON_SWAP, !wheelchair && `${ICON_HIDDEN} rotate-45`]" />
     </button>
 
     <Transition

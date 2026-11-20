@@ -17,14 +17,16 @@ components/
                      AppIcon (+ icons.ts), tones.ts (shared tone → colour maps)
   layout/            AppSidebar, AppTopbar, NavLinks, ThemeToggle, AccessibilityMenu, AppLogo, AppFooter
   agent/             AutonomyBadge, AutonomyLegend, AgentTrace, AgentPipeline, SourceTag (challenge-specific)
-  dashboard/         HeadlineBanner, SafetyRing, KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts)
-  findings/          FindingCard (list item), FindingSplit (email ↔ contract ↔ calculation)
+  dashboard/         KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts), BriefingCard
+  findings/          FindingSplit (email ↔ contract ↔ calculation)
   actions/           ActionCard (editable email / credit offer + Legal review + Approve / Not now)
-  ask/               SuggestionChips, AskTurnItem, AskTeaser ("Ask your CFO")
+  ask/               "Ask your CFO" (no page; /ask → Action center #ask): AskChat (reads the ask store; card in
+                     the Action center + `compact` in AskLauncher, the Overview's floating bubble), AskTurnItem,
+                     SuggestionChips
   contracts/         ContractUpload (drop zone, type/size check)
 api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError), one module per area, index.ts
 stores/              Pinia setup stores: dashboard (demo flow), system (config, LLM health),
-                     ask (conversation + suggestions, re-fetched on sync / reset / language switch)
+                     ask (one shared conversation + suggestions, re-fetched on sync / reset / language switch)
 composables/         useTheme, useA11y (accessibility menu), useForecastPeriod (chart window),
                      useTweenedNumber, useAsyncData (view-local fetches)
 types/api.ts         TS mirror of docs/API.md, the single source of types

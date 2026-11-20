@@ -64,8 +64,6 @@ const de: Record<string, string> = {
   Copy: "Kopieren",
   Copied: "Kopiert",
   "Copied to clipboard": "In die Zwischenablage kopiert",
-  Details: "Details",
-  Review: "Ansehen",
   Today: "Heute",
   "Something went wrong.": "Etwas ist schiefgelaufen.",
   "Cannot reach the server. Check your connection.": "Der Server ist nicht erreichbar. Bitte prüfen Sie Ihre Verbindung.",

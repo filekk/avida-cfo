@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 import DecisionFocus from "@/components/actions/DecisionFocus.vue";
 import DecisionTile from "@/components/actions/DecisionTile.vue";
 import { buildItems, categoryOf, isOpenItem, type DecisionCategory, type DecisionItem } from "@/components/actions/decision";
+import AskChat from "@/components/ask/AskChat.vue";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -25,6 +26,7 @@ import { eur } from "@/utils/format";
  * Click a tile → focus view: only that decision, full width, with back and previous / next.
  * The focused item lives in the URL (?item=<key>) so the browser's Back button returns to the board.
  * Old /findings links arrive as ?finding=<id> and open that item too.
+ * Below it, always: "Ask your CFO" (#ask, old /ask links land here) – questions come up while deciding.
  */
 type PartKey = "pending" | "resolved";
 
@@ -220,6 +222,20 @@ async function decide(id: string, approve: boolean, body?: string) {
   >
     <BaseButton :to="{ name: 'dashboard' }" variant="secondary" icon="arrowRight">{{ t("Go to overview") }}</BaseButton>
   </EmptyState>
+
+  <!-- "Ask your CFO": below the board / focus view / empty state, once the content above is final (#ask target) -->
+  <BaseCard v-if="dashboard || !loading" id="ask" :padded="false" aria-labelledby="ask-title">
+    <div class="grid gap-5 p-4 sm:p-5">
+      <header class="flex items-start gap-3">
+        <IconTile icon="ask" tone="info" size="sm" />
+        <div class="grid gap-0.5">
+          <h2 id="ask-title" class="text-lg font-bold">{{ t("Ask your CFO") }}</h2>
+          <p class="text-label text-muted">{{ t("Not sure about a decision? Ask in your own words.") }}</p>
+        </div>
+      </header>
+      <AskChat />
+    </div>
+  </BaseCard>
 </template>
 
 <style scoped>

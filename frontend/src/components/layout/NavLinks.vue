@@ -1,16 +1,18 @@
 <script setup lang="ts">
+import { onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { NAV_ITEMS, type NavItem } from "@/constants/navigation";
-import { t, tn } from "@/i18n";
+import { locale, t, tn } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
+import { prefersReducedMotion } from "@/utils/motion";
 
 /**
  * Navigation list shared by the desktop sidebar (vertical) and the mobile bar (horizontal).
  * The sun indicator bar always exists and only scales in/out → switching pages eases instead of blinking.
  */
-withDefaults(defineProps<{ orientation?: "vertical" | "horizontal" }>(), { orientation: "vertical" });
+const props = withDefaults(defineProps<{ orientation?: "vertical" | "horizontal" }>(), { orientation: "vertical" });
 
 const { pendingActions, findings } = storeToRefs(useDashboardStore());
 const badge = (item: NavItem) =>
@@ -22,11 +24,28 @@ const badge = (item: NavItem) =>
  */
 const route = useRoute();
 const waiting = (item: NavItem) => item.badge === "pendingActions" && badge(item) > 0 && route.name !== item.to;
+
+/**
+ * Phones: the horizontal bar scrolls sideways, so the current page's tab could sit cut off at the edge
+ * ("Verträ…"). Centre it in the bar (scrolling only the bar, never the page) on load, page change and language switch.
+ */
+const list = ref<HTMLElement | null>(null);
+function revealActive(smooth = true) {
+  const bar = list.value;
+  const el = bar?.querySelector<HTMLElement>('[aria-current="page"]');
+  if (props.orientation !== "horizontal" || !bar || !el || bar.scrollWidth <= bar.clientWidth) return;
+  const barBox = bar.getBoundingClientRect();
+  const box = el.getBoundingClientRect();
+  const left = bar.scrollLeft + (box.left - barBox.left) - (bar.clientWidth - box.width) / 2;
+  bar.scrollTo({ left, behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" });
+}
+onMounted(() => revealActive(false));
+watch([() => route.name, locale], () => revealActive(), { flush: "post" });
 </script>
 
 <template>
   <nav :aria-label="t('Main navigation')">
-    <ul :class="orientation === 'vertical' ? 'grid gap-1' : 'flex gap-1 overflow-x-auto'">
+    <ul ref="list" :class="orientation === 'vertical' ? 'grid gap-1' : 'flex gap-1 overflow-x-auto'">
       <li v-for="item in NAV_ITEMS" :key="item.to">
         <RouterLink
           :to="{ name: item.to }"

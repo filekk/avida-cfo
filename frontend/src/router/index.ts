@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
+import { prefersReducedMotion } from "@/utils/motion";
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -32,12 +33,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/DecisionsView.vue"),
     meta: { title: "Action center" },
   },
-  {
-    path: "/ask",
-    name: "ask",
-    component: () => import("@/views/AskView.vue"),
-    meta: { title: "Ask your CFO" },
-  },
+  // "Ask your CFO" has no page any more: it is a card in the Action center (and a floating chat on the overview).
+  // Old /ask links land on that card.
+  { path: "/ask", name: "ask", redirect: { name: "decisions", hash: "#ask" } },
   {
     path: "/contracts",
     name: "contracts",
@@ -64,10 +62,43 @@ const routes: RouteRecordRaw[] = [
   },
 ];
 
+/** Sticky top bar height + some air, so a #hash target doesn't end up underneath it. */
+function topBarOffset(): number {
+  return (document.querySelector<HTMLElement>("header.sticky")?.offsetHeight ?? 0) + 16;
+}
+
+/**
+ * Waits until the #hash target exists AND stops moving: the view is lazy, the page transition (out-in + a small
+ * rise) runs first, and the store data above the target may still arrive. Gives up after `timeout` ms.
+ */
+async function settledTarget(id: string, timeout = 2500): Promise<HTMLElement | null> {
+  const start = performance.now();
+  let el: HTMLElement | null = null;
+  let lastTop = Number.NaN;
+  let still = 0;
+  while (performance.now() - start < timeout) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    el = document.getElementById(id);
+    if (!el) continue;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    still = Math.abs(top - lastTop) < 1 ? still + 1 : 0;
+    lastTop = top;
+    if (still >= 6) return el; // ~100 ms without moving
+  }
+  return el;
+}
+
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
-  scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
+  async scrollBehavior(to, _from, saved) {
+    if (saved) return saved;
+    if (to.hash) {
+      const el = await settledTarget(decodeURIComponent(to.hash.slice(1)));
+      if (el) return { el, top: topBarOffset(), behavior: prefersReducedMotion() ? "auto" : "smooth" };
+    }
+    return { top: 0 };
+  },
 });
 
 // document.title is set in App.vue (follows the page AND the chosen language).

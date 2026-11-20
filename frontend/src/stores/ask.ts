@@ -16,8 +16,8 @@ export interface AskTurn {
 }
 
 /**
- * "Ask your CFO" (docs/API.md → Ask your CFO). App-level so the conversation survives navigation and the
- * overview can start a question that is answered on the Ask page.
+ * "Ask your CFO" (docs/API.md → Ask your CFO). App-level, so there is ONE conversation that survives navigation:
+ * the same turns show in the Action center card and in the overview's floating chat (components/ask/AskChat).
  * Suggestions are re-fetched whenever they can change: language switch, sync finished, reset.
  */
 export const useAskStore = defineStore("ask", () => {
