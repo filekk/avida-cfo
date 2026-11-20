@@ -13,8 +13,8 @@ import { eur, eurCents, fmtDayMonth } from "@/utils/format";
  * Emits the decision; the parent (store) talks to the API.
  */
 /**
- * `compact`: used under the finding detail, which already explains the "why" and the savings,
- * so the card shows only the draft and the buttons.
+ * `compact`: embedded inside the finding detail card, which already explains the "why" and the savings.
+ * No frame of its own (the parent card is the frame), only the draft and the buttons.
  */
 const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean }>();
 const emit = defineEmits<{ decide: [id: string, approve: boolean, editedBody?: string] }>();
@@ -34,10 +34,11 @@ const decline = () => emit("decide", props.action.id, false);
 
 <template>
   <article
-    :class="[
-      'grid gap-5 rounded-xl border bg-surface p-5',
-      pending ? 'border-sun shadow-float' : 'border-line',
-    ]"
+    :class="
+      compact
+        ? 'grid gap-5 p-5'
+        : ['grid gap-5 rounded-xl border bg-surface p-5', pending ? 'border-sun shadow-float' : 'border-line']
+    "
   >
     <div class="flex items-start gap-4">
       <span

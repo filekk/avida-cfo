@@ -144,5 +144,10 @@ const ex = computed(() => props.finding.extraction);
       </button>
       <code v-if="showCalc" class="block rounded-lg bg-surface p-3 font-mono text-[0.82rem] text-muted">{{ finding.impact.calculation }}</code>
     </footer>
+
+    <!-- optional: the related decision, part of the same card (finding detail only) -->
+    <div v-if="$slots.default" class="border-t border-line">
+      <slot />
+    </div>
   </article>
 </template>
