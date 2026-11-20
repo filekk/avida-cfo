@@ -1,4 +1,17 @@
+import type { IconName } from "@/components/ui/icons";
 import type { Forecast, Scenarios } from "@/types/api";
+
+/** Cash-flow category (backend data/cashflows.json) → icon for the "biggest payments" list. */
+const CATEGORY_ICON: Record<string, IconName> = {
+  payroll: "users",
+  rent: "building",
+  supplier: "truck",
+  tax: "landmark",
+  loan: "landmark",
+  revenue: "euro",
+  other: "receipt",
+};
+export const categoryIcon = (category: string): IconName => CATEGORY_ICON[category] ?? "receipt";
 
 export interface ChartLine {
   forecast: Forecast;

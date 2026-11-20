@@ -8,6 +8,7 @@ Every bundled asset is free and open source. Nothing is paid, and none of the li
 | Plus Jakarta Sans | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-plus-jakarta-sans.txt`) |
 | Inter | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-inter.txt`) |
 | JetBrains Mono | `src/assets/fonts/` | SIL Open Font License 1.1 (`LICENSE-jetbrains-mono.txt`) |
+| Avida logo | `src/assets/brand/avida-logo.png`, `public/favicon.png` | Original work by the Avida team (not third-party) |
 
 npm runtime dependencies: Vue (MIT), vue-router (MIT), Pinia (MIT). Build tools: Vite, Tailwind CSS,
 TypeScript, PostCSS, Autoprefixer (MIT / Apache-2.0).

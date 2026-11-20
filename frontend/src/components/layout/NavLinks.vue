@@ -19,12 +19,18 @@ const badge = (item: NavItem) =>
         <RouterLink
           :to="{ name: item.to }"
           :class="[
-            'flex items-center gap-2.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-[0.88rem] font-medium transition-colors',
-            orientation === 'vertical' ? 'text-side-fg hover:bg-white/5 hover:text-white' : 'text-muted hover:bg-mist hover:text-fg',
+            'relative flex items-center gap-3 whitespace-nowrap rounded-lg font-medium transition-colors',
+            orientation === 'vertical'
+              ? 'px-3 py-2.5 text-[0.9rem] text-side-fg hover:bg-white/5 hover:text-white'
+              : 'px-2.5 py-2 text-[0.88rem] text-muted hover:bg-mist hover:text-fg',
           ]"
-          :active-class="orientation === 'vertical' ? '!bg-sun/15 !text-sun font-semibold' : '!bg-fg !text-bg font-semibold'"
+          :active-class="
+            orientation === 'vertical'
+              ? '!bg-sun/15 !text-sun font-semibold before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-sun'
+              : '!bg-fg !text-bg font-semibold'
+          "
         >
-          <AppIcon :name="item.icon" />
+          <AppIcon :name="item.icon" :size="18" />
           <span class="flex-1">{{ item.label }}</span>
           <span
             v-if="badge(item)"

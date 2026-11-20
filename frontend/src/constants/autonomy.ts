@@ -9,25 +9,25 @@ export const AUTONOMY: Record<Autonomy, { label: string; icon: IconName; descrip
   analyzed: {
     label: "Analysed by agent",
     icon: "analyzed",
-    description: "The agent did this on its own – reading and calculating only.",
+    description: "Reads and calculates on its own.",
     classes: "bg-mist text-mist-fg",
   },
   recommendation: {
     label: "Recommendation",
     icon: "recommendation",
-    description: "The agent suggests something. You decide.",
+    description: "Suggests a step. You decide.",
     classes: "bg-warn-soft text-warn",
   },
   approval: {
     label: "Needs your approval",
     icon: "approval",
-    description: "Nothing happens until you click Approve.",
+    description: "Waits for your click.",
     classes: "bg-sun text-sun-on",
   },
   simulated: {
     label: "Simulated execution",
     icon: "simulated",
-    description: "Executed in a safe simulation – nothing leaves the system.",
+    description: "Runs in a safe sandbox. Nothing leaves.",
     classes: "border border-dashed border-muted/60 text-muted",
   },
 };
@@ -40,10 +40,10 @@ export const SOURCE_LABEL: Record<AnswerSource, string> = {
   rules: "rule-based",
 };
 
-export const VERDICT: Record<Verdict, { label: string; tone: "negative" | "positive" | "neutral" }> = {
-  violates: { label: "Not allowed by your contract", tone: "negative" },
-  allowed: { label: "Allowed by your contract", tone: "positive" },
-  unclear: { label: "No contract found – please check", tone: "neutral" },
+export const VERDICT: Record<Verdict, { label: string; tone: "negative" | "positive" | "neutral"; icon: IconName }> = {
+  violates: { label: "Not allowed by your contract", tone: "negative", icon: "xCircle" },
+  allowed: { label: "Allowed by your contract", tone: "positive", icon: "checkCircle" },
+  unclear: { label: "No contract found – please check", tone: "neutral", icon: "alert" },
 };
 
 export const RECOMMENDATION: Record<Recommendation, string> = {
