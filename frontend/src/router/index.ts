@@ -33,6 +33,18 @@ const routes: RouteRecordRaw[] = [
     meta: { title: "Action center" },
   },
   {
+    path: "/ask",
+    name: "ask",
+    component: () => import("@/views/AskView.vue"),
+    meta: { title: "Ask your CFO" },
+  },
+  {
+    path: "/contracts",
+    name: "contracts",
+    component: () => import("@/views/ContractsView.vue"),
+    meta: { title: "Your contracts" },
+  },
+  {
     path: "/policy",
     name: "policy",
     component: () => import("@/views/PolicyView.vue"),

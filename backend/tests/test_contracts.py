@@ -82,6 +82,15 @@ def test_upload_used_by_legal_agent():
     client.post("/api/reset")
 
 
+def test_reset_removes_uploaded_contracts():
+    client.post("/api/reset")
+    client.post("/api/contracts/upload", files={"file": ("cloudhost_msa.md", CLOUDHOST, "text/markdown")})
+    assert len(data.uploaded) == 1
+    client.post("/api/reset")
+    assert data.uploaded == []
+    assert all(c["origin"] == "index" for c in client.get("/api/contracts").json())
+
+
 def test_upload_unknown_contract_without_model_is_rejected():
     r = client.post("/api/contracts/upload", files={"file": ("other.txt", b"Some contract text " * 10, "text/plain")})
     assert r.status_code == 422
