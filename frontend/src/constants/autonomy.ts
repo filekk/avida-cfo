@@ -54,11 +54,12 @@ export const SOURCE_LABEL: Record<AnswerSource, string> = {
 export const VERDICT: Record<Verdict, { label: string; tone: "negative" | "positive" | "warn"; icon: IconName }> = {
   violates: { label: "Not allowed by your contract", tone: "negative", icon: "xCircle" },
   allowed: { label: "Allowed by your contract", tone: "positive", icon: "checkCircle" },
-  unclear: { label: "No contract found – please check", tone: "warn", icon: "alert" },
+  unclear: { label: "Cannot be checked – please review", tone: "warn", icon: "alert" },
 };
 
 export const RECOMMENDATION: Record<Recommendation, string> = {
   reject: "Reject the increase",
   accept: "Accept – it's within the contract",
-  review: "Check it yourself",
+  remind: "Remind them to pay on time",
+  review: "Ask for the exact figures",
 };

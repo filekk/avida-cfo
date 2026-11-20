@@ -9,7 +9,7 @@ export type IsoDateTime = string; // "2026-11-20T10:00:00+00:00"
 
 // ---- Autonomy (required by the challenge: must be visible in the UI) --------------------------
 export type Autonomy = "analyzed" | "recommendation" | "approval" | "simulated";
-export type AgentName = "Inbox Agent" | "Contract Agent" | "Liquidity Agent";
+export type AgentName = "Analyst Agent" | "Legal Agent" | "Negotiator Agent";
 /** llm = answered by the model · fallback = cached answer (model down) · rules = deterministic */
 export type AnswerSource = "llm" | "fallback" | "rules";
 
@@ -21,6 +21,9 @@ export interface TraceEvent {
   message: string;
   source?: AnswerSource;
   email_id?: string;
+  /** Handoff: the step is a message from `agent` to `to`. */
+  to?: AgentName;
+  kind?: "handoff";
 }
 export interface SyncResultEvent {
   type: "result";
@@ -72,15 +75,28 @@ export interface Email {
   received: IsoDate;
   body: string;
 }
+export type FindingKind = "price_change" | "payment_delay";
 export interface Extraction {
-  is_price_change?: boolean;
-  supplier: string;
-  old_monthly: number;
-  new_monthly: number;
-  increase_pct: number;
-  monthly_delta: number;
-  effective_date: IsoDate;
+  kind: FindingKind;
+  /** Supplier or customer, canonical contract name. */
+  party: string;
   summary: string;
+  /** false = the email gave no (verifiable) figures → nothing was calculated. */
+  figures_stated: boolean;
+  // price_change
+  supplier?: string;
+  old_monthly?: number;
+  new_monthly?: number;
+  increase_pct?: number;
+  monthly_delta?: number;
+  effective_date?: IsoDate;
+  // payment_delay
+  customer?: string;
+  invoice?: string;
+  amount?: number;
+  due_date?: IsoDate;
+  new_payment_date?: IsoDate;
+  days_late?: number;
 }
 export type Verdict = "violates" | "allowed" | "unclear";
 export interface Clause {
@@ -118,10 +134,16 @@ export interface Impact {
   next_12_months: number;
   payments_in_horizon?: number;
   calculation: string; // shown behind "Show calculation"
+  // payment_delay
+  days_late?: number;
+  lowest_balance_effect?: number;
+  min_balance_on_time?: number;
+  min_balance_late?: number;
 }
-export type Recommendation = "reject" | "accept" | "review";
+export type Recommendation = "reject" | "accept" | "remind" | "review";
 export interface Finding {
   id: string;
+  kind: FindingKind;
   email: Email;
   extraction: Extraction;
   contract: ContractResult;
@@ -162,6 +184,9 @@ interface ActionBase {
   savings_12m: number;
   source?: AnswerSource;
   result?: string; // after approve
+  finding_id?: string;
+  reviewed_by?: string;
+  review?: { approved: boolean; issues: string[]; rounds: number };
   created?: IsoDateTime;
   decided?: IsoDateTime;
 }
@@ -189,6 +214,8 @@ export interface Dashboard {
   headline: string;
   kpis: Kpis;
   scenarios: Scenarios;
+  agents?: { name: string; role: string; icon: string; does: string }[];
+  analysis?: { summary: string; key_points: string[]; risk_level: "low" | "medium" | "high"; source?: AnswerSource } | null;
   findings: Finding[];
   actions: Action[];
 }

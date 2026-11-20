@@ -1,6 +1,7 @@
 import type { IconName } from "@/components/ui/icons";
 import type { Action, Finding } from "@/types/api";
-import { eur, fmtDayMonth, pct } from "@/utils/format";
+import { describeFinding } from "@/components/findings/describe";
+import { eur, fmtDayMonth } from "@/utils/format";
 
 /**
  * One item in the Action center. Either an action to approve (optionally explained by the finding it came from),
@@ -55,9 +56,14 @@ export function gist(item: DecisionItem): { title: string; hint: string } {
     return { title: "Overdraft", hint: `Bridge ${fmtDayMonth(a.payload.from)} – ${fmtDayMonth(a.payload.until)}` };
   }
   if (f) {
-    const supplier = f.extraction.supplier.replace(/\s+(GmbH|AG|KG|UG|SE)\b.*$/, "");
-    const hint = { reject: "Reject the increase", accept: "Within your contract", review: "Check it yourself" }[f.recommendation];
-    return { title: `${supplier} ${pct(f.extraction.increase_pct)}`, hint };
+    const d = describeFinding(f);
+    const hint = {
+      reject: "Reject the increase",
+      accept: "Within your contract",
+      remind: "Remind them to pay on time",
+      review: "Ask for the exact figures",
+    }[f.recommendation];
+    return { title: `${d.shortParty} · ${d.figure}`, hint };
   }
   return { title: a?.title ?? "Decision", hint: "" };
 }
@@ -71,7 +77,10 @@ export function keyFigure(item: DecisionItem): { label: string; value: string; t
       ? { label: "Would have saved", value: eur(a.savings_12m), tone: "text-muted" }
       : { label: "You save / year", value: eur(a.savings_12m), tone: "text-positive" };
   }
-  if (f) return { label: "Extra / year", value: eur(f.impact.next_12_months), tone: "" };
+  if (f) {
+    const k = describeFinding(f).key;
+    return k ? { ...k, tone: "" } : null;
+  }
   return null;
 }
 

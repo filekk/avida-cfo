@@ -150,7 +150,7 @@ const activeAgent = computed(() => trace.value[trace.value.length - 1]?.agent ??
 
     <!-- 4. what it found – half-width cards read better than full-width bands -->
     <section v-if="findings.length" class="grid gap-3">
-      <PageHeader eyebrow="Inbox Agent + Contract Agent" title="What I found" />
+      <PageHeader eyebrow="Analyst Agent + Legal Agent" title="What I found" />
       <div class="grid gap-4 md:grid-cols-2">
         <FindingCard v-for="f in findings" :key="f.id" :finding="f" />
       </div>

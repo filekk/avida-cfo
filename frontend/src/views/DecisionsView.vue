@@ -48,7 +48,7 @@ const COLUMNS = [
     key: "emails" as const,
     icon: "mail" as const,
     title: "Based on your emails",
-    hint: "Supplier price changes, checked against your contracts.",
+    hint: "Price changes and late payments, checked against your contracts.",
     emptyPending: "No email needs your decision right now.",
   },
   {

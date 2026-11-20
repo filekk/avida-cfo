@@ -14,12 +14,14 @@ APPROVAL = "approval"          # needs the owner's OK
 SIMULATED = "simulated"        # execution is simulated, nothing leaves the system
 
 POLICY = [
-    {"action": "Read inbox and detect price changes", "agent": "Inbox Agent", "autonomy": ANALYZED, "execution": "-"},
-    {"action": "Check supplier contracts", "agent": "Contract Agent", "autonomy": ANALYZED, "execution": "-"},
-    {"action": "Forecast cash flow 90 days ahead", "agent": "Liquidity Agent", "autonomy": ANALYZED, "execution": "-"},
-    {"action": "Recommend rejecting / accepting a price change", "agent": "Contract Agent", "autonomy": RECOMMENDATION, "execution": "-"},
-    {"action": "Send email to a supplier", "agent": "Liquidity Agent", "autonomy": APPROVAL, "execution": SIMULATED},
-    {"action": "Apply for a credit facility", "agent": "Liquidity Agent", "autonomy": APPROVAL, "execution": SIMULATED},
+    {"action": "Read inbox, detect price changes and late customer payments", "agent": "Analyst Agent", "autonomy": ANALYZED, "execution": "-"},
+    {"action": "Check supplier and customer contracts", "agent": "Legal Agent", "autonomy": ANALYZED, "execution": "-"},
+    {"action": "Forecast cash flow 90 days ahead", "agent": "Analyst Agent", "autonomy": ANALYZED, "execution": "-"},
+    {"action": "Draft a reply to a supplier or customer", "agent": "Negotiator Agent", "autonomy": ANALYZED, "execution": "-"},
+    {"action": "Review outgoing emails (four-eyes principle)", "agent": "Legal Agent", "autonomy": ANALYZED, "execution": "-"},
+    {"action": "Recommend reject / accept / remind / review", "agent": "Legal Agent", "autonomy": RECOMMENDATION, "execution": "-"},
+    {"action": "Send email to a supplier or customer", "agent": "Negotiator Agent", "autonomy": APPROVAL, "execution": SIMULATED},
+    {"action": "Apply for a credit facility", "agent": "Analyst Agent", "autonomy": APPROVAL, "execution": SIMULATED},
 ]
 
 
