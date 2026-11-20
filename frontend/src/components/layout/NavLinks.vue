@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { useRoute } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { NAV_ITEMS, type NavItem } from "@/constants/navigation";
 import { useDashboardStore } from "@/stores/dashboard";
@@ -13,6 +14,13 @@ withDefaults(defineProps<{ orientation?: "vertical" | "horizontal" }>(), { orien
 const { pendingActions, findings } = storeToRefs(useDashboardStore());
 const badge = (item: NavItem) =>
   item.badge === "pendingActions" ? pendingActions.value.length : item.badge === "findings" ? findings.value.length : 0;
+
+/**
+ * The Action center tab pulses while decisions wait for the owner – but not while they are already on it.
+ * Turned off by the OS / accessibility-menu "reduce motion" setting (global rule in main.css).
+ */
+const route = useRoute();
+const waiting = (item: NavItem) => item.badge === "pendingActions" && badge(item) > 0 && route.name !== item.to;
 </script>
 
 <template>
@@ -32,6 +40,7 @@ const badge = (item: NavItem) =>
           ]"
           :active-class="orientation === 'vertical' ? '!bg-sun/15 !text-sun font-semibold before:!scale-y-100' : '!bg-fg !text-bg font-semibold'"
         >
+          <span v-if="waiting(item)" class="nav-glow pointer-events-none absolute inset-0 rounded-lg" aria-hidden="true" />
           <AppIcon :name="item.icon" :size="orientation === 'vertical' ? 20 : 18" />
           <span class="flex-1">{{ item.label }}</span>
           <Transition name="fade">
@@ -39,14 +48,43 @@ const badge = (item: NavItem) =>
               v-if="badge(item)"
               :class="[
                 'min-w-[1.5rem] rounded-full px-1.5 text-center text-caption font-bold leading-6',
+                waiting(item) ? 'nav-pulse' : '',
                 item.badge === 'pendingActions'
                   ? 'bg-sun text-sun-on'
                   : orientation === 'vertical' ? 'bg-white/10 text-white' : 'bg-mist text-mist-fg',
               ]"
-            >{{ badge(item) }}</span>
+            >{{ badge(item) }}<span v-if="waiting(item)" class="sr-only"> waiting for your decision</span></span>
           </Transition>
         </RouterLink>
       </li>
     </ul>
   </nav>
 </template>
+
+<style scoped>
+/* "Waiting for you": a sun halo ripples out of the badge and the whole tab breathes softly. */
+.nav-pulse {
+  animation: nav-pulse 1.8s ease-out infinite;
+}
+.nav-glow {
+  animation: nav-glow 1.8s ease-in-out infinite;
+}
+@keyframes nav-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--c-sun) / 0.6);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 9px rgb(var(--c-sun) / 0);
+  }
+}
+@keyframes nav-glow {
+  0%,
+  100% {
+    background-color: rgb(var(--c-sun) / 0);
+  }
+  50% {
+    background-color: rgb(var(--c-sun) / 0.12);
+  }
+}
+</style>
