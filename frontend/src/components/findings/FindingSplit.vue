@@ -14,7 +14,11 @@ import { verdictTone } from "./verdict";
  * The core of "explainable", drawn as a 3-step flow: what the email says → what the contract says → verdict,
  * with the money underneath. The full email and the formula stay one click away instead of filling the screen.
  */
-const props = defineProps<{ finding: Finding }>();
+/**
+ * `bare`: no frame, no header and always stacked (email ↓ contract ↓ verdict) – used inside an Action center row,
+ * which already shows the title and sits in a half-width column.
+ */
+const props = defineProps<{ finding: Finding; bare?: boolean }>();
 const showEmail = ref(false);
 const showCalc = ref(false);
 const v = computed(() => VERDICT[props.finding.contract.verdict]);
@@ -24,8 +28,8 @@ const ex = computed(() => props.finding.extraction);
 </script>
 
 <template>
-  <article class="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+  <article :class="bare ? '' : 'overflow-hidden rounded-xl border border-line bg-surface shadow-card'">
+    <header v-if="!bare" class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
       <div class="flex min-w-0 items-center gap-3">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-input font-display text-lg font-extrabold" aria-hidden="true">
           {{ ex.supplier.charAt(0) }}
@@ -38,7 +42,7 @@ const ex = computed(() => props.finding.extraction);
       <StatusPill :tone="v.tone"><AppIcon :name="v.icon" :size="13" />{{ v.label }}</StatusPill>
     </header>
 
-    <div class="grid gap-3 p-4 sm:p-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
+    <div :class="['grid gap-3', bare ? '' : 'p-4 sm:p-5 lg:grid-cols-[1fr_auto_1fr_auto_1fr]']">
       <!-- 1 · the email -->
       <section class="grid content-start gap-3 rounded-xl bg-input/60 p-4" aria-label="What the email says">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -67,7 +71,7 @@ const ex = computed(() => props.finding.extraction);
 
       <span class="grid place-items-center" aria-hidden="true">
         <span class="grid h-8 w-8 place-items-center rounded-full border border-line bg-surface text-muted">
-          <AppIcon name="arrowDown" class="lg:hidden" /><AppIcon name="arrowRight" class="hidden lg:block" />
+          <AppIcon name="arrowDown" :class="bare ? '' : 'lg:hidden'" /><AppIcon v-if="!bare" name="arrowRight" class="hidden lg:block" />
         </span>
       </span>
 
@@ -93,7 +97,7 @@ const ex = computed(() => props.finding.extraction);
 
       <span class="grid place-items-center" aria-hidden="true">
         <span class="grid h-8 w-8 place-items-center rounded-full border border-line bg-surface text-muted">
-          <AppIcon name="arrowDown" class="lg:hidden" /><AppIcon name="arrowRight" class="hidden lg:block" />
+          <AppIcon name="arrowDown" :class="bare ? '' : 'lg:hidden'" /><AppIcon v-if="!bare" name="arrowRight" class="hidden lg:block" />
         </span>
       </span>
 
@@ -128,8 +132,8 @@ const ex = computed(() => props.finding.extraction);
     </div>
 
     <!-- the money -->
-    <footer class="grid gap-4 border-t border-line bg-input/40 px-5 py-4">
-      <div class="grid gap-4 sm:grid-cols-3">
+    <footer :class="['grid gap-4', bare ? 'mt-4 rounded-xl bg-input/40 p-4' : 'border-t border-line bg-input/40 px-5 py-4']">
+      <div :class="['grid gap-4', bare ? 'sm:grid-cols-2' : 'sm:grid-cols-3']">
         <StatTile icon="euro" label="Extra per month" :value="eur(finding.impact.monthly)" />
         <StatTile icon="chart" label="Within your forecast" :value="eur(finding.impact.in_horizon)" />
         <StatTile icon="calendar" label="Next 12 months" :value="eur(finding.impact.next_12_months)" :tone="tone.stat" />
