@@ -85,6 +85,27 @@ const decline = () => emit("decide", props.action.id, false);
       <span><b class="text-fg">{{ t("Why:") }} </b>{{ action.why }}</span>
     </p>
 
+    <!-- four-eyes principle: the Legal Agent reviewed the Negotiator's draft (issues come from the backend as delivered) -->
+    <div
+      v-if="action.type === 'send_email' && action.review"
+      :class="['grid gap-1.5 rounded-lg p-3 text-sm', action.review.approved ? 'bg-positive-soft text-positive' : 'bg-warn-soft text-warn']"
+    >
+      <p class="flex flex-wrap items-center gap-2 font-semibold">
+        <AppIcon :name="action.review.approved ? 'checkCircle' : 'alert'" :size="18" />
+        <template v-if="action.review.approved">
+          {{
+            action.review.rounds > 1
+              ? t("Checked by {agent} – approved after one revision", { agent: t(action.reviewed_by ?? "Legal Agent") })
+              : t("Checked by {agent} – approved", { agent: t(action.reviewed_by ?? "Legal Agent") })
+          }}
+        </template>
+        <template v-else>{{ t("Checked by {agent} – please read it before sending", { agent: t(action.reviewed_by ?? "Legal Agent") }) }}</template>
+      </p>
+      <ul v-if="action.review.issues.length" class="grid gap-1 pl-7">
+        <li v-for="i in action.review.issues" :key="i" class="list-disc">{{ i }}</li>
+      </ul>
+    </div>
+
     <!-- send_email: editable draft -->
     <label v-if="action.type === 'send_email'" class="grid gap-2">
       <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">

@@ -36,7 +36,7 @@ POST /api/reset             → back to start (use before every demo run)
 | DELETE | `/api/contracts/{id}` | removes an uploaded contract (`U-001`…), returns the new list; 404 for index contracts |
 | GET | `/api/policy` | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
 | GET | `/api/audit` | `[{time, event, ...}]` – what happened, in order |
-| POST | `/api/reset` | clears findings/actions, returns the start `Dashboard` |
+| POST | `/api/reset` | clears findings/actions/audit **and uploaded contracts**, returns the start `Dashboard` |
 
 ## SSE `/api/sync`
 
@@ -223,6 +223,7 @@ The owner uploads a contract; Granite extracts the terms the Legal Agent's rules
 the backend checks them (dates parse, the monthly fee must appear in the document, every clause quote must exist
 word for word – otherwise dropped and listed in `warnings`) and adds the contract to the knowledge base.
 An upload for the same party replaces the earlier upload and takes precedence over the index entry.
+Uploads live in memory: `POST /api/reset` (and a pod restart) removes them.
 On the next `/api/sync` the Legal Agent uses it; its trace line ends with *"(contract you uploaded, terms
 extracted by the model)"* and `finding.contract.contract.origin == "uploaded"`.
 
@@ -235,6 +236,14 @@ extracted by the model)"* and `finding.contract.contract.origin == "uploaded"`.
     // customer contracts instead: "payment_terms_days": 30, "changes_require_written_agreement": true
     "clauses": [{ "id": "§6.1", "page": 4, "title": "Material price adjustment", "text": "The Supplier may adjust …" }],
     "origin": "uploaded", "extracted_by": "granite-8b (live)", "warnings": [] } }
+```
+```jsonc
+// GET /api/contracts  → [ContractSummary]   (uploads first, then the index)
+[ { "id": "U-001", "supplier": "CloudHost GmbH", "title": "…", "file": "uploads/cloudhost_msa.md",
+    "start_date": "2025-09-01", "origin": "uploaded", "extracted_by": "granite-8b (live)", "warnings": [],
+    "clauses": 4 },                                   // number of clauses, not the clauses themselves
+  { "id": "C-004", "customer": "Bauer Maschinenbau AG", "title": "…", "file": "contracts/customers/bauer_framework.md",
+    "start_date": "2025-03-01", "origin": "index", "clauses": 3 } ]
 ```
 The same extraction code (`backend/app/extraction.py`) is benchmarked in `notebooks/contract_extraction.ipynb`.
 

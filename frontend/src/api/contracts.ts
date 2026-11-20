@@ -1,0 +1,28 @@
+import type { ContractSummary, UploadResult } from "@/types/api";
+import { http } from "./http";
+
+/**
+ * The Legal Agent's knowledge base. See docs/API.md → "Contracts: upload → live extraction → Legal Agent".
+ * Uploads are kept in memory: POST /api/reset removes them. The next /api/sync uses an uploaded contract.
+ */
+
+/** Max upload size the backend accepts (5 MB). Check it client-side before sending. */
+export const CONTRACT_MAX_BYTES = 5 * 1024 * 1024;
+export const CONTRACT_ACCEPT = ".pdf,.md,.txt";
+
+/** GET /api/contracts – uploads first, then the notebook-prepared index. */
+export const getContracts = (signal?: AbortSignal) => http.get<ContractSummary[]>("/contracts", signal);
+
+/**
+ * POST /api/contracts/upload (multipart `file`) – the model reads the contract, 10–20 s → show a progress state.
+ * Unreadable file / scanned PDF / model down with an unknown contract → ApiError 422 with a readable `message`.
+ * Uploading the same party again replaces the earlier upload (same id).
+ */
+export const uploadContract = (file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return http.post<UploadResult>("/contracts/upload", form);
+};
+
+/** DELETE /api/contracts/{id} – only uploaded contracts (U-001…); index contracts → 404. Returns the new list. */
+export const deleteContract = (id: string) => http.del<ContractSummary[]>(`/contracts/${encodeURIComponent(id)}`);

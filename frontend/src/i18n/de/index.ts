@@ -1,5 +1,6 @@
 import a11y from "./a11y";
 import actions from "./actions";
+import ask from "./ask";
 import chart from "./chart";
 import common from "./common";
 import dashboard from "./dashboard";
@@ -18,6 +19,7 @@ import sync from "./sync";
  *   a11y      – accessibility menu, theme toggle
  *   actions   – Action center, decision tiles/focus, action cards, findings split
  *   pages     – policy, history, not-found
+ *   ask       – Ask your CFO, contracts page, Analyst briefing, Legal review of drafts
  * Same English text in two files → keep the same German (later files win on merge).
  */
 export const DE: Record<string, string> = {
@@ -29,4 +31,5 @@ export const DE: Record<string, string> = {
   ...a11y,
   ...actions,
   ...pages,
+  ...ask,
 };

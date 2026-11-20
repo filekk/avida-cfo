@@ -91,6 +91,11 @@ async def upload(filename: str, content: bytes) -> dict:
     return {"contract": entry, "source": source, "seconds": seconds, "pages": len(pages)}
 
 
+def clear_uploads() -> None:
+    """POST /api/reset: back to the notebook-prepared index only."""
+    data.uploaded.clear()
+
+
 def delete(contract_id: str) -> bool:
     c = next((c for c in data.uploaded if c["id"] == contract_id), None)
     if c:

@@ -105,13 +105,21 @@ export interface Clause {
   title: string;
   text: string;
 }
+/** index = prepared offline (Jupyter / hand-labelled) · uploaded = the owner uploaded it, Granite read it live. */
+export type ContractOrigin = "index" | "uploaded";
 export interface ContractRef {
   id?: string;
   supplier?: string;
+  /** customer contracts (late payments) have `customer` instead of `supplier` */
+  customer?: string;
   title: string;
   file: string;
   start_date?: IsoDate;
   fixed_price_until?: IsoDate;
+  payment_terms_days?: number;
+  /** only set for uploaded contracts – show "terms extracted by the model" next to the verdict */
+  origin?: ContractOrigin;
+  extracted_by?: string;
 }
 export interface ContractCheck {
   check: string;
@@ -138,7 +146,9 @@ export interface Impact {
   days_late?: number;
   lowest_balance_effect?: number;
   min_balance_on_time?: number;
+  min_date_on_time?: IsoDate;
   min_balance_late?: number;
+  min_date_late?: IsoDate;
 }
 export type Recommendation = "reject" | "accept" | "remind" | "review";
 export interface Finding {
@@ -245,6 +255,78 @@ export interface AppConfig {
   forecast_days: number;
   today: IsoDate;
 }
+// ---- Ask your CFO (GET /api/ask/suggestions, POST /api/ask) -------------------------------------
+export type Lang = "en" | "de";
+export interface AskSuggestion {
+  /** stable id: overdraft | on_time | reject | no_figures | safe | big_payments */
+  id: string;
+  /** already in the requested language – send it back UNCHANGED when the chip is clicked */
+  question: string;
+  agent: AgentName;
+}
+export interface AskSuggestions {
+  lang: Lang;
+  /** only before the first sync ("more precise questions after the inbox check"), else null */
+  note: string | null;
+  suggestions: AskSuggestion[];
+}
+export interface AskAnswer extends Omit<AskSuggestions, "lang"> {
+  question: string;
+  lang: Lang;
+  /** who answered → show that agent's icon/name next to the answer */
+  agent: AgentName;
+  answer: string;
+  /** rules = clicked chip (prepared, instant) · llm = typed question · fallback = "cached answer" (label it!) */
+  source: AnswerSource;
+  /** false = not answerable from company data → `answer` is a polite refusal; show the suggestions under it */
+  in_data: boolean;
+}
+
+// ---- Contracts (GET /api/contracts, POST /api/contracts/upload, DELETE /api/contracts/{id}) ------
+export interface ContractSummary {
+  id: string;
+  supplier?: string;
+  customer?: string;
+  title: string;
+  file: string;
+  start_date?: IsoDate | null;
+  origin: ContractOrigin;
+  /** uploaded only: "granite-8b (live)" or "cached answer" (model was down) */
+  extracted_by?: string;
+  /** uploaded only: things the owner should double-check (dropped quotes, unreadable dates…) */
+  warnings?: string[];
+  /** number of clauses the Legal Agent can quote */
+  clauses: number;
+}
+export interface UploadedContract {
+  id: string;
+  supplier?: string;
+  customer?: string;
+  aliases?: string[];
+  title: string;
+  file: string;
+  start_date: IsoDate | null;
+  // supplier contracts
+  monthly_fee?: number | null;
+  fixed_price_until?: IsoDate | null;
+  price_change_notice_days?: number | null;
+  max_annual_increase_pct?: number | null;
+  // customer contracts
+  payment_terms_days?: number | null;
+  changes_require_written_agreement?: boolean | null;
+  clauses: Clause[];
+  origin: "uploaded";
+  extracted_by: string;
+  warnings: string[];
+}
+export interface UploadResult {
+  contract: UploadedContract;
+  /** llm = read live by Granite · fallback = model down, known demo contract served from cache */
+  source: AnswerSource;
+  seconds: number;
+  pages: number;
+}
+
 export interface LlmHealth {
   ok: boolean;
   base_url?: string;

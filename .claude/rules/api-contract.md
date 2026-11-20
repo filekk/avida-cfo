@@ -27,7 +27,12 @@ Point out the mismatch rather than papering over it.
 | POST | `/api/actions/{id}/reject` | `rejectAction(id)` | `DecisionResponse` |
 | GET | `/api/policy` | `getPolicy()` | `PolicyRule[]` |
 | GET | `/api/audit` | `getAudit()` | `AuditEntry[]` |
-| POST | `/api/reset` | `resetDemo()` | start `Dashboard` |
+| POST | `/api/reset` | `resetDemo()` | start `Dashboard` (also removes uploaded contracts) |
+| GET | `/api/ask/suggestions` | `getAskSuggestions()` | `AskSuggestions` (`note` only before sync) |
+| POST | `/api/ask` | `askCfo(question)` | `AskAnswer` – chip instant (`rules`), typed 3–7 s (`llm`/`fallback`) |
+| GET | `/api/contracts` | `getContracts()` | `ContractSummary[]` (`origin`: `index` \| `uploaded`) |
+| POST | `/api/contracts/upload` | `uploadContract(file)` | `UploadResult`, 10–20 s; 422 `{detail}` if unreadable |
+| DELETE | `/api/contracts/{id}` | `deleteContract(id)` | `ContractSummary[]`; 404 for index contracts |
 
 ## Gotchas
 
@@ -41,6 +46,12 @@ Point out the mismatch rather than papering over it.
   data. `api/sync.ts` handles both and closes the stream.
 - `trace.source`: `llm` | `fallback` | `rules`. **Fallback must be labelled** in the UI (`SourceTag`).
 - Numbers are raw EUR floats and dates are ISO strings. Format only via `utils/format.ts`.
+- Ask: send a chip's `question` **unchanged** (that's how the backend knows to give the prepared answer). `lang`
+  goes in the body (`askCfo` takes it from the UI locale). `in_data: false` = polite refusal → show the suggestions.
+  Answers and suggestions are already in the UI language. Re-fetch suggestions after sync, reset and language switch.
+- Contracts: an uploaded contract affects the **next** sync, not the current dashboard. Show `warnings` before the
+  owner trusts it, and label `extracted_by: "cached answer"` like any fallback. After a sync with an uploaded
+  contract, `finding.contract.contract.origin === "uploaded"`.
 - `saved_liquidity` comes back on every decision. Update `kpis.saved_liquidity` from the response and don't recompute it.
 
 ## Changing the contract

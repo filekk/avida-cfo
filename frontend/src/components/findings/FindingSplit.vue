@@ -90,6 +90,10 @@ const TOGGLE =
           <AutonomyBadge level="analyzed" />
         </div>
         <p class="text-sm font-semibold">{{ c.contract?.title ?? t("No contract on file") }}</p>
+        <StatusPill v-if="c.contract?.origin === 'uploaded'" tone="info" class="w-fit">
+          <AppIcon name="sparkles" :size="14" />
+          {{ c.contract.extracted_by === "cached answer" ? t("Uploaded by you · cached answer") : t("Uploaded by you · terms read by the AI model") }}
+        </StatusPill>
         <blockquote v-if="c.quote" class="rounded-r-lg border-l-4 border-sun bg-surface p-3">
           <p class="italic leading-relaxed">“{{ c.quote }}”</p>
           <footer class="mt-2 flex flex-wrap gap-x-2 text-label font-semibold text-muted">

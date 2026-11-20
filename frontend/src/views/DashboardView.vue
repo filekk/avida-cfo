@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { storeToRefs } from "pinia";
+import { useRouter } from "vue-router";
+import AskTeaser from "@/components/ask/AskTeaser.vue";
+import BriefingCard from "@/components/dashboard/BriefingCard.vue";
 import ForecastChart from "@/components/dashboard/ForecastChart.vue";
 import HeadlineBanner from "@/components/dashboard/HeadlineBanner.vue";
 import KpiCard from "@/components/dashboard/KpiCard.vue";
@@ -18,6 +21,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import { periodLabel, useForecastPeriod } from "@/composables/useForecastPeriod";
 import { locale, t, tn } from "@/i18n";
+import { useAskStore } from "@/stores/ask";
 import { useDashboardStore } from "@/stores/dashboard";
 import { fmtDate } from "@/utils/format";
 
@@ -28,6 +32,19 @@ import { fmtDate } from "@/utils/format";
  */
 const store = useDashboardStore();
 const { dashboard, kpis, loading, error, findings, pendingActions, isSafe } = storeToRefs(store);
+
+// "Ask your CFO" teaser: a chip asks right away and opens the Ask page, where the answer appears.
+const ask = useAskStore();
+const { suggestions, note: askNote } = storeToRefs(ask);
+const router = useRouter();
+const topSuggestions = computed(() => suggestions.value.slice(0, 3));
+function askFromOverview(question: string) {
+  ask.ask(question);
+  router.push({ name: "ask" });
+}
+onMounted(() => {
+  if (!suggestions.value.length) ask.loadSuggestions();
+});
 
 const lines = computed(() => (dashboard.value ? scenarioLines(dashboard.value.scenarios) : []));
 const mainForecast = computed(() => (dashboard.value ? dashboard.value.scenarios.recommended ?? dashboard.value.scenarios.current : null));
@@ -126,7 +143,19 @@ const headline = computed(() => {
       </RouterLink>
     </CollapseTransition>
 
-    <!-- 4. what it found – half-width cards read better than full-width bands -->
+    <!-- 4. the Analyst's briefing (after an inbox check) + ask a question -->
+    <div class="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <BriefingCard v-if="dashboard.analysis" :analysis="dashboard.analysis" />
+      <AskTeaser
+        v-if="topSuggestions.length"
+        :suggestions="topSuggestions"
+        :note="askNote"
+        :class="dashboard.analysis ? '' : 'lg:col-span-2'"
+        @pick="askFromOverview"
+      />
+    </div>
+
+    <!-- 5. what it found – half-width cards read better than full-width bands -->
     <section v-if="findings.length" class="grid gap-3">
       <PageHeader :eyebrow="t('From your inbox')" :title="t('What I found')" />
       <div class="grid gap-4 md:grid-cols-2">

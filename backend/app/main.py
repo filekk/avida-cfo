@@ -161,7 +161,9 @@ def audit():
 
 @app.post("/api/reset")
 def reset():
+    """Clean demo start: findings, actions, audit AND contracts uploaded at runtime."""
     store.reset()
+    contract_library.clear_uploads()
     return initial_dashboard()
 
 
