@@ -1,7 +1,9 @@
+import type { IconName } from "@/components/ui/icons";
 import type { Action, Finding } from "@/types/api";
+import { eur, fmtDayMonth, pct } from "@/utils/format";
 
 /**
- * One row in the Action center. Either an action to approve (optionally explained by the finding it came from),
+ * One item in the Action center. Either an action to approve (optionally explained by the finding it came from),
  * or a finding with nothing to approve (e.g. a price change that is within the contract).
  */
 export interface DecisionItem {
@@ -11,6 +13,8 @@ export interface DecisionItem {
 }
 
 export type DecisionState = "pending" | "review" | "executed" | "rejected" | "no-action";
+export type DecisionCategory = "emails" | "forecast";
+type Tone = "accent" | "warn" | "positive" | "neutral" | "info";
 
 export function decisionState(item: DecisionItem): DecisionState {
   if (item.action) return item.action.status;
@@ -23,7 +27,55 @@ export const isOpenItem = (item: DecisionItem) => {
   return s === "pending" || s === "review";
 };
 
-/** Build the rows: every action (with its finding, if any) + every finding without an action. */
+export const categoryOf = (item: DecisionItem): DecisionCategory =>
+  item.action && item.action.type !== "send_email" ? "forecast" : "emails";
+
+export const CATEGORY_LABEL: Record<DecisionCategory, string> = {
+  emails: "Based on your emails",
+  forecast: "Based on your forecast",
+};
+
+export const STATUS: Record<DecisionState, { label: string; tone: Tone }> = {
+  pending: { label: "Waiting for you", tone: "accent" },
+  review: { label: "Check it yourself", tone: "warn" },
+  executed: { label: "Approved", tone: "positive" },
+  rejected: { label: "Declined", tone: "neutral" },
+  "no-action": { label: "No action needed", tone: "info" },
+};
+
+export function iconOf(item: DecisionItem): IconName {
+  if (!item.action) return "inbox";
+  return item.action.type === "send_email" ? "send" : "landmark";
+}
+
+/** A two-word gist for the small tile: "CloudHost +15 %" / "Reject the increase". */
+export function gist(item: DecisionItem): { title: string; hint: string } {
+  const { action: a, finding: f } = item;
+  if (a?.type === "credit_application") {
+    return { title: "Overdraft", hint: `Bridge ${fmtDayMonth(a.payload.from)} – ${fmtDayMonth(a.payload.until)}` };
+  }
+  if (f) {
+    const supplier = f.extraction.supplier.replace(/\s+(GmbH|AG|KG|UG|SE)\b.*$/, "");
+    const hint = { reject: "Reject the increase", accept: "Within your contract", review: "Check it yourself" }[f.recommendation];
+    return { title: `${supplier} ${pct(f.extraction.increase_pct)}`, hint };
+  }
+  return { title: a?.title ?? "Decision", hint: "" };
+}
+
+/** The one number worth seeing on the tile. */
+export function keyFigure(item: DecisionItem): { label: string; value: string; tone: string } | null {
+  const { action: a, finding: f } = item;
+  if (a?.type === "credit_application") return { label: "Amount", value: eur(a.payload.amount), tone: "" };
+  if (a && a.savings_12m > 0) {
+    return a.status === "rejected"
+      ? { label: "Would have saved", value: eur(a.savings_12m), tone: "text-muted" }
+      : { label: "You save / year", value: eur(a.savings_12m), tone: "text-positive" };
+  }
+  if (f) return { label: "Extra / year", value: eur(f.impact.next_12_months), tone: "" };
+  return null;
+}
+
+/** Build the items: every action (with its finding, if any) + every finding without an action. */
 export function buildItems(actions: Action[], findings: Finding[]): DecisionItem[] {
   const fromActions = actions.map((a) => ({
     key: a.id,
