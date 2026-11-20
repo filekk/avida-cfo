@@ -1,0 +1,41 @@
+/* @import must come before the Tailwind directives (Vite inlines them). */
+@import "../assets/fonts/fonts.css";
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-[15px] leading-relaxed text-fg;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+    text-wrap: balance;
+  }
+  :focus-visible {
+    @apply outline outline-[3px] outline-offset-2 outline-sun;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer utilities {
+  /* Small uppercase label above section titles (prototype ".eyebrow"). */
+  .eyebrow {
+    @apply text-[0.72rem] font-semibold uppercase leading-none tracking-eyebrow text-muted;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

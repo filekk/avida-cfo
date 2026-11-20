@@ -2,11 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Avida CFO – an AI liquidity assistant for small businesses." />
     <title>Avida CFO</title>
+    <script>
+      // Apply the saved theme before first paint (avoids a light→dark flash).
+      try {
+        const t = localStorage.getItem("avida-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
   </head>
-  <body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+  <body>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
