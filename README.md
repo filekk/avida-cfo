@@ -42,7 +42,8 @@ Vue 3 (Vite, Tailwind) ──SSE/REST──► FastAPI ──► orchestrator
                                          │         ├─ Legal Agent      (rules decide, LLM explains; reviews drafts)
                                          │         └─ Negotiator Agent (LLM drafts / revises the supplier email)
                                          └──► vLLM on OpenShift AI (Granite 3.3 8B, FP8, OpenAI-compatible API)
-Jupyter workbench: contract PDFs → clause extraction + benchmark → contracts_index.json
+Contract upload (PDF/.md) → extraction.py (Granite, guided JSON, verbatim-quote guard) → Legal Agent knowledge base
+Jupyter workbench: imports the same extraction.py → benchmark vs. hand-labelled contracts_index.json
 ```
 
 Design rules: **numbers are never computed by the LLM**; contract verdicts come from explicit rule checks;
@@ -64,7 +65,7 @@ backend/
   data/                mock bank data, inbox, contracts, contract index
   tests/               end-to-end test of the happy path (offline)
 frontend/              Vue 3 app (served by FastAPI in production)
-notebooks/             contract_extraction.ipynb (OpenShift AI workbench)
+notebooks/             contract_extraction.ipynb – benchmark of backend/app/extraction.py (OpenShift AI workbench)
 deploy/                ConfigMap, Deployment/Service/Route, step-by-step guide
 Dockerfile             one image: builds frontend, runs backend on :8080
 .devfile.yaml          OpenShift Dev Spaces workspace

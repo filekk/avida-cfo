@@ -138,7 +138,8 @@ def _unclear(extraction: dict, contract: dict | None, figures: bool) -> tuple[di
 def _contract_info(contract: dict | None) -> dict | None:
     if not contract:
         return None
-    keys = ("id", "supplier", "customer", "title", "file", "start_date", "fixed_price_until", "payment_terms_days")
+    keys = ("id", "supplier", "customer", "title", "file", "start_date", "fixed_price_until", "payment_terms_days",
+            "origin", "extracted_by")
     return {k: contract[k] for k in keys if k in contract}
 
 

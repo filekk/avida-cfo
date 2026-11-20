@@ -77,6 +77,12 @@ UI marks them "(cached answer)". For judging, make sure it is **ok** – the mod
 *Data Science Projects* → `avida-models` → **Create workbench** (Standard Data Science image, small size, no GPU)
 → clone the repo → run `notebooks/contract_extraction.ipynb`.
 
+The notebook is the **evaluation harness of the production extractor**: it imports `backend/app/extraction.py`
+(the code behind `POST /api/contracts/upload`), runs it on the vLLM model and benchmarks it against the
+hand-labelled `contracts_index.json` (results in `notebooks/benchmark_results.json`). The last cell can upload a
+contract to the running app through the internal service (`http://avida-cfo.avida-cfo.svc.cluster.local:8080`).
+Change the prompt/schema in the backend → re-run the notebook → see whether accuracy went up or down.
+
 ## 5. Dev Spaces (bonus)
 
 Install the **Red Hat OpenShift Dev Spaces** operator (OperatorHub) → create a `CheCluster` with defaults →

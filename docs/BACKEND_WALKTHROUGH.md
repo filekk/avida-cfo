@@ -47,8 +47,8 @@ zawsze liczy to samo), `TRACE_DELAY_S=0.4` (pauza między krokami, żeby widowni
 - `contracts_index.json` – umowy w formie strukturalnej: klauzule + pola dla reguł (`fixed_price_until`,
   `price_change_notice_days`, `max_annual_increase_pct` dla dostawców; `payment_terms_days`,
   `changes_require_written_agreement` dla klientów – klient ma klucz `customer` zamiast `supplier`).
-- `contracts/*.md` – teksty umów (notebook robi z nich PDF-y). Umowy z klientami są w `contracts/customers/`,
-  bo notebook zakłada umowy z dostawcami i globuje tylko `contracts/*.md`.
+- `contracts/**/*.md` – teksty umów (umowy z klientami w `contracts/customers/`). Notebook czyta je wszystkie.
+- `data.contracts()` = umowy wgrane w trakcie działania (`data.uploaded`, w pamięci) + indeks z JSON-a.
 
 Loadery mają `@lru_cache` → zmiana JSON-a wymaga restartu.
 
@@ -125,6 +125,15 @@ nic nie wychodzi z systemu. `POLICY` – macierz autonomii (kto co może) dla `/
 
 ### `main.py` – API
 Endpointy z `docs/API.md`, SSE na `/api/sync`, serwowanie zbudowanego Vue z `STATIC_DIR` (SPA fallback na `index.html`).
+
+### `extraction.py` + `contract_library.py` – umowy wgrywane przez właściciela
+- `extraction.py` – **jeden kod dla backendu i notebooka**: dzielenie dokumentu na strony (PDF przez `pypdf`, .md po `## `),
+  prompt + schemat JSON (guided decoding), `clean()` (daty, liczby, opłata musi być w tekście, cytat klauzuli musi
+  istnieć dosłownie – inaczej wypada i trafia do `warnings`), `to_index_entry()`, `compare()` do benchmarku.
+- `contract_library.py` – `POST /api/contracts/upload`: limit 5 MB / 30 000 znaków, wywołanie Granite, zapis do
+  `data.uploaded`. Offline (testy) znany plik demo dostaje wpis z indeksu jako fallback; nieznany plik bez modelu → 422.
+- Notebook `contract_extraction.ipynb` importuje `app.extraction` i liczy dokładność dokładnie tego kodu
+  (lokalnie na Granite: 26/26 pól, ~13 s na umowę).
 
 ### `ask.py` – „Ask your CFO” (`/api/ask`, `/api/ask/suggestions`)
 Właściciel pyta prostym językiem, odpowiada właściwy agent – **tylko z liczb już policzonych** (nic nowego nie liczymy).
