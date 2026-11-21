@@ -26,6 +26,12 @@ def inbox() -> list[dict]:
 
 
 @lru_cache
+def replies() -> dict:
+    """Simulated partner replies, keyed by the inbox email id the owner answered (see replies_mock.json)."""
+    return {k: v for k, v in _load("replies_mock.json").items() if not k.startswith("_")}
+
+
+@lru_cache
 def index_contracts() -> list[dict]:
     """Contracts prepared offline (notebook / hand-labelled)."""
     return _load("contracts_index.json")["contracts"]

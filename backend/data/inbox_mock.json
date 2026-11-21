@@ -29,7 +29,7 @@
     "from_name": "Bauer Maschinenbau AG – Accounts Payable",
     "subject": "Payment run postponed – SAP migration in January 2027",
     "received": "2026-11-19",
-    "body": "Dear Ms Müller,\n\nwe are migrating our finance system to SAP S/4HANA in January 2027. During the migration no payments can be released. All supplier invoices due between 1 and 31 January 2027 will therefore be paid with our first payment run after go-live on 4 February 2027.\n\nThis concerns your invoice RE-2026-1187 for the December deliveries over EUR 38,000.00, due on 5 January 2027.\n\nThank you for your understanding.\n\nKind regards,\nAndreas Keller\nAccounts Payable, Bauer Maschinenbau AG"
+    "body": "Dear Ms Müller,\n\nwe are migrating our finance system to SAP S/4HANA in January 2027. During the migration no payments can be released. All supplier invoices due between 1 and 31 January 2027 will therefore be paid with our first payment run after go-live on 4 February 2027.\n\nThis concerns your invoice RE-2026-1187 for the December deliveries over EUR 38,000.00, due on 5 January 2027.\n\nIf your contract obliges us to pay on the original due date, please let us know in writing – we can release a manual payment for these invoices.\n\nThank you for your understanding.\n\nKind regards,\nAndreas Keller\nAccounts Payable, Bauer Maschinenbau AG"
   },
   {
     "id": "mail-005",

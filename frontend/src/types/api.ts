@@ -279,6 +279,8 @@ interface ActionBase {
   review?: { approved: boolean; issues: string[]; rounds: number };
   /** after approve: the owner changed the draft before sending */
   edited_by_owner?: boolean;
+  /** send_email, after approve: the partner's SIMULATED reply (demo data); its summary is also in `result` */
+  reply?: { from: string; from_name: string; subject: string; received: IsoDate; body: string; simulated: true };
   created?: IsoDateTime;
   decided?: IsoDateTime;
 }

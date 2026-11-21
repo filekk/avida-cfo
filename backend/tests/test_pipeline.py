@@ -31,7 +31,7 @@ def _finding(d: dict, party: str) -> dict:
 def test_forecast_before_sync():
     client.post("/api/reset")  # the store is global – other test files may have synced already
     d = client.get("/api/dashboard").json()
-    assert d["kpis"]["min_balance"] == 11000
+    assert d["kpis"]["min_balance"] == 26000
     assert d["findings"] == []
 
 
@@ -52,7 +52,7 @@ def test_full_happy_path():
 
     assert sorted(a["type"] for a in d["actions"]) == ["credit_application"] + ["send_email"] * 3
     credit = next(a for a in d["actions"] if a["type"] == "credit_application")
-    assert credit["payload"]["amount"] == 45000
+    assert credit["payload"]["amount"] == 30000
 
     # Nothing is executed without approval.
     assert all(a["status"] == "pending" for a in d["actions"])
@@ -69,8 +69,8 @@ def test_supplier_name_is_normalised_to_contract(monkeypatch):
     noisy = dict(fallback.EXTRACTIONS["mail-001"], counterparty="CloudHost GmbH – Billing")
     monkeypatch.setitem(fallback.EXTRACTIONS, "mail-001", noisy)
     d = _sync()
-    assert d["scenarios"]["if_accepted"]["min_balance"] == -29352
-    assert d["scenarios"]["recommended"]["min_balance"] == -27882
+    assert d["scenarios"]["if_accepted"]["min_balance"] == -14352
+    assert d["scenarios"]["recommended"]["min_balance"] == -12882
 
 
 def test_late_customer_payment_moves_cash():
@@ -175,3 +175,32 @@ def test_department_suffix_is_stripped():
 
     ex = sanitize({"kind": "other", "counterparty": "Stahlhandel Nord GmbH – Vertrieb"}, {"subject": "s", "body": ""})
     assert ex["party"] == "Stahlhandel Nord GmbH"
+
+
+def test_demo_arc_red_after_sync_green_after_decisions():
+    """Start safe → the inbox check finds the risk (red) → the owner's approvals fix it (green). The customer's
+    simulated reply confirms paying on time, the plan is re-run and the overdraft is no longer needed."""
+    client.post("/api/reset")
+    assert client.get("/api/dashboard").json()["kpis"]["min_balance"] >= 15000
+    with client.stream("GET", "/api/sync") as r:
+        "".join(r.iter_text())
+    d = client.get("/api/dashboard").json()
+    assert d["kpis"]["min_balance"] < d["kpis"]["safety_buffer"]
+    ids = {a["partner"] if a["type"] == "send_email" else "credit": a["id"] for a in d["actions"]}
+
+    cloud = client.post(f"/api/actions/{ids['CloudHost GmbH']}/approve").json()
+    assert "price stays at 9,800 EUR" in cloud["action"]["result"] and cloud["action"]["reply"]["simulated"]
+    bauer = client.post(f"/api/actions/{ids['Bauer Maschinenbau AG']}/approve").json()["action"]
+    assert "arrive on time" in bauer["result"] and "RE-2026-1187" in bauer["reply"]["body"]
+
+    d = client.get("/api/dashboard").json()
+    assert d["kpis"]["min_balance"] == 25118 and d["kpis"]["days_safe"] == 90
+    assert d["headline"].startswith("You're safe for the next 90 days") and d["analysis"]["risk_level"] == "low"
+    credit = next(a for a in d["actions"] if a["id"] == ids["credit"])
+    assert credit["status"] == "pending" and credit["decision"]["recommended"] == "not_now"
+    assert "No longer needed" in credit["why_short"]
+    de = client.get("/api/dashboard?lang=de").json()
+    assert "Simulierte Antwort" in next(a for a in de["actions"] if a["id"] == ids["Bauer Maschinenbau AG"])["result"]
+    events = [e["event"] for e in client.get("/api/audit").json()]
+    assert events.count("reply_received") == 2 and "plan_updated" in events
+    client.post("/api/reset")

@@ -422,6 +422,67 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
         _running = False
 
 
+# --- after the owner approves: the partner's (simulated) reply and its effect on the plan -------------------
+
+NOT_NEEDED = {
+    "en": "No longer needed: {party} confirmed paying on time, so your balance stays above your safety cushion.",
+    "de": "Nicht mehr nötig: {party} hat pünktliche Zahlung bestätigt – Ihr Kontostand bleibt über dem Sicherheitspolster.",
+}
+
+
+def after_approval(action: dict) -> None:
+    """An approved email gets the partner's simulated reply (data/replies_mock.json), shown in the action result.
+    If the reply changes the facts – a customer confirms paying on the original due date – the plan drops that
+    delay and the forecast, KPIs, headline and briefing are re-run (deterministic), so the overview shows what
+    the decision achieved. Execution stays simulated: nothing left the system, the reply is demo data."""
+    d, plan = store.dashboard, store.plan
+    if not d or not plan or action["type"] != "send_email" or action["status"] != "executed":
+        return
+    reply = data.replies().get(action.get("finding_id"))
+    f = next((x for x in d["findings"] if x["id"] == action.get("finding_id")), None)
+    if not reply or not f:
+        return
+    action["reply"] = {"from": reply["from"], "from_name": reply["from_name"], "subject": reply["subject"],
+                       "received": settings.today().isoformat(), "body": reply["body"], "simulated": True}
+    action["result"] = f"{action['result']} Simulated reply: {reply['summary']}"
+    de_ = action.setdefault("i18n", {}).setdefault("de", {})
+    de_["result"] = f"{de_.get('result', '')} Simulierte Antwort: {reply['summary_de']}".strip()
+    store.log("reply_received", action=action["id"], partner=action.get("partner"), summary=reply["summary"],
+              effect=reply["effect"], simulated=True)
+
+    ex = f["extraction"]
+    if reply["effect"] == "pays_on_time" and f["kind"] == "payment_delay" and ex["figures_stated"]:
+        this = analyst.to_delay(ex)
+        plan["delays"] = [x for x in plan["delays"] if x != this]
+        f["confirmed_on_time"] = True
+        _replan(d, plan, party=ex["party"])
+
+
+def _replan(d: dict, plan: dict, party: str) -> None:
+    sc = d["scenarios"]
+    sc["recommended"] = rec = analyst.forecast(plan["plan_adj"], plan["delays"])
+    # "accept every price increase" uses the same (now confirmed) payment dates – it differs only by the prices
+    accepted = [analyst.to_adjustment(f["extraction"]) for f in d["findings"]
+                if f["kind"] == "price_change" and f["extraction"]["figures_stated"]]
+    sc["if_accepted"] = analyst.forecast(accepted, plan["delays"])
+    credit = analyst.credit_proposal(rec)
+    d["kpis"] = _kpis(rec)
+    d["headline"] = analyst.headline(rec, "en")
+    d.setdefault("i18n", {}).setdefault("de", {})["headline"] = analyst.headline(rec, "de")
+    d["analysis"] = analyst.briefing_rules(sc, d["findings"], credit)
+    store.log("plan_updated", min_balance=rec["min_balance"], min_date=rec["min_date"], safe=not rec["first_breach_date"])
+    if credit is None:  # the overdraft is no longer needed – say so on its card (the owner still decides)
+        for a in store.actions.values():
+            if a["type"] == "credit_application" and a["status"] == "pending":
+                en, de_ = NOT_NEEDED["en"].format(party=party), NOT_NEEDED["de"].format(party=party)
+                over = a.setdefault("i18n", {}).setdefault("de", {})
+                # the long `why` keeps the original reasoning after the note ("it was needed because …")
+                a["why"], a["why_short"] = f"{en} Before: {a['why']}", en
+                over["why"], over["why_short"] = f"{de_} Vorher: {over.get('why', '')}".strip(), de_
+                if a.get("decision"):
+                    a["decision"]["recommended"] = "not_now"
+
+
 def _trace_summary(dash: dict, sources: dict) -> dict:
     """Compact result for the MLflow trace: what the agents decided, not the whole dashboard."""
     return {
@@ -561,5 +622,6 @@ async def _pipeline(background: list[asyncio.Task], lang: str) -> AsyncIterator[
 
     dash = _dashboard(scenarios, rec, findings, analysis)
     store.dashboard = dash
+    store.plan = {"plan_adj": plan_adj, "delays": delays, "credit": credit}
     store.log("sync_finished", findings=len(findings), actions=len(store.actions))
     yield {"type": "result", "dashboard": dash}

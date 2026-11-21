@@ -263,9 +263,19 @@ When `figures_stated` is `false` (IT-Service Kraus): `verdict: "unclear"`, `chec
   "reviewed_by": "Legal Agent",                 // send_email only
   "review": { "approved": true, "issues": [], "rounds": 1 },   // "✔ Checked by the Legal Agent" badge; rounds 2 = was revised
   "result": "Email to … sent (simulated – nothing left the system).",                 // after approve
-  "edited_by_owner": true                       // after approve, only if the owner changed the draft
+  "edited_by_owner": true,                      // after approve, only if the owner changed the draft
+  "reply": { "from": "…", "from_name": "…", "subject": "Re: …", "received": "2026-11-21",
+             "body": "…", "simulated": true }   // after approve, send_email with a demo reply (summary also in `result`)
 }
 ```
+
+**After an approval the plan can change.** Approved emails get the partner's **simulated** reply
+(`backend/data/replies_mock.json`, demo data – nothing left the system). When the reply changes the facts (Bauer
+confirms paying RE-2026-1187 on the original due date), the backend drops that delay and re-runs the forecast:
+`kpis`, `headline`, `analysis` (rule-based, `source: "rules"`), `scenarios.recommended` and `scenarios.if_accepted`
+change, and a pending overdraft gets `decision.recommended: "not_now"` + a "No longer needed" `why_short`.
+→ After `approve`, **re-fetch `GET /api/dashboard`** and take those parts. Audit events: `reply_received`, `plan_updated`.
+Demo arc: start 26,000 € (safe) → after sync −12,882 € (below the 15,000 € cushion) → after the Bauer reminder 25,118 € (safe).
 
 `Decision` – decision support for an action card. Deterministic: the forecast is re-run with / without the change.
 ```jsonc
