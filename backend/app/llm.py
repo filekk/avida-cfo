@@ -3,6 +3,11 @@
 Every call takes a `fallback`. If the model is down, slow or returns invalid JSON and
 DEMO_FALLBACK=true, the fallback is used and the result is marked source="fallback",
 so the UI can be honest about it.
+
+Two endpoints are supported: LLM_BASE_URL (primary, e.g. the llm-d inference gateway) and the optional
+LLM_FALLBACK_BASE_URL (e.g. the plain vLLM InferenceService). When the primary endpoint is unreachable or
+answers 404/5xx, the same request goes to the fallback endpoint, and the primary is skipped for
+LLM_FAILOVER_COOLDOWN_S seconds. Only when both fail do the canned answers kick in.
 """
 from __future__ import annotations
 
@@ -10,7 +15,10 @@ import copy
 import json
 import logging
 import re
+import time
+from dataclasses import dataclass
 
+import openai
 from openai import AsyncOpenAI
 
 from . import tracing
@@ -19,38 +27,97 @@ from .config import settings
 log = logging.getLogger("avida.llm")
 
 
+@dataclass
+class Endpoint:
+    name: str  # "primary" / "fallback"
+    base_url: str
+    model: str
+    client: AsyncOpenAI
+
+
+def _endpoint(name: str, base_url: str, model: str) -> Endpoint:
+    client = AsyncOpenAI(base_url=base_url, api_key=settings.llm_api_key,
+                         timeout=settings.llm_timeout_s, max_retries=0)
+    return Endpoint(name, base_url, model, client)
+
+
+def _is_endpoint_failure(err: Exception) -> bool:
+    """Endpoint down / not routable (worth trying the other one) vs. a bad answer from a healthy model."""
+    if isinstance(err, openai.APIConnectionError):  # includes timeouts
+        return True
+    if isinstance(err, openai.APIStatusError):
+        return err.status_code == 404 or err.status_code >= 500
+    return False
+
+
 class LLM:
     def __init__(self) -> None:
-        self.client = AsyncOpenAI(
-            base_url=settings.llm_base_url,
-            api_key=settings.llm_api_key,
-            timeout=settings.llm_timeout_s,
-            max_retries=0,
-        )
+        self.endpoints = [_endpoint("primary", settings.llm_base_url, settings.llm_model)]
+        if settings.llm_fallback_base_url:
+            self.endpoints.append(_endpoint("fallback", settings.llm_fallback_base_url,
+                                            settings.llm_fallback_model or settings.llm_model))
+        self.client = self.endpoints[0].client
         self.model = settings.llm_model
+        self._primary_down_until = 0.0
+
+    def _order(self) -> list[Endpoint]:
+        if len(self.endpoints) > 1 and time.monotonic() < self._primary_down_until:
+            return self.endpoints[::-1]
+        return self.endpoints
 
     async def health(self) -> dict:
         if not settings.llm_enabled:
             return {"ok": False, "reason": "LLM_ENABLED=false", "base_url": settings.llm_base_url}
-        try:
-            models = await self.client.models.list()
-            return {"ok": True, "base_url": settings.llm_base_url, "models": [m.id for m in models.data]}
-        except Exception as e:  # noqa: BLE001
-            return {"ok": False, "base_url": settings.llm_base_url, "reason": str(e)}
+        checks = []
+        for ep in self.endpoints:
+            try:
+                models = await ep.client.models.list()
+                checks.append({"name": ep.name, "ok": True, "base_url": ep.base_url, "model": ep.model,
+                               "models": [m.id for m in models.data]})
+            except Exception as e:  # noqa: BLE001
+                checks.append({"name": ep.name, "ok": False, "base_url": ep.base_url, "model": ep.model,
+                               "reason": str(e)})
+        active = next((c for c in checks if c["ok"]), None)
+        out = {"ok": active is not None, "base_url": (active or checks[0])["base_url"],
+               "active": active["name"] if active else None, "endpoints": checks}
+        if active:
+            out["models"] = active["models"]
+        else:
+            out["reason"] = checks[0]["reason"]
+        return out
 
     async def _complete(self, system: str, user: str, max_tokens: int = 400, span=None, **kwargs) -> str:
-        resp = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-            temperature=0.1,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
-        if span is not None and resp.usage:
-            span.attr(tracing.TOKEN_USAGE, {"input_tokens": resp.usage.prompt_tokens,
-                                            "output_tokens": resp.usage.completion_tokens,
-                                            "total_tokens": resp.usage.total_tokens})
-        return resp.choices[0].message.content or ""
+        order = self._order()
+        for i, ep in enumerate(order):
+            try:
+                resp = await ep.client.chat.completions.create(
+                    model=ep.model,
+                    messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+                    temperature=0.1,
+                    max_tokens=max_tokens,
+                    **kwargs,
+                )
+            except Exception as e:  # noqa: BLE001
+                if i + 1 < len(order) and _is_endpoint_failure(e):
+                    log.warning("LLM endpoint %s (%s) failed, trying %s: %s",
+                                ep.name, ep.base_url, order[i + 1].name, e)
+                    if ep.name == "primary":
+                        self._primary_down_until = time.monotonic() + settings.llm_failover_cooldown_s
+                    if span is not None:
+                        span.attr(f"failover.{ep.name}", repr(e))
+                    continue
+                raise
+            if ep.name == "primary":
+                self._primary_down_until = 0.0
+            if span is not None:
+                span.attr("avida.endpoint", ep.name)
+                span.attr("avida.base_url", ep.base_url)
+                if resp.usage:
+                    span.attr(tracing.TOKEN_USAGE, {"input_tokens": resp.usage.prompt_tokens,
+                                                    "output_tokens": resp.usage.completion_tokens,
+                                                    "total_tokens": resp.usage.total_tokens})
+            return resp.choices[0].message.content or ""
+        raise RuntimeError("no LLM endpoint configured")
 
     def _span(self, kind: str, system: str, user: str, max_tokens: int):
         """One MLflow span per model call (no-op when tracing is off)."""

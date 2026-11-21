@@ -91,7 +91,7 @@ For the OSS-assistant bonus, install the *Continue* extension and point it at th
 (OpenAI-compatible provider, `apiBase` = `LLM_BASE_URL`).
 
 Resource tip: single node with 32 CPU / 128 GB. Model + app + workbench + Dev Spaces fit; don't enable
-llm-d, MaaS and guardrails on top.
+MaaS and guardrails on top. llm-d (section 7) replaces the plain InferenceService on the GPU, it does not add one.
 
 ## 6. MLflow: tracing and evaluating the agents (bonus)
 
@@ -118,4 +118,35 @@ oc port-forward -n avida-cfo svc/mlflow 5000:5000 &
 oc port-forward -n avida-models svc/granite-8b-predictor 8000:8080 &
 cd backend && pip install -r eval/requirements.txt
 MLFLOW_TRACKING_URI=http://localhost:5000 LLM_BASE_URL=http://localhost:8000/v1 python eval/evaluate_agents.py
+```
+
+## 7. llm-d: distributed inference (bonus)
+
+`deploy/model/granite-llmd.yaml` serves the same Granite 3.3 8B through **llm-d** (OpenShift AI 3.5
+`LLMInferenceService`): Gateway API HTTPRoute -> llm-d scheduler (EPP, prefix/KV-cache aware) -> vLLM pod.
+
+- **Private gateway.** The shared `openshift-ai-inference` Gateway has a public AWS load balancer, no auth on this
+  cluster (no Kuadrant) and does not accept routes from `avida-models`. The manifest therefore adds our own
+  Gateway `avida-inference` (same class, `ClusterIP`, HTTP 80) that only accepts routes from `avida-models`.
+- **One GPU:** stop the plain InferenceService first.
+
+```bash
+oc apply -f deploy/model/granite-llmd.yaml
+oc get svc -n openshift-ingress avida-inference-openshift-ai-inference      # TYPE must be ClusterIP
+oc annotate isvc granite-8b -n avida-models serving.kserve.io/stop=true --overwrite
+oc get llmisvc granite-llmd -n avida-models -w                               # READY True after ~10 min
+```
+
+Endpoint (cluster-internal, model name `granite-8b`):
+`http://avida-inference-openshift-ai-inference.openshift-ingress.svc.cluster.local/avida-models/granite-llmd/v1`
+
+**App failover** (`backend/app/llm.py`): `LLM_BASE_URL` = llm-d, `LLM_FALLBACK_BASE_URL` = the plain
+`granite-8b` predictor. If llm-d is unreachable or answers 404/5xx, the same request goes to the fallback and llm-d is
+skipped for `LLM_FAILOVER_COOLDOWN_S` (30 s); only when both fail do the cached answers kick in.
+`/api/llm/health` lists both endpoints and which one is `active`; MLflow spans carry `avida.endpoint`.
+
+Back to the plain InferenceService:
+```bash
+oc delete -f deploy/model/granite-llmd.yaml
+oc annotate isvc granite-8b -n avida-models serving.kserve.io/stop=false --overwrite
 ```
