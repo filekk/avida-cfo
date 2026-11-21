@@ -292,6 +292,14 @@ async def _negotiate_steps(f: dict, emit: Callable[[dict], Awaitable[None]], lan
         rounds = 2
         if review["approved"]:
             msg = f"Überarbeiteter Entwurf an {name} freigegeben." if de else f"Revised draft to {name} approved."
+        elif review.get("rule_issues"):
+            # Demo safety net: after two rounds the draft still breaks a hard rule (clause, amount, placeholder,
+            # internal finance) → the owner gets the checked template instead of a wrong email.
+            body, src = negotiator._template(task, ex, res), "fallback"
+            review = {"approved": True, "issues": [], "rule_issues": []}
+            rsrc = "rules"
+            msg = (f"Entwurf an {name} verletzt weiter Regeln – geprüfte Vorlage verwendet." if de
+                   else f"Draft to {name} still breaks the rules – using the checked template instead.")
         else:
             issues = " ".join(review["issues"])
             msg = (f"Entwurf an {name} noch nicht perfekt – bitte vor dem Senden prüfen: {issues}" if de

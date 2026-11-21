@@ -44,8 +44,11 @@ export async function request<T>(method: Method, path: string, body?: unknown, s
   const text = await res.text();
   const data = text ? safeJson(text) : undefined;
   if (!res.ok) {
-    const detail = (data as { detail?: string } | undefined)?.detail;
-    throw new ApiError(detail ?? t("Request failed ({status})", { status: res.status }), res.status, data);
+    // FastAPI: `detail` is a string for our own errors, but a list of objects for 422 validation errors –
+    // never show "[object Object]" to the owner.
+    const detail = (data as { detail?: unknown } | undefined)?.detail;
+    const msg = typeof detail === "string" && detail ? detail : t("Request failed ({status})", { status: res.status });
+    throw new ApiError(msg, res.status, data);
   }
   return data as T;
 }

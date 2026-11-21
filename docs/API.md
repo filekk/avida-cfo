@@ -447,6 +447,9 @@ POST /api/actions/act-1/redraft   {"instruction": "Make it softer", "body": "<op
 - `instruction` is **optional**: empty / omitted = "write it again" (a fresh version with the same facts).
   Max 300 characters. The email keeps its language unless the owner asks for another one.
 - Iterate: send the text currently in the editor as `body`, so the next rewrite builds on the last proposal.
+- Safety net: a rewrite that loses the clause / amount (or adds a placeholder or internal finance) gets one fix
+  round; if it is still broken, the editor's text comes back unchanged (`changed: false`, `source: "fallback"`,
+  `note` says why). Chatty preambles ("Sure! Here is …") and ``` fences are stripped.
 - **A proposal only**: the action is not changed and nothing is sent. Put `body` into the editor; the owner approves
   with `edited_body` as usual (`Action.edited_by_owner` becomes `true`). Every proposal is logged in `/api/audit`
   (`redraft_proposed`).
@@ -466,6 +469,18 @@ GET /api/actions/act-1/redraft/hints?lang=de     → chips for the Rewrite butto
 ```
 Send a chip's `instruction` unchanged as the redraft `instruction` (or let the owner type their own hint). Same
 `404` / `409` as redraft.
+
+## Errors and demo safety nets
+
+- SSE `error` event: `message` is plain, localized text for the owner (show it as is). `code: "sync_running"` = another
+  window is already checking the inbox (wait and retry); `detail` carries the technical reason for other failures.
+- `POST /api/ask`: `history` is never rejected – only the last 6 turns are used, each clipped to 2000 characters.
+- `approve` with a blank `edited_body` keeps the reviewed draft (a cleared editor never sends an empty email).
+- Model down / timing out on every endpoint → the backend answers from canned data for `LLM_BREAKER_S` seconds
+  (default 45) instead of waiting for each call's timeout; those answers are `source: "fallback"` as usual.
+- A demo email the model reads differently from the checked reading (wrong kind, missed figures) uses the checked
+  reading (`source: "fallback"`). A negotiated draft that still breaks a hard rule after two rounds is replaced by
+  the checked template (`source: "fallback"`).
 
 ## Rules for the UI
 

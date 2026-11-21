@@ -67,7 +67,9 @@ class Store:
         if a["status"] != "pending":
             return a
         if approve:
-            if edited_body and a.get("payload", {}).get("body") is not None and edited_body != a["payload"]["body"]:
+            # a blank editor (e.g. cleared by mistake) never replaces the reviewed draft
+            if (edited_body and edited_body.strip() and a.get("payload", {}).get("body") is not None
+                    and edited_body.strip() != a["payload"]["body"].strip()):
                 a["payload"]["body"] = edited_body
                 a["edited_by_owner"] = True
             a["status"] = "executed"

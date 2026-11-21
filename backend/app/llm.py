@@ -59,6 +59,18 @@ class LLM:
         self.client = self.endpoints[0].client
         self.model = settings.llm_model
         self._primary_down_until = 0.0
+        # Circuit breaker: when every endpoint is down / timing out, skip the model for LLM_BREAKER_S seconds
+        # and answer from the fallback right away – otherwise each call of a sync waits for its own timeout and
+        # the SSE stream can outlive the route timeout in the middle of a demo.
+        self._all_down_until = 0.0
+
+    def _broken(self) -> bool:
+        return time.monotonic() < self._all_down_until
+
+    def _note_failure(self, err: Exception) -> None:
+        if _is_endpoint_failure(err) and settings.llm_breaker_s > 0:
+            self._all_down_until = time.monotonic() + settings.llm_breaker_s
+            log.warning("all LLM endpoints failed – using canned answers for %.0f s", settings.llm_breaker_s)
 
     def _order(self) -> list[Endpoint]:
         if len(self.endpoints) > 1 and time.monotonic() < self._primary_down_until:
@@ -109,6 +121,7 @@ class LLM:
                 raise
             if ep.name == "primary":
                 self._primary_down_until = 0.0
+            self._all_down_until = 0.0
             if span is not None:
                 span.attr("avida.endpoint", ep.name)
                 span.attr("avida.base_url", ep.base_url)
@@ -152,6 +165,9 @@ class LLM:
             if fallback is None:
                 raise RuntimeError("LLM is disabled (LLM_ENABLED=false)")
             return copy.deepcopy(fallback), "fallback"
+        if self._broken() and fallback is not None:
+            span.attr("avida.breaker_open", True)
+            return copy.deepcopy(fallback), "fallback"
         try:
             raw = await self._complete(
                 system,
@@ -164,6 +180,7 @@ class LLM:
             return _parse_json(raw), "llm"
         except Exception as e:  # noqa: BLE001
             span.attr("error", repr(e))
+            self._note_failure(e)
             if fallback is None:
                 log.warning("LLM json failed (no fallback): %s", e)
                 raise
@@ -179,6 +196,9 @@ class LLM:
     async def _text(self, system, user, fallback, max_tokens, span) -> tuple[str, str]:
         if not settings.llm_enabled:
             return fallback, "fallback"
+        if self._broken():
+            span.attr("avida.breaker_open", True)
+            return fallback, "fallback"
         try:
             out = (await self._complete(system, user, max_tokens=max_tokens, span=span)).strip()
             if not out:
@@ -186,6 +206,7 @@ class LLM:
             return out, "llm"
         except Exception as e:  # noqa: BLE001
             span.attr("error", repr(e))
+            self._note_failure(e)
             return self._fail("text", e, fallback)
 
 
