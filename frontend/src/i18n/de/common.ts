@@ -6,6 +6,15 @@ const de: Record<string, string> = {
   "Needs your approval": "Braucht Ihre Freigabe",
   "Simulated execution": "Simulierte Ausführung",
   "Reads and calculates on its own.": "Liest und rechnet selbstständig.",
+  // autonomy badge tooltips (constants/autonomy.ts → tooltip)
+  "An agent read this and did the maths on its own. It did not send or change anything.":
+    "Ein Agent hat das gelesen und selbst nachgerechnet. Er hat nichts gesendet oder geändert.",
+  "The agent suggests this step. Nothing happens unless you decide to do it.":
+    "Der Agent schlägt diesen Schritt vor. Es passiert nichts, solange Sie nicht entscheiden.",
+  "Nothing is sent until you click Approve. You can also choose Not now.":
+    "Es wird nichts gesendet, bevor Sie auf Freigeben klicken. Sie können auch „Nicht jetzt“ wählen.",
+  "When you approve, it runs in a safe test mode. No real email or bank order leaves your company.":
+    "Nach Ihrer Freigabe läuft es in einem sicheren Testmodus. Keine echte E-Mail und kein Bankauftrag verlässt Ihr Unternehmen.",
   "Suggests a step. You decide.": "Schlägt einen Schritt vor. Sie entscheiden.",
   "Waits for your click.": "Wartet auf Ihren Klick.",
   "Runs in a safe sandbox. Nothing leaves.": "Läuft in einer sicheren Testumgebung. Nichts verlässt das System.",

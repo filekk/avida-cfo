@@ -13,6 +13,5 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "dashboard", label: "Overview", icon: "dashboard" },
   { to: "decisions", label: "Action center", icon: "decisions", badge: "pendingActions" },
   { to: "contracts", label: "Contracts", icon: "document" },
-  { to: "policy", label: "Agent permissions", icon: "shield" },
   { to: "history", label: "History", icon: "history" },
 ];
