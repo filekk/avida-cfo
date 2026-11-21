@@ -77,6 +77,51 @@ const de: Record<string, string> = {
   "Clauses Avida can quote": "Klauseln, die Avida zitieren kann",
   "Avida uses this contract from your next inbox check. Start it with “{button}” at the top.":
     "Avida nutzt diesen Vertrag ab der nächsten Posteingangsprüfung. Starten Sie sie oben mit „{button}“.",
+
+  // file explorer (ContractsToolbar, ContractTable, files.ts)
+  "Upload contract": "Vertrag hochladen",
+  "Find a contract": "Vertrag finden",
+  "Search by name": "Nach Namen suchen",
+  "Search by name or company": "Nach Name oder Firma suchen",
+  "File type": "Dateityp",
+  "File size": "Dateigröße",
+  All: "Alle",
+  "Any time": "Jederzeit",
+  "Last 7 days": "Letzte 7 Tage",
+  "Last 30 days": "Letzte 30 Tage",
+  "Any size": "Jede Größe",
+  "Small (under 1 MB)": "Klein (unter 1 MB)",
+  "Medium (1–5 MB)": "Mittel (1–5 MB)",
+  "Large (over 5 MB)": "Groß (über 5 MB)",
+  "{shown} of {total} files": "{shown} von {total} Dateien",
+  "Clear filters": "Filter zurücksetzen",
+  "Your contract files": "Ihre Vertragsdateien",
+  Name: "Name",
+  Type: "Typ",
+  Added: "Hinzugefügt",
+  Size: "Größe",
+  Actions: "Aktionen",
+  New: "Neu",
+  "Prepared by Avida": "Von Avida vorbereitet",
+  "Open {name}": "{name} öffnen",
+  Download: "Herunterladen",
+  "Download {name}": "{name} herunterladen",
+  "Remove {name}": "{name} entfernen",
+  "Prepared contracts belong to the demo and cannot be removed.":
+    "Vorbereitete Verträge gehören zur Demo und können nicht entfernt werden.",
+  "{n} thing to double-check": "{n} Punkt zum Nachprüfen",
+  "{n} things to double-check": "{n} Punkte zum Nachprüfen",
+  "The AI was unsure about some terms in this file. Compare them with the paper contract.":
+    "Die KI war sich bei einigen Bedingungen unsicher. Vergleichen Sie sie mit dem Papiervertrag.",
+  "Avida is reading it. This takes 10–20 seconds.": "Avida liest die Datei. Das dauert 10–20 Sekunden.",
+  "Drop the file to upload it": "Datei hier ablegen, um sie hochzuladen",
+  "PDF, .md or .txt · up to 5 MB": "PDF, .md oder .txt · bis 5 MB",
+  "No file matches your filters": "Keine Datei passt zu Ihren Filtern",
+  "Try another name, or show all files again.": "Versuchen Sie einen anderen Namen oder zeigen Sie wieder alle Dateien.",
+  "Upload your first contract or drop the file here. Avida then checks price changes and late payments against it.":
+    "Laden Sie Ihren ersten Vertrag hoch oder legen Sie die Datei hier ab. Avida prüft dann Preisänderungen und verspätete Zahlungen dagegen.",
+  "Tip: drag a file from your computer onto the table to upload it. PDF, .md or .txt, up to 5 MB.":
+    "Tipp: Ziehen Sie eine Datei von Ihrem Computer auf die Tabelle, um sie hochzuladen. PDF, .md oder .txt, bis 5 MB.",
 };
 
 export default de;
