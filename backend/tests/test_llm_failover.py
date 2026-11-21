@@ -63,3 +63,19 @@ def test_bad_request_is_not_failed_over():
     m, _, fc = _make(bad, lambda: _resp("from vllm"))
     out, source = asyncio.run(m.text("s", "u", fallback="canned"))
     assert source == "fallback" and fc == []
+
+
+
+def test_https_fallback_trusts_the_given_ca(tmp_path, monkeypatch):
+    """The fallback = vLLM pod behind llm-d (https, OpenShift service CA): verification stays on, with that CA."""
+    seen = []
+    real = llm_mod.ssl.create_default_context
+    monkeypatch.setattr(llm_mod.ssl, "create_default_context", lambda cafile=None: seen.append(cafile) or real())
+    ca = tmp_path / "service-ca.crt"
+    ca.write_text("dummy")
+    ep = llm_mod._endpoint("fallback", "https://vllm.svc:8000/v1", "granite-8b", str(ca))
+    assert str(ca) in seen and ep.client is not None
+    seen.clear()
+    llm_mod._endpoint("fallback", "https://vllm.svc:8000/v1", "granite-8b", str(tmp_path / "missing.crt"))
+    llm_mod._endpoint("primary", "http://gateway/v1", "granite-8b", str(ca))  # http: CA not needed
+    assert str(ca) not in seen and str(tmp_path / "missing.crt") not in seen
