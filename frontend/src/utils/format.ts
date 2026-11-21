@@ -1,4 +1,4 @@
-import { intlLocale } from "@/i18n";
+import { intlLocale, t } from "@/i18n";
 
 /**
  * Formatting helpers. The backend sends raw EUR numbers and ISO dates – format ONLY here (API rule #4/#5).
@@ -39,13 +39,23 @@ export const fmtDate = (iso: string | null | undefined) =>
 export const fmtDayMonth = (iso: string | null | undefined) =>
   iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { day: "numeric", month: "short" }) : "–";
 
-/** "2027-02-03" → "Feb" / "Feb." (chart axes) */
-export const fmtMonth = (iso: string | null | undefined) =>
-  iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { month: "short" }) : "–";
-
-/** "2027-02-03" → "February 2027" / "Februar 2027" */
-export const fmtMonthYear = (iso: string | null | undefined) =>
-  iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { month: "long", year: "numeric" }) : "–";
+/**
+ * "When was that?" in plain words, getting coarser with age:
+ *   < 1 min "just now" · < 1 h "5 minutes ago" · < 1 day "2 hours ago" · < 7 days "yesterday" / "3 days ago"
+ *   · older: the date. German via Intl ("vor 5 Minuten", "gestern"). `now` is passed in so callers can tick.
+ */
+export function fmtAgo(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return "–";
+  const then = new Date(iso);
+  const s = Math.max(0, (now - then.getTime()) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(intlLocale.value, { numeric: "auto" });
+  if (s < 60) return t("just now");
+  if (s < 3600) return rtf.format(-Math.floor(s / 60), "minute");
+  if (s < 86400) return rtf.format(-Math.floor(s / 3600), "hour");
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(new Date(now)) - day(then)) / 86400000);
+  return days < 7 ? rtf.format(-days, "day") : then.toLocaleDateString(intlLocale.value, { day: "numeric", month: "short", year: "numeric" });
+}
 
 /** "2027-02-03" → "3 February" / "3. Februar" (for sentences) */
 export const fmtDayMonthLong = (iso: string | null | undefined) =>

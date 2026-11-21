@@ -644,23 +644,27 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           </TransitionGroup>
         </g>
 
-        <!-- "without Avida" strip: header (what you would lose by the day in focus) + loss growing downwards -->
+        <!-- "without Avida" strip: secondary information → greyed out and faint (no red, thinner line).
+             Header (what you would lose by the day in focus) + loss growing downwards. -->
         <g v-if="hasLoss || strip.k > 0.01" :opacity="strip.k" aria-hidden="true">
           <text :x="plot.x0" :y="plot.y1 + strip.head - 6" class="fill-muted text-caption">{{ lossHead.label }}</text>
           <text
             :x="plot.x1" :y="plot.y1 + strip.head - 6" text-anchor="end"
-            :class="['text-caption font-semibold tabular-nums', lossAt(lossIndex) > 0 ? 'fill-negative' : 'fill-muted']"
+            class="fill-muted text-caption font-medium tabular-nums"
           >{{ lossHead.value }}</text>
           <line :x1="plot.x0" :x2="plot.x1" :y1="strip.top" :y2="strip.top" class="stroke-grid" stroke-width="1" />
           <g v-if="lossDrawn" :clip-path="`url(#${clipId})`">
-            <path :d="lossDrawn.area" class="fill-chart-alt" fill-opacity="0.12" />
-            <path :d="lossDrawn.d" fill="none" class="stroke-chart-alt" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+            <path :d="lossDrawn.area" class="fill-muted" fill-opacity="0.07" />
+            <path
+              :d="lossDrawn.d" fill="none" class="stroke-muted" stroke-opacity="0.55"
+              stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"
+            />
           </g>
           <!-- the day in focus (end of the window by default) -->
           <circle
-            cx="0" cy="0" r="4" class="fill-chart-alt stroke-surface transition-[transform,opacity] duration-fast" stroke-width="2"
+            cx="0" cy="0" r="3.5" class="fill-muted stroke-surface transition-[transform,opacity] duration-fast" stroke-width="2"
             :style="{ transform: `translate(${sx(lossIndex)}px, ${ly(lossAt(lossIndex))}px)` }"
-            :opacity="shownAt(lossIndex) ? 1 : 0"
+            :opacity="shownAt(lossIndex) ? 0.8 : 0"
           />
         </g>
 
@@ -742,11 +746,11 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
             {{ eur(bal(l, hoverIndex)) }}
           </b>
         </span>
-        <span v-if="hasLoss" class="flex items-center justify-between gap-3 border-t border-line pt-1 text-label">
-          <span class="flex items-center gap-1.5 text-muted">
-            <span class="h-2 w-2 rounded-full bg-chart-alt" />{{ t("Without Avida") }}
+        <span v-if="hasLoss" class="flex items-center justify-between gap-3 border-t border-line pt-1 text-label text-muted">
+          <span class="flex items-center gap-1.5">
+            <span class="h-2 w-2 rounded-full bg-muted/50" />{{ t("Without Avida") }}
           </span>
-          <b :class="['font-semibold tabular-nums', lossAt(hoverIndex) > 0 ? 'text-negative' : 'text-fg']">{{ eur(-lossAt(hoverIndex)) }}</b>
+          <b class="font-medium tabular-nums">{{ eur(-lossAt(hoverIndex)) }}</b>
         </span>
       </div>
     </div>
@@ -845,19 +849,14 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                     </span>
                   </span>
                 </li>
-                <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1">
-                  <svg width="28" height="8" class="mt-2" aria-hidden="true">
-                    <line x1="1" x2="27" y1="4" y2="4" class="stroke-chart-alt" stroke-width="2" stroke-linecap="round" />
+                <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-muted">
+                  <svg width="28" height="8" class="mt-1.5" aria-hidden="true">
+                    <line x1="1" x2="27" y1="4" y2="4" class="stroke-muted" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round" />
                   </svg>
-                  <span class="text-label font-medium leading-snug">{{ t("Without Avida you would lose") }}</span>
-                  <span
-                    :class="[
-                      'col-start-2 font-display text-base font-semibold tracking-tight tabular-nums sm:text-lg',
-                      lossRow.value > 0 ? 'text-negative' : 'text-muted',
-                    ]"
-                  >
+                  <span class="text-label leading-snug">{{ t("Without Avida you would lose") }}</span>
+                  <span class="col-start-2 font-display text-base font-semibold tracking-tight tabular-nums">
                     {{ eur(-lossRow.value) }}
-                    <span class="ml-1 font-sans text-label font-normal text-muted">{{ lossRow.text }}</span>
+                    <span class="ml-1 font-sans text-label font-normal">{{ lossRow.text }}</span>
                   </span>
                 </li>
               </ul>
@@ -907,16 +906,15 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 </span>
               </li>
               <!-- what following Avida is worth: the gap between the two lines, as money you would lose without it -->
-              <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-line pt-3">
-                <svg width="28" height="8" class="mt-2" aria-hidden="true">
-                  <line x1="1" x2="27" y1="4" y2="4" class="stroke-chart-alt" stroke-width="2" stroke-linecap="round" />
+              <!-- secondary information → greyed out like its strip on the chart -->
+              <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-0.5 border-t border-line pt-3">
+                <svg width="28" height="8" class="mt-1.5" aria-hidden="true">
+                  <line x1="1" x2="27" y1="4" y2="4" class="stroke-muted" stroke-opacity="0.55" stroke-width="1.5" stroke-linecap="round" />
                 </svg>
-                <span class="text-label font-medium leading-snug">{{ t("Without Avida you would lose") }}</span>
-                <span class="col-start-2 flex flex-wrap items-baseline gap-x-2">
-                  <b :class="['font-display text-lg font-semibold tracking-tight tabular-nums', lossRow.value > 0 ? 'text-negative' : 'text-muted']">
-                    {{ eur(-lossRow.value) }}
-                  </b>
-                  <span class="text-label text-muted">{{ lossRow.text }}</span>
+                <span class="text-label leading-snug text-muted">{{ t("Without Avida you would lose") }}</span>
+                <span class="col-start-2 flex flex-wrap items-baseline gap-x-2 text-muted">
+                  <b class="font-display text-base font-semibold tracking-tight tabular-nums">{{ eur(-lossRow.value) }}</b>
+                  <span class="text-label">{{ lossRow.text }}</span>
                 </span>
               </li>
             </ul>

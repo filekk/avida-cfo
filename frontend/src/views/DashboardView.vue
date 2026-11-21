@@ -7,7 +7,7 @@ import KpiCard from "@/components/dashboard/KpiCard.vue";
 import PaymentsDonut from "@/components/dashboard/PaymentsDonut.vue";
 import PeriodPicker from "@/components/dashboard/PeriodPicker.vue";
 import { scenarioLines } from "@/components/dashboard/chart";
-import { pendingSavings12m, savingsForPeriod } from "@/components/dashboard/savings";
+import { savingsForPeriod, savingsStatus, type SavingsStatus } from "@/components/dashboard/savings";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
@@ -16,7 +16,7 @@ import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import { periodLabel, useForecastPeriod } from "@/composables/useForecastPeriod";
 import { t } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
-import { eur, fmtDate } from "@/utils/format";
+import { eur, fmtDate, fmtDayMonth } from "@/utils/format";
 import { prefersReducedMotion } from "@/utils/motion";
 
 /**
@@ -44,31 +44,34 @@ const lowIsBad = computed(() => !!kpis.value && kpis.value.min_balance < kpis.va
 
 // --- "Saved by Avida" follows the chart period (7 days … 12 months) ---------------------------------
 const savings = computed(() => (dashboard.value ? savingsForPeriod(dashboard.value, shownDays.value) : { saved: 0, waiting: 0 }));
-/** The coloured box under the amount: what to do next / what it is worth over a year. */
+/** The coloured box under the amount: what to do next – always for the SAME period as the amount above it. */
 const savingsPill = computed<{ tone: "positive" | "warn" | "neutral"; icon: IconName; text: string }>(() => {
-  const d = dashboard.value;
-  const saved12 = d?.kpis.saved_liquidity ?? 0;
-  const waiting12 = d ? pendingSavings12m(d.actions) : 0;
-  const perYear = shownDays.value < 365;
-  if (waiting12 > 0) {
-    return {
-      tone: "warn",
-      icon: "clock",
-      text: perYear
-        ? t("+{amount} a year if you approve", { amount: eur(waiting12) })
-        : t("+{amount} if you approve", { amount: eur(waiting12) }),
-    };
+  const s: SavingsStatus = dashboard.value ? savingsStatus(dashboard.value, shownDays.value) : { kind: "unchecked" };
+  switch (s.kind) {
+    case "waiting":
+      return {
+        tone: "warn",
+        icon: "clock",
+        text:
+          s.amount > 0.5
+            ? t("+{amount} if you approve", { amount: eur(s.amount) })
+            : s.from
+              ? t("Waiting for your OK · starts {date}", { date: fmtDayMonth(s.from) })
+              : t("Waiting for your OK"),
+      };
+    case "approved":
+      return { tone: "positive", icon: "check", text: t("Approved by you") };
+    case "later":
+      return {
+        tone: "positive",
+        icon: "calendar",
+        text: s.from ? t("Savings start on {date}", { date: fmtDayMonth(s.from) }) : t("Savings start later"),
+      };
+    case "none":
+      return { tone: "neutral", icon: "check", text: t("No savings found yet") };
+    default:
+      return { tone: "neutral", icon: "inbox", text: t("Check your inbox to find savings") };
   }
-  if (saved12 > 0) {
-    return {
-      tone: "positive",
-      icon: "trendingUp",
-      text: perYear ? t("{amount} a year", { amount: eur(saved12) }) : t("about {amount} a month", { amount: eur(saved12 / 12) }),
-    };
-  }
-  return d?.scenarios.recommended
-    ? { tone: "neutral", icon: "check", text: t("No savings found yet") }
-    : { tone: "neutral", icon: "inbox", text: t("Check your inbox to find savings") };
 });
 
 /** The period chip: jumps to the period picker of the chart (same period, change it there). */
