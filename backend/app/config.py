@@ -20,6 +20,12 @@ class Settings:
     llm_api_key: str = os.getenv("LLM_API_KEY", "EMPTY")
     llm_timeout_s: float = float(os.getenv("LLM_TIMEOUT_S", "60"))
     llm_enabled: bool = _bool("LLM_ENABLED", True)
+    # Second OpenAI-compatible endpoint, tried when the primary one fails (e.g. primary = llm-d gateway,
+    # fallback = the plain vLLM InferenceService). Empty = no failover, same behaviour as before.
+    llm_fallback_base_url: str = os.getenv("LLM_FALLBACK_BASE_URL", "")
+    llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
+    # After the primary endpoint fails, go straight to the fallback for this many seconds.
+    llm_failover_cooldown_s: float = float(os.getenv("LLM_FAILOVER_COOLDOWN_S", "30"))
     # If the model is unreachable or returns garbage, use canned answers instead of failing the demo.
     demo_fallback: bool = _bool("DEMO_FALLBACK", True)
 
