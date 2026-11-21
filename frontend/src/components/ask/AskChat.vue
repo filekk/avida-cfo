@@ -64,8 +64,9 @@ function scrollToLatest(behavior: ScrollBehavior = prefersReducedMotion() ? "aut
   }
 }
 
+// a new question → scroll at once; its answer → once the bubble has grown to full height (AskTurnItem @settled)
 watch(
-  () => turns.value.map((x) => `${x.id}:${!!x.answer || !!x.error}`).join(),
+  () => turns.value.map((x) => x.id).join(),
   async () => {
     await nextTick();
     scrollToLatest();
@@ -101,6 +102,7 @@ defineExpose({ focus: () => input.value?.focus(), scrollToLatest });
             :key="turn.id"
             :turn="turn"
             :class="compact ? '' : 'scroll-mb-6 scroll-mt-28'"
+            @settled="scrollToLatest()"
           />
         </ol>
         <!-- disabled (not hidden) while an answer is on its way → nothing below jumps -->

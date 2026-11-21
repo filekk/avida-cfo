@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
+import AnimatedNumber from "@/components/ui/AnimatedNumber.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import CollapseTransition from "@/components/ui/CollapseTransition.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
@@ -493,6 +494,9 @@ function markHintSeen() {
 // --- measured read-out height (mode switches animate instead of jumping) -----------------------------
 const roInner = ref<HTMLDivElement | null>(null);
 const roH = ref<number | null>(null);
+/** Read-out amounts count up only together with the page. Later (a mode switch re-creates them) they appear at once
+ *  and only glide when the day/period changes. Children created before onMounted read `true`. */
+const countUp = ref(true);
 
 // --- lifecycle ----------------------------------------------------------------------------------------
 let ro: ResizeObserver | null = null;
@@ -500,6 +504,7 @@ let mo: MutationObserver | null = null;
 const readRem = () => (remPx.value = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
 onMounted(() => {
+  countUp.value = false;
   readRem();
   ro = new ResizeObserver((entries) => {
     for (const e of entries) {
@@ -836,11 +841,16 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                   <span class="text-label font-medium leading-snug">{{ t(r.line.label) }}</span>
                   <!-- separate flex items → wraps cleanly on phones and at big text sizes -->
                   <div class="col-start-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-display text-base font-semibold tracking-tight tabular-nums sm:text-lg">
-                    <span>{{ eur(r.start) }}</span>
+                    <AnimatedNumber :value="r.start" :count-up="countUp" />
                     <span class="font-sans font-normal text-muted" aria-hidden="true">→</span>
                     <span class="sr-only">–</span>
-                    <span :class="r.end < buffer ? 'text-negative' : ''">{{ eur(r.end) }}</span>
-                    <span :class="['ml-1 font-sans text-label font-semibold', toneOf(r.change)]">{{ eurSigned(r.change) }}</span>
+                    <AnimatedNumber :value="r.end" :count-up="countUp" :class="r.end < buffer ? 'text-negative' : ''" />
+                    <AnimatedNumber
+                      :value="r.change"
+                      :format="eurSigned"
+                      :count-up="countUp"
+                      :class="['ml-1 font-sans text-label font-semibold', toneOf(r.change)]"
+                    />
                   </div>
                   <span class="col-start-2 text-caption text-muted">
                     {{ t("lowest {amount} on {date}", { amount: eur(r.min), date: fmtDayMonth(r.minDate) }) }} ·
@@ -855,7 +865,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                   </svg>
                   <span class="text-label leading-snug">{{ t("Without Avida you would lose") }}</span>
                   <span class="col-start-2 font-display text-base font-semibold tracking-tight tabular-nums">
-                    {{ eur(-lossRow.value) }}
+                    <AnimatedNumber :value="-lossRow.value" :count-up="countUp" />{{ " " }}
                     <span class="ml-1 font-sans text-label font-normal">{{ lossRow.text }}</span>
                   </span>
                 </li>
@@ -892,14 +902,17 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 <span class="text-label font-medium leading-snug">{{ t(r.line.label) }}</span>
                 <!-- line 1: the balance (+ cushion warning, always reserved → no height change while moving) -->
                 <div class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <b :class="['font-display text-lg font-semibold tracking-tight tabular-nums', r.below ? 'text-negative' : 'text-fg']">{{ eur(r.value) }}</b>
+                  <b :class="['font-display text-lg font-semibold tracking-tight tabular-nums', r.below ? 'text-negative' : 'text-fg']">
+                    <AnimatedNumber :value="r.value" :count-up="countUp" />
+                  </b>
                   <StatusPill tone="negative" :class="['transition-opacity duration-base', r.below ? 'opacity-100' : 'invisible opacity-0']">
                     <AppIcon name="alert" :size="13" />{{ t("below cushion") }}
                   </StatusPill>
                 </div>
                 <!-- line 2: change vs today (a day) or the lowest point ahead (today) – same height in both modes -->
                 <span v-if="mode === 'day'" :class="['col-start-2 text-label font-semibold tabular-nums', toneOf(r.diff)]">
-                  {{ eurSigned(r.diff) }} <span class="font-normal text-muted">{{ t("vs today") }}</span>
+                  <AnimatedNumber :value="r.diff" :format="eurSigned" :count-up="countUp" />{{ " " }}
+                  <span class="font-normal text-muted">{{ t("vs today") }}</span>
                 </span>
                 <span v-else class="col-start-2 text-label text-muted">
                   {{ t("Lowest ahead {amount} · {date}", { amount: eur(r.min), date: fmtDayMonth(r.minDate) }) }}
@@ -913,7 +926,9 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 </svg>
                 <span class="text-label leading-snug text-muted">{{ t("Without Avida you would lose") }}</span>
                 <span class="col-start-2 flex flex-wrap items-baseline gap-x-2 text-muted">
-                  <b class="font-display text-base font-semibold tracking-tight tabular-nums">{{ eur(-lossRow.value) }}</b>
+                  <b class="font-display text-base font-semibold tracking-tight tabular-nums">
+                    <AnimatedNumber :value="-lossRow.value" :count-up="countUp" />
+                  </b>
                   <span class="text-label">{{ lossRow.text }}</span>
                 </span>
               </li>

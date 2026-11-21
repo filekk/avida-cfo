@@ -3,7 +3,7 @@ import { prefersReducedMotion } from "@/utils/motion";
 
 declare module "vue-router" {
   interface RouteMeta {
-    /** Shown in the topbar and the browser tab. */
+    /** Shown in the topbar (the browser tab uses the menu label, see App.vue; meta.title only for pages outside the menu). */
     title?: string;
     /** Shell to render the page in (default "app"). See App.vue. */
     layout?: "app" | "blank";

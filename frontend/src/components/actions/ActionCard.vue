@@ -2,13 +2,14 @@
 import { computed, ref, watch } from "vue";
 import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import SourceTag from "@/components/agent/SourceTag.vue";
+import AnimatedNumber from "@/components/ui/AnimatedNumber.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import CollapseTransition from "@/components/ui/CollapseTransition.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
 import type { Action } from "@/types/api";
-import { eur, eurCents, fmtDayMonth, num } from "@/utils/format";
+import { eurCents, fmtDayMonth, num } from "@/utils/format";
 import RewriteDraft from "./RewriteDraft.vue";
 import type { DraftCheck, RewriteHint, RewrittenDraft } from "./decision";
 
@@ -113,7 +114,7 @@ const decline = () => emit("decide", props.action.id, false);
       <!-- money you keep = green -->
       <div v-if="action.savings_12m > 0" class="hidden shrink-0 justify-items-end gap-1 leading-tight sm:grid">
         <span class="text-label text-muted">{{ t("You save") }}</span>
-        <span class="font-display text-kpi font-semibold tracking-tight tabular-nums text-positive">{{ eur(action.savings_12m) }}</span>
+        <AnimatedNumber :value="action.savings_12m" class="font-display text-kpi font-semibold tracking-tight text-positive" />
         <span class="text-caption text-muted">{{ t("next 12 months") }}</span>
       </div>
     </div>
@@ -124,7 +125,7 @@ const decline = () => emit("decide", props.action.id, false);
       icon="piggyBank"
       tone="positive"
       :label="t('You save (next 12 months)')"
-      :value="eur(action.savings_12m)"
+      :amount="action.savings_12m"
     />
 
     <p v-if="!compact" class="grid grid-cols-[auto_1fr] gap-2.5 leading-relaxed text-muted">
@@ -226,7 +227,7 @@ const decline = () => emit("decide", props.action.id, false);
         <span class="text-muted">· {{ action.payload.bank }}</span>
       </p>
       <div class="grid gap-4 sm:grid-cols-3">
-        <StatTile icon="euro" tone="info" :label="t('Amount')" :value="eur(action.payload.amount)" />
+        <StatTile icon="euro" tone="info" :label="t('Amount')" :amount="action.payload.amount" />
         <StatTile
           icon="calendar"
           tone="info"
@@ -237,7 +238,8 @@ const decline = () => emit("decide", props.action.id, false);
           icon="landmark"
           tone="negative"
           :label="t('Max. interest')"
-          :value="eurCents(action.payload.max_interest_cost)"
+          :amount="action.payload.max_interest_cost"
+          :format="eurCents"
           :sub="t('{rate} % a year', { rate: num(action.payload.indicative_rate_pct) })"
         />
       </div>

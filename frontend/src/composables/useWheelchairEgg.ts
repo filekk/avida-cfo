@@ -1,7 +1,7 @@
 import { readonly, ref } from "vue";
 
 /**
- * Hidden easter egg: five quick clicks/taps on the footer note "Open-source AI on Red Hat OpenShift AI" swap the
+ * Hidden easter egg: five quick clicks/taps on the footer note "Made by Karkonosh" swap the
  * accessibility-menu icon (standing figure) for the wheelchair figure; five more swap it back.
  * "Quick" = each click within TAP_GAP_MS of the previous one (all five fit in < 2.4 s). A fast clicker manages
  * 150–300 ms; ordinary clicks or a double click never reach five. Module-level state → footer and top bar share it.
