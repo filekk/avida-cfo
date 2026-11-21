@@ -76,11 +76,6 @@ def day_long(v, lang: Lang) -> str:
     return f"{x.day}. {MONTHS_DE[x.month - 1]}" if lang == "de" else f"{x:%d %B}"
 
 
-def iso_or_de(v, lang: Lang) -> str:
-    """Key points used ISO dates in English (kept for compatibility); German gets 03.02.2027."""
-    return day(v, lang) if lang == "de" else str(v)[:10]
-
-
 # --- phases of a sync (SSE `phase` events) ---------------------------------------------
 
 PHASES = ["inbox", "legal", "forecast", "negotiation", "approval", "briefing"]

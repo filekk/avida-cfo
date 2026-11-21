@@ -120,7 +120,7 @@ function goToPeriod() {
         icon="piggyBank"
         :label="t('Saved by Avida')"
         :amount="savings.saved"
-        :tone="kpis.saved_liquidity > 0 ? 'positive' : 'neutral'"
+        :tone="savings.saved > 0.5 ? 'positive' : 'neutral'"
         :delta="savingsPill"
       >
         <template #sub>

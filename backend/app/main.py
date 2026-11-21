@@ -1,16 +1,22 @@
-"""Avida CFO – FastAPI entrypoint. Serves the API under /api and the built Vue app under /."""
+"""Avida CFO – FastAPI entrypoint. Serves the API under /api and the built Vue app under /.
+
+All demo state lives in memory (state.py, contract_library.py). Every route that reads or changes it is `async def`,
+so it runs on the event loop – never in Starlette's thread pool – and two requests (e.g. a double-clicked
+Approve, or a reset during a sync) can never interleave inside a check-then-act.
+"""
 from __future__ import annotations
 
 import json
 import logging
+import re
 from contextlib import aclosing
-
+from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,7 +24,7 @@ from . import ask as ask_cfo
 from . import contract_library, decision, tracing
 from .config import settings
 from .llm import llm
-from .orchestrator import SyncAlreadyRunning, after_decision, initial_dashboard, run_pipeline
+from .orchestrator import SyncAlreadyRunning, after_decision, current_dashboard, initial_dashboard, run_pipeline
 from .state import POLICY, store
 from .texts import localize
 
@@ -28,12 +34,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 tracing.init()
 
 app = FastAPI(title="Avida CFO", version="0.1.0")
-# Only needed for local dev when Vite runs on :5173 without the proxy.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Same origin in production and behind the Vite proxy in dev – CORS only for the origins listed in CORS_ORIGINS.
+# Never "*": the API changes state without a login, so any website could otherwise drive it from a visitor's browser.
+if settings.cors_origins:
+    app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["*"],
+                       allow_headers=["*"])
 
 
 class Decision(BaseModel):
-    edited_body: str | None = None
+    edited_body: str | None = Field(default=None, max_length=5000)
 
 
 Lang = Literal["en", "de"]
@@ -83,6 +92,10 @@ def _dash(d: dict, lang: str) -> dict:
     return out
 
 
+def _sse(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -110,19 +123,9 @@ def config():
     }
 
 
-def _current() -> dict:
-    if store.dashboard:
-        d = store.dashboard
-        # refresh live parts (counter, action statuses)
-        d["kpis"]["saved_liquidity"] = store.saved_liquidity
-        d["actions"] = list(store.actions.values())
-        return d
-    return initial_dashboard()
-
-
 @app.get("/api/dashboard")
-def dashboard(lang: Lang = "en"):
-    return _dash(_current(), lang)
+async def dashboard(lang: Lang = "en"):
+    return _dash(current_dashboard(), lang)
 
 
 @app.get("/api/sync")
@@ -137,17 +140,17 @@ async def sync(lang: Lang = "en"):
                 async for ev in pipeline:
                     if ev["type"] == "result":
                         ev = {"type": "result", "dashboard": _dash(ev["dashboard"], lang)}
-                    yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+                    yield _sse(ev["type"], ev)
         except SyncAlreadyRunning:
             msg = ("Die Prüfung läuft bereits (vielleicht in einem anderen Fenster) – bitte kurz warten." if lang == "de"
                    else "A check is already running (maybe in another window) – please wait a moment.")
-            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': msg, 'code': 'sync_running'})}\n\n"
+            yield _sse("error", {"type": "error", "message": msg, "code": "sync_running"})
         except Exception as e:  # noqa: BLE001
             logging.exception("pipeline failed")
-            # plain words for the owner; the technical reason stays in `detail` and in the log
+            # plain words for the owner; only the error type goes to the browser – the details stay in the log
             msg = ("Bei der Prüfung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut." if lang == "de"
                    else "Something went wrong during the check. Please try again.")
-            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': msg, 'detail': str(e)})}\n\n"
+            yield _sse("error", {"type": "error", "message": msg, "detail": type(e).__name__})
 
     return StreamingResponse(
         events(),
@@ -157,18 +160,18 @@ async def sync(lang: Lang = "en"):
 
 
 @app.get("/api/sync/trace")
-def sync_trace():
+async def sync_trace():
     """Replay of the last inbox check: every `phase` / `trace` event, in the language of that sync."""
     return {"lang": store.sync_lang if store.trace else None, "events": store.trace}
 
 
 @app.post("/api/actions/{action_id}/approve")
-def approve(action_id: str, body: Decision | None = None, lang: Lang = "en"):
+async def approve(action_id: str, body: Decision | None = None, lang: Lang = "en"):
     return _decide(action_id, True, body, lang)
 
 
 @app.post("/api/actions/{action_id}/reject")
-def reject(action_id: str, lang: Lang = "en"):
+async def reject(action_id: str, lang: Lang = "en"):
     return _decide(action_id, False, None, lang)
 
 
@@ -185,6 +188,8 @@ def _gone(lang: str) -> HTTPException:
 
 
 def _decide(action_id: str, approve: bool, body: Decision | None, lang: str):
+    """Synchronous on purpose (called from async routes): check-then-act on the action status with no await in
+    between, so a double-clicked Approve is decided – and counted in "Saved by Avida" – exactly once."""
     if action_id not in store.actions:
         raise _gone(lang)
     before = store.saved_liquidity
@@ -197,33 +202,33 @@ def _decide(action_id: str, approve: bool, body: Decision | None, lang: str):
 
 
 def _workspace(f: dict | None, a: dict | None, lang: str) -> dict:
-    d = _current()
+    d = current_dashboard()
     return {"lang": lang, "action": localize(a, lang) if a else None, "finding": localize(f, lang) if f else None,
             "suggestions": ask_cfo.public_scoped(d, f, a, lang)}
 
 
 @app.get("/api/actions/{action_id}/context")
-def action_context(action_id: str, lang: Lang = "en"):
+async def action_context(action_id: str, lang: Lang = "en"):
     """Everything for one problem view: the action (with `decision`), its finding and the chat suggestions."""
     try:
-        f, a = ask_cfo.resolve_scope(_current(), action_id, None)
+        f, a = ask_cfo.resolve_scope(current_dashboard(), action_id, None)
     except ask_cfo.UnknownScope:
         raise _gone(lang) from None
     return _workspace(f, a, lang)
 
 
 @app.get("/api/findings/{finding_id}/context")
-def finding_context(finding_id: str, lang: Lang = "en"):
+async def finding_context(finding_id: str, lang: Lang = "en"):
     """Same as the action context, for a finding (also findings without an action, e.g. an allowed increase)."""
     try:
-        f, a = ask_cfo.resolve_scope(_current(), None, finding_id)
+        f, a = ask_cfo.resolve_scope(current_dashboard(), None, finding_id)
     except ask_cfo.UnknownScope:
         raise _gone(lang) from None
     return _workspace(f, a, lang)
 
 
 @app.post("/api/actions/{action_id}/review")
-def review_draft(action_id: str, req: DraftCheck):
+async def review_draft(action_id: str, req: DraftCheck):
     """Instant rule check of the owner's edited draft (no model) – same rules as the Legal Agent's review."""
     try:
         return decision.review_body(action_id, req.body, req.lang)
@@ -248,7 +253,7 @@ async def redraft(action_id: str, req: Redraft):
 
 
 @app.get("/api/actions/{action_id}/redraft/hints")
-def redraft_hints(action_id: str, lang: Lang = "en"):
+async def redraft_hints(action_id: str, lang: Lang = "en"):
     """Quick hints (chips) and a placeholder for the Rewrite button's hint field."""
     try:
         return decision.rewrite_hints(action_id, lang)
@@ -259,10 +264,10 @@ def redraft_hints(action_id: str, lang: Lang = "en"):
 
 
 @app.get("/api/ask/suggestions")
-def ask_suggestions(lang: Lang = "en", action_id: str | None = None, finding_id: str | None = None):
+async def ask_suggestions(lang: Lang = "en", action_id: str | None = None, finding_id: str | None = None):
     """Questions that fit the current situation (change after a sync), in the site's language.
     With action_id / finding_id: decision helpers for that one problem."""
-    d = ask_cfo.current_dashboard()
+    d = current_dashboard()
     if not (action_id or finding_id):
         return ask_cfo.public_suggestions(d, lang)
     try:
@@ -284,7 +289,7 @@ async def ask(q: Question):
 
 
 @app.get("/api/contracts")
-def contracts(
+async def contracts(
     q: str | None = Query(None, max_length=100, description="text in party, title or file name"),
     origin: Literal["index", "uploaded"] | None = None,
     party_type: Literal["supplier", "customer"] | None = None,
@@ -296,25 +301,30 @@ def contracts(
 
 
 @app.get("/api/contracts/{contract_id}")
-def contract_detail(contract_id: str):
+async def contract_detail(contract_id: str):
     c = contract_library.detail(contract_id)
     if not c:
         raise HTTPException(404, "unknown contract")
     return c
 
 
+_UNSAFE_HEADER_CHARS = re.compile(r'[\x00-\x1f\x7f"\\]')
+
+
 @app.get("/api/contracts/{contract_id}/file")
-def contract_file(contract_id: str, download: bool = False):
-    """The original document (preview inline, or `?download=true`)."""
+async def contract_file(contract_id: str, download: bool = False):
+    """The original document (preview inline, or `?download=true`). Only PDF / Markdown / text are ever served,
+    with `nosniff`, so the browser can't be talked into rendering an upload as HTML."""
     f = contract_library.original_file(contract_id)
     if not f:
         raise HTTPException(404, "no file for this contract")
     name, content, media = f
-    disposition = "attachment" if download else "inline"
+    inline = not download and media != "application/octet-stream"
     # RFC 6266/5987: ASCII fallback + UTF-8 name (uploads may be called "Rahmenvertrag – Müller.pdf")
-    ascii_name = name.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
-    header = f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
-    return Response(content, media_type=media, headers={"Content-Disposition": header})
+    ascii_name = _UNSAFE_HEADER_CHARS.sub("_", name.encode("ascii", "replace").decode().replace("?", "_"))
+    header = f"{'inline' if inline else 'attachment'}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name, safe='')}"
+    return Response(content, media_type=media,
+                    headers={"Content-Disposition": header, "X-Content-Type-Options": "nosniff"})
 
 
 @app.post("/api/contracts/upload")
@@ -333,7 +343,7 @@ async def upload_contract(file: UploadFile = File(...)):
 
 
 @app.delete("/api/contracts/{contract_id}")
-def delete_contract(contract_id: str):
+async def delete_contract(contract_id: str):
     if not contract_library.delete(contract_id):
         raise HTTPException(404, "only uploaded contracts can be removed")
     return contract_library.listing()
@@ -345,12 +355,12 @@ def policy(lang: Lang = "en"):
 
 
 @app.get("/api/audit")
-def audit():
+async def audit():
     return store.audit
 
 
 @app.post("/api/reset")
-def reset(lang: Lang = "en"):
+async def reset(lang: Lang = "en"):
     """Clean demo start: findings, actions, audit AND contracts uploaded at runtime."""
     store.reset()
     contract_library.clear_uploads()
@@ -358,12 +368,29 @@ def reset(lang: Lang = "en"):
 
 
 # --- Frontend (built by Vite into STATIC_DIR) ---------------------------------
-if settings.static_dir.is_dir():
-    app.mount("/assets", StaticFiles(directory=settings.static_dir / "assets"), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
+def static_file(root: Path, path: str) -> Path | None:
+    """The file under `root` a URL path points to, or None. Never leaves `root`: the path arrives URL-decoded,
+    so `/..%2f..%2fetc/passwd` must not resolve to a file outside the built front-end."""
+    if not path:
+        return None
+    base = root.resolve()
+    f = (base / path).resolve()
+    return f if f.is_relative_to(base) and f.is_file() else None
+
+
+def mount_frontend(target: FastAPI, root: Path) -> None:
+    """Serve the built Vue app: real files as they are, every other path → index.html (history-mode routing).
+    Unknown /api/* paths get a JSON 404 instead of the HTML page, so the UI never parses HTML as data."""
+    if (root / "assets").is_dir():
+        target.mount("/assets", StaticFiles(directory=root / "assets"), name="assets")
+
+    @target.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
-        f = settings.static_dir / path
-        if path and f.is_file():
-            return FileResponse(f)
-        return FileResponse(settings.static_dir / "index.html")
+        if path == "api" or path.startswith("api/"):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        return FileResponse(static_file(root, path) or root / "index.html")
+
+
+if settings.static_dir.is_dir():
+    mount_frontend(app, settings.static_dir)

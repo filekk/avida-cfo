@@ -78,7 +78,7 @@ def _brief(task: str, extraction: dict, legal_result: dict, impact: dict) -> str
     )
 
 
-def _template(task: str, extraction: dict, legal_result: dict) -> str:
+def template(task: str, extraction: dict, legal_result: dict) -> str:
     """Guaranteed to pass the Legal Agent's rule checks – used if the model is unavailable."""
     co, clause = data.company(), legal_result.get("clause")
     if task == "reject_price":
@@ -90,7 +90,7 @@ def _template(task: str, extraction: dict, legal_result: dict) -> str:
 
 @tracing.traced("negotiator.draft")
 async def draft(task: str, extraction: dict, legal_result: dict, impact: dict) -> tuple[str, str]:
-    fb = _template(task, extraction, legal_result)
+    fb = template(task, extraction, legal_result)
     return await llm.text(DRAFT_SYSTEM[task], _brief(task, extraction, legal_result, impact), fb, max_tokens=450)
 
 
@@ -101,4 +101,4 @@ async def revise(task: str, previous: str, issues: list[str], extraction: dict, 
         + "\n\nIssues found by the Legal Agent:\n" + "\n".join(f"- {i}" for i in issues)
         + f"\n\nYOUR PREVIOUS DRAFT:\n{previous}"
     )
-    return await llm.text(REVISE_SYSTEM, user, _template(task, extraction, legal_result), max_tokens=450)
+    return await llm.text(REVISE_SYSTEM, user, template(task, extraction, legal_result), max_tokens=450)

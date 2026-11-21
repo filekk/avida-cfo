@@ -1,4 +1,4 @@
-import { t } from "@/i18n";
+import { t, tn } from "@/i18n";
 import type { Finding } from "@/types/api";
 import { eur, fmtDate, pct } from "@/utils/format";
 
@@ -50,12 +50,14 @@ export function describeFinding(f: Finding): FindingFacts {
     return {
       party,
       shortParty,
-      figure: late != null ? t("{n} days late", { n: late }) : t("Late payment"),
-      sub: t("Invoice {invoice} · due {due} → now {now}", {
-        invoice: x.invoice ?? "",
-        due: fmtDate(x.due_date),
-        now: fmtDate(x.new_payment_date),
-      }),
+      figure: late != null ? tn(late, "{n} day late", "{n} days late") : t("Late payment"),
+      sub: x.invoice
+        ? t("Invoice {invoice} · due {due} → now {now}", {
+            invoice: x.invoice,
+            due: fmtDate(x.due_date),
+            now: fmtDate(x.new_payment_date),
+          })
+        : t("Due {due} → now {now}", { due: fmtDate(x.due_date), now: fmtDate(x.new_payment_date) }),
       priceBar: null,
       stats: [
         { icon: "euro", label: t("Invoice amount"), value: eur(x.amount) },
@@ -69,7 +71,7 @@ export function describeFinding(f: Finding): FindingFacts {
   return {
     party,
     shortParty,
-    figure: pct(x.increase_pct ?? 0),
+    figure: x.increase_pct != null ? pct(x.increase_pct) : "–", // "0 %" would read as "no increase"
     sub: t("from {date}", { date: fmtDate(x.effective_date) }),
     priceBar: x.old_monthly != null && x.new_monthly != null ? { from: x.old_monthly, to: x.new_monthly } : null,
     stats: [

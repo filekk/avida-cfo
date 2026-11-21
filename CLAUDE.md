@@ -64,7 +64,8 @@ npm run typecheck                                 # vue-tsc
 npm run build                                     # typecheck + vite build → dist/
 
 # backend offline (no model needed)
-cd backend && LLM_ENABLED=false uvicorn app.main:app --port 8080 --reload
+cd backend && pip install -r requirements-dev.txt   # runtime deps + pytest (the image installs requirements.txt only)
+LLM_ENABLED=false uvicorn app.main:app --port 8080 --reload
 pytest -q
 ```
 

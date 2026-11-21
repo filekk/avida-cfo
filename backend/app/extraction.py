@@ -248,6 +248,9 @@ def clean(raw: dict, pages: list[str], own_company: str = "") -> dict:
 
     clauses, dropped = [], 0
     for cl in raw.get("clauses") or []:
+        if not isinstance(cl, dict):  # a model without guided decoding may return bare strings
+            dropped += 1
+            continue
         text = str(cl.get("text") or "").strip().strip('"“”„')
         text = re.sub(r"^\*\*.*?\*\*\s*", "", text)  # model sometimes keeps the bold heading
         if len(text) < 15 or _squash(text)[:60] not in full:

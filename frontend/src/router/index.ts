@@ -84,13 +84,22 @@ async function settledTarget(id: string, timeout = 2500): Promise<HTMLElement | 
   return el;
 }
 
+/** "#forecast%20chart" → "forecast chart"; a malformed escape ("#%zz") is used as written instead of throwing. */
+function hashId(hash: string): string {
+  try {
+    return decodeURIComponent(hash.slice(1));
+  } catch {
+    return hash.slice(1);
+  }
+}
+
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   async scrollBehavior(to, _from, saved) {
     if (saved) return saved;
     if (to.hash) {
-      const el = await settledTarget(decodeURIComponent(to.hash.slice(1)));
+      const el = await settledTarget(hashId(to.hash));
       if (el) return { el, top: topBarOffset(), behavior: prefersReducedMotion() ? "auto" : "smooth" };
     }
     return { top: 0 };

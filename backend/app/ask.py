@@ -23,17 +23,10 @@ from .agents.analyst import NUM_TOKEN, amounts_in, readings
 from . import tracing
 from .llm import llm
 from .state import store
-from .texts import localize
+from .orchestrator import current_dashboard
+from .texts import eur, localize
 
 A, L, N = analyst.NAME, legal.NAME, negotiator.NAME
-LANGS = ("en", "de")
-
-
-def current_dashboard() -> dict:
-    from .orchestrator import initial_dashboard  # late import: orchestrator imports the agents too
-
-    return store.dashboard or initial_dashboard()
-
 
 # --- 1) Facts per agent (English, exact numbers) ------------------------------------
 
@@ -138,11 +131,6 @@ def _d(iso: str, lang: str) -> str:
     return f"{x:%d.%m.%Y}" if lang == "de" else f"{x.day} {x:%b %Y}"
 
 
-def _m(x: float, lang: str) -> str:
-    s = f"{x:,.0f}"
-    return (s.replace(",", ".") if lang == "de" else s) + " EUR"
-
-
 NOTE_BEFORE_SYNC = {
     "en": "More precise questions will appear after you check your inbox.",
     "de": "Nach dem Abgleich Ihres Posteingangs erscheinen genauere Fragen.",
@@ -160,13 +148,13 @@ def suggestions(d: dict, lang: str) -> list[dict]:
     if credit := _credit(d):
         p = credit["payload"]
         add("overdraft", A, ("Why do I need an overdraft?", "Warum brauche ich einen Kontokorrentkredit?"), (
-            f"Between {_d(p['from'], lang)} and {_d(p['until'], lang)} your balance would fall up to {_m(p['gap'], lang)} "
-            f"below your safety cushion of {_m(k['safety_buffer'], lang)}. An overdraft of {_m(p['amount'], lang)} for "
-            f"{p['days_needed']} days bridges this gap and costs at most {_m(p['max_interest_cost'], lang)} in interest.",
-            f"Zwischen dem {_d(p['from'], lang)} und dem {_d(p['until'], lang)} läge Ihr Kontostand bis zu {_m(p['gap'], lang)} "
-            f"unter Ihrem Sicherheitspolster von {_m(k['safety_buffer'], lang)}. Ein Kontokorrentkredit über "
-            f"{_m(p['amount'], lang)} für {p['days_needed']} Tage überbrückt die Lücke und kostet höchstens "
-            f"{_m(p['max_interest_cost'], lang)} Zinsen.",
+            f"Between {_d(p['from'], lang)} and {_d(p['until'], lang)} your balance would fall up to {eur(p['gap'], lang)} "
+            f"below your safety cushion of {eur(k['safety_buffer'], lang)}. An overdraft of {eur(p['amount'], lang)} for "
+            f"{p['days_needed']} days bridges this gap and costs at most {eur(p['max_interest_cost'], lang)} in interest.",
+            f"Zwischen dem {_d(p['from'], lang)} und dem {_d(p['until'], lang)} läge Ihr Kontostand bis zu {eur(p['gap'], lang)} "
+            f"unter Ihrem Sicherheitspolster von {eur(k['safety_buffer'], lang)}. Ein Kontokorrentkredit über "
+            f"{eur(p['amount'], lang)} für {p['days_needed']} Tage überbrückt die Lücke und kostet höchstens "
+            f"{eur(p['max_interest_cost'], lang)} Zinsen.",
         ))
 
     for fd in d["findings"]:
@@ -174,19 +162,19 @@ def suggestions(d: dict, lang: str) -> list[dict]:
         if fd["kind"] == "payment_delay" and ex["figures_stated"] and not any(s["id"] == "on_time" for s in out):
             add("on_time", A, (f"What if {ex['party']} pays on time?", f"Was passiert, wenn {ex['party']} pünktlich zahlt?"), (
                 f"If {ex['party']} pays invoice {ex['invoice']} on {_d(ex['due_date'], lang)}, your lowest balance is "
-                f"{_m(imp['min_balance_on_time'], lang)} instead of {_m(imp['min_balance_late'], lang)}. "
+                f"{eur(imp['min_balance_on_time'], lang)} instead of {eur(imp['min_balance_late'], lang)}. "
                 "Avida has drafted a friendly reminder for you to approve.",
                 f"Wenn {ex['party']} die Rechnung {ex['invoice']} am {_d(ex['due_date'], lang)} bezahlt, liegt Ihr "
-                f"niedrigster Kontostand bei {_m(imp['min_balance_on_time'], lang)} statt {_m(imp['min_balance_late'], lang)}. "
+                f"niedrigster Kontostand bei {eur(imp['min_balance_on_time'], lang)} statt {eur(imp['min_balance_late'], lang)}. "
                 "Avida hat eine freundliche Erinnerung zur Freigabe vorbereitet.",
             ))
         if fd["recommendation"] == "reject" and not any(s["id"] == "reject" for s in out):
             add("reject", L, (f"Why can I reject the {ex['party']} price increase?",
                               f"Warum kann ich die Preiserhöhung von {ex['party']} ablehnen?"), (
                 f"Your contract says in {c['clause_id']}: \"{c['quote']}\" The increase therefore does not apply, "
-                f"which keeps {_m(imp['next_12_months'], lang)} per year in your company.",
+                f"which keeps {eur(imp['next_12_months'], lang)} per year in your company.",
                 f"Ihr Vertrag regelt in {c['clause_id']}: „{c['quote']}“ Die Erhöhung gilt daher nicht – das sind "
-                f"{_m(imp['next_12_months'], lang)} pro Jahr, die in Ihrer Firma bleiben.",
+                f"{eur(imp['next_12_months'], lang)} pro Jahr, die in Ihrer Firma bleiben.",
             ))
         if fd["kind"] == "price_change" and not ex["figures_stated"] and not any(s["id"] == "no_figures" for s in out):
             add("no_figures", N, (f"What should I do about {ex['party']}?", f"Was soll ich wegen {ex['party']} tun?"), (
@@ -198,23 +186,23 @@ def suggestions(d: dict, lang: str) -> list[dict]:
 
     if rec["first_breach_date"]:
         safe = (f"For the next {k['days_safe']} days your balance stays above your safety cushion of "
-                f"{_m(k['safety_buffer'], lang)}. From {_d(rec['first_breach_date'], lang)} it falls below it, the lowest point "
-                f"is {_m(k['min_balance'], lang)} on {_d(k['min_date'], lang)}.",
+                f"{eur(k['safety_buffer'], lang)}. From {_d(rec['first_breach_date'], lang)} it falls below it, the lowest point "
+                f"is {eur(k['min_balance'], lang)} on {_d(k['min_date'], lang)}.",
                 f"In den nächsten {k['days_safe']} Tagen bleibt Ihr Kontostand über Ihrem Sicherheitspolster von "
-                f"{_m(k['safety_buffer'], lang)}. Ab dem {_d(rec['first_breach_date'], lang)} fällt er darunter, der "
-                f"Tiefstand liegt bei {_m(k['min_balance'], lang)} am {_d(k['min_date'], lang)}.")
+                f"{eur(k['safety_buffer'], lang)}. Ab dem {_d(rec['first_breach_date'], lang)} fällt er darunter, der "
+                f"Tiefstand liegt bei {eur(k['min_balance'], lang)} am {_d(k['min_date'], lang)}.")
     else:
-        safe = (f"Yes. Your balance stays above your safety cushion of {_m(k['safety_buffer'], lang)} for the next "
+        safe = (f"Yes. Your balance stays above your safety cushion of {eur(k['safety_buffer'], lang)} for the next "
                 f"{rec['horizon_days']} days.",
                 f"Ja. Ihr Kontostand bleibt in den nächsten {rec['horizon_days']} Tagen über Ihrem Sicherheitspolster "
-                f"von {_m(k['safety_buffer'], lang)}.")
+                f"von {eur(k['safety_buffer'], lang)}.")
     add("safe", A, (f"Am I safe for the next {rec['horizon_days']} days?",
                     f"Bin ich in den nächsten {rec['horizon_days']} Tagen sicher?"), safe)
 
     top = rec["largest_outflows"][:3]
     add("big_payments", A, ("What are my biggest payments coming up?", "Welche großen Zahlungen stehen an?"), (
-        "Your biggest upcoming payments: " + "; ".join(f"{o['label']} – {_m(-o['amount'], lang)} on {_d(o['date'], lang)}" for o in top) + ".",
-        "Ihre größten anstehenden Zahlungen: " + "; ".join(f"{o['label']} – {_m(-o['amount'], lang)} am {_d(o['date'], lang)}" for o in top) + ".",
+        "Your biggest upcoming payments: " + "; ".join(f"{o['label']} – {eur(-o['amount'], lang)} on {_d(o['date'], lang)}" for o in top) + ".",
+        "Ihre größten anstehenden Zahlungen: " + "; ".join(f"{o['label']} – {eur(-o['amount'], lang)} am {_d(o['date'], lang)}" for o in top) + ".",
     ))
     # Fixed priority (liquidity first, then legal, then emails) – a predictable list for the UI.
     order = ["overdraft", "on_time", "reject", "no_figures", "safe", "big_payments"]
@@ -369,18 +357,18 @@ def scoped_suggestions(d: dict, f: dict | None, a: dict | None, lang: str) -> li
             add("why", L, (f"Why can I reject the {party} increase?", f"Warum kann ich die Erhöhung von {party} ablehnen?"),
                 (c["explanation_simple"] + quote_en, expl_de + quote_de))
             add("cost", A, ("What does it cost me if I accept?", "Was kostet es mich, wenn ich zustimme?"), (
-                f"{_m(ex['monthly_delta'], lang)} more per month, {_m(imp['next_12_months'], lang)} over 12 months "
-                f"({_m(imp['in_horizon'], lang)} within the next {d['scenarios']['current']['horizon_days']} days).",
-                f"{_m(ex['monthly_delta'], lang)} mehr pro Monat, {_m(imp['next_12_months'], lang)} in 12 Monaten "
-                f"({_m(imp['in_horizon'], lang)} in den nächsten {d['scenarios']['current']['horizon_days']} Tagen)."))
+                f"{eur(ex['monthly_delta'], lang)} more per month, {eur(imp['next_12_months'], lang)} over 12 months "
+                f"({eur(imp['in_horizon'], lang)} within the next {d['scenarios']['current']['horizon_days']} days).",
+                f"{eur(ex['monthly_delta'], lang)} mehr pro Monat, {eur(imp['next_12_months'], lang)} in 12 Monaten "
+                f"({eur(imp['in_horizon'], lang)} in den nächsten {d['scenarios']['current']['horizon_days']} Tagen)."))
         elif f["recommendation"] == "remind":
             add("why", L, ("Is paying late allowed?", "Ist die spätere Zahlung erlaubt?"),
                 (c["explanation_simple"] + quote_en, expl_de + quote_de))
             add("on_time", A, (f"What if {party} pays on time?", f"Was passiert, wenn {party} pünktlich zahlt?"), (
                 f"If {party} pays invoice {ex['invoice']} on {_d(ex['due_date'], lang)}, your lowest balance is "
-                f"{_m(imp['min_balance_on_time'], lang)} instead of {_m(imp['min_balance_late'], lang)}.",
+                f"{eur(imp['min_balance_on_time'], lang)} instead of {eur(imp['min_balance_late'], lang)}.",
                 f"Wenn {party} die Rechnung {ex['invoice']} am {_d(ex['due_date'], lang)} bezahlt, liegt Ihr niedrigster "
-                f"Kontostand bei {_m(imp['min_balance_on_time'], lang)} statt {_m(imp['min_balance_late'], lang)}."))
+                f"Kontostand bei {eur(imp['min_balance_on_time'], lang)} statt {eur(imp['min_balance_late'], lang)}."))
             add("tone", N, ("Will the email upset the customer?", "Verärgert die E-Mail den Kunden?"), (
                 "No – it thanks them for the early notice and only asks to keep the agreed date, for example with a manual "
                 "payment. No threats and no interest claims.",
@@ -391,8 +379,8 @@ def scoped_suggestions(d: dict, f: dict | None, a: dict | None, lang: str) -> li
                 (c["explanation_simple"] + quote_en, expl_de + quote_de))
             if ex["figures_stated"] and f["kind"] == "price_change":
                 add("cost", A, ("How much does it cost me?", "Wie viel kostet mich das?"), (
-                    f"{_m(ex['monthly_delta'], lang)} more per month, {_m(imp['next_12_months'], lang)} over 12 months.",
-                    f"{_m(ex['monthly_delta'], lang)} mehr pro Monat, {_m(imp['next_12_months'], lang)} in 12 Monaten."))
+                    f"{eur(ex['monthly_delta'], lang)} more per month, {eur(imp['next_12_months'], lang)} over 12 months.",
+                    f"{eur(ex['monthly_delta'], lang)} mehr pro Monat, {eur(imp['next_12_months'], lang)} in 12 Monaten."))
             add("negotiate", N, ("Can I still negotiate?", "Kann ich trotzdem verhandeln?"), (
                 f"You can ask {party} for a better price, but the contract allows this increase, so they do not have to "
                 "agree. That is why Avida did not draft an objection.",
@@ -409,15 +397,15 @@ def scoped_suggestions(d: dict, f: dict | None, a: dict | None, lang: str) -> li
     elif a and a["type"] == "credit_application":
         p = a["payload"]
         add("why", A, ("Why do I need an overdraft?", "Warum brauche ich einen Kontokorrentkredit?"), (
-            f"Between {_d(p['from'], lang)} and {_d(p['until'], lang)} your balance would fall up to {_m(p['gap'], lang)} "
-            f"below your safety cushion. An overdraft of {_m(p['amount'], lang)} bridges this gap.",
+            f"Between {_d(p['from'], lang)} and {_d(p['until'], lang)} your balance would fall up to {eur(p['gap'], lang)} "
+            f"below your safety cushion. An overdraft of {eur(p['amount'], lang)} bridges this gap.",
             f"Zwischen dem {_d(p['from'], lang)} und dem {_d(p['until'], lang)} läge Ihr Kontostand bis zu "
-            f"{_m(p['gap'], lang)} unter Ihrem Sicherheitspolster. Ein Kontokorrentkredit über {_m(p['amount'], lang)} "
+            f"{eur(p['gap'], lang)} unter Ihrem Sicherheitspolster. Ein Kontokorrentkredit über {eur(p['amount'], lang)} "
             "überbrückt die Lücke."))
         add("cost", A, ("What does it cost?", "Was kostet das?"), (
-            f"At most {_m(p['max_interest_cost'], lang)} in interest ({p['indicative_rate_pct']}% for {p['days_needed']} days, "
+            f"At most {eur(p['max_interest_cost'], lang)} in interest ({p['indicative_rate_pct']}% for {p['days_needed']} days, "
             "if the full amount is used the whole time). If you don't use it, you pay no interest.",
-            f"Höchstens {_m(p['max_interest_cost'], lang)} Zinsen ({str(p['indicative_rate_pct']).replace('.', ',')} % für "
+            f"Höchstens {eur(p['max_interest_cost'], lang)} Zinsen ({str(p['indicative_rate_pct']).replace('.', ',')} % für "
             f"{p['days_needed']} Tage, wenn der volle Betrag die ganze Zeit genutzt wird). Ohne Nutzung zahlen Sie keine Zinsen."))
 
     if (o := _option(a, "not_now", lang)) and a["status"] == "pending":
@@ -447,6 +435,7 @@ async def ask(question: str, lang: str, action_id: str | None = None, finding_id
               history: list[dict] | None = None) -> dict:
     d = current_dashboard()
     scoped = bool(action_id or finding_id)
+    f = a = None
     if scoped:
         f, a = resolve_scope(d, action_id, finding_id)
         sugg = scoped_suggestions(d, f, a, lang)

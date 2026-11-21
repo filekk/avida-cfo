@@ -2,6 +2,8 @@
 const de: Record<string, string> = {
   // box
   "Check my inbox": "Posteingang prüfen",
+  "The check finished, but its result could not be read. Please reload the page.":
+    "Die Prüfung ist fertig, aber ihr Ergebnis konnte nicht gelesen werden. Bitte laden Sie die Seite neu.",
   "Checking your inbox": "Ihr Posteingang wird geprüft",
   "Inbox checked": "Posteingang geprüft",
   // second line under "Inbox checked" ("5 minutes ago" itself comes from Intl.RelativeTimeFormat)

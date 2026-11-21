@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import {
-  ApiError,
   approveAction,
+  errorMessage,
   getAudit,
   getDashboard,
   getRedraftHints,
@@ -12,15 +12,18 @@ import {
   reviewDraft,
   startSync,
 } from "@/api";
-import { t } from "@/i18n";
+import { locale } from "@/i18n";
 import type { Action, Dashboard, DraftReview, RedraftHints, RedraftProposal, TraceEvent } from "@/types/api";
-
-const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
 /**
  * Single source of truth for the demo flow:
  *   load() → sync() (SSE trace → new dashboard) → decide() per action → reset()
  * Kept at app level so a running sync survives navigation between views.
+ *
+ * Several requests can be in flight at once (a language switch while a decision refreshes the plan, two quick
+ * decisions, a reset during a load). Every request that replaces or patches the dashboard takes a ticket from
+ * `nextTicket()`; its answer is applied only if no newer ticket was taken meanwhile – a late, older answer never
+ * overwrites a newer one (wrong language, an action flipping back to "pending", a pre-reset dashboard).
  */
 export const useDashboardStore = defineStore("dashboard", () => {
   // --- state -------------------------------------------------------------------------------------
@@ -53,26 +56,39 @@ export const useDashboardStore = defineStore("dashboard", () => {
   const findingById = (id: string) => findings.value.find((f) => f.id === id);
   const actionById = (id: string) => actions.value.find((a) => a.id === id);
 
+  // --- request ordering (see the store comment) ----------------------------------------------------
+  let ticket = 0;
+  const nextTicket = () => ++ticket;
+  const isLatest = (mine: number) => mine === ticket;
+  let loadsInFlight = 0;
+  /** Bumped by reset(): an answer from before the reset must not bring old state back. */
+  let resets = 0;
+
   // --- actions -----------------------------------------------------------------------------------
+  /** `force` (language switch, retry) always asks again – even while another load is still running. */
   async function load(force = false) {
-    if (loading.value || (dashboard.value && !force)) return;
+    if (!force && (loading.value || dashboard.value)) return;
+    const mine = nextTicket();
+    loadsInFlight++;
     loading.value = true;
     error.value = null;
     try {
-      dashboard.value = await getDashboard();
+      const d = await getDashboard();
+      if (isLatest(mine)) dashboard.value = d;
     } catch (e) {
-      error.value = message(e);
+      if (isLatest(mine)) error.value = errorMessage(e);
     } finally {
-      loading.value = false;
+      loading.value = --loadsInFlight > 0;
     }
-    if (hasSynced.value && !checkedAt.value) loadCheckedAt();
+    if (isLatest(mine) && hasSynced.value && !checkedAt.value) loadCheckedAt();
   }
 
   /** Last finished inbox check from the history (best effort – without it the top bar just shows no time). */
   async function loadCheckedAt() {
+    const epoch = resets;
     try {
       const last = (await getAudit()).filter((e) => e.event === "sync_finished").pop();
-      if (last && !checkedAt.value) checkedAt.value = last.time;
+      if (last && !checkedAt.value && epoch === resets) checkedAt.value = last.time;
     } catch {
       /* history unavailable – no "checked … ago" line */
     }
@@ -80,16 +96,20 @@ export const useDashboardStore = defineStore("dashboard", () => {
 
   function sync() {
     if (syncing.value) return;
+    const lang = locale.value;
     trace.value = [];
     syncError.value = null;
     syncing.value = true;
     closeSync = startSync({
       onTrace: (e) => trace.value.push(e),
       onResult: (d) => {
+        nextTicket(); // a dashboard request still in flight is older than this result
         dashboard.value = d;
         checkedAt.value = new Date().toISOString();
         syncing.value = false;
         closeSync = null;
+        // the language was switched during the check (AppLayout skips reloads while syncing) → texts follow now
+        if (locale.value !== lang) load(true);
       },
       onError: (m) => {
         syncError.value = m;
@@ -116,7 +136,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
       if (dashboard.value) dashboard.value.kpis.saved_liquidity = r.saved_liquidity;
       await refreshPlan(); // approve AND "Not now" can change the plan (a declined rejection = the increase is in)
     } catch (e) {
-      error.value = message(e);
+      error.value = errorMessage(e);
     } finally {
       deciding.value.delete(id);
     }
@@ -128,9 +148,17 @@ export const useDashboardStore = defineStore("dashboard", () => {
    * shows what the decision achieved (numbers glide via AnimatedNumber). Best effort: on failure the old view stays.
    */
   async function refreshPlan() {
+    const mine = nextTicket();
+    // A load still running (e.g. after a language switch) is outdated by this ticket and will be dropped –
+    // then this answer, the freshest full dashboard, replaces everything instead of patching the live parts.
+    const supersedesLoad = loadsInFlight > 0;
     try {
       const d = await getDashboard();
-      if (!dashboard.value) return;
+      if (!isLatest(mine) || !dashboard.value) return; // a newer decision / load / sync already answered
+      if (supersedesLoad) {
+        dashboard.value = d;
+        return;
+      }
       Object.assign(dashboard.value, {
         kpis: d.kpis,
         headline: d.headline,
@@ -145,14 +173,17 @@ export const useDashboardStore = defineStore("dashboard", () => {
 
   async function reset() {
     cancelSync();
+    resets++;
+    const mine = nextTicket();
     trace.value = [];
     syncError.value = null;
     error.value = null;
     checkedAt.value = null;
     try {
-      dashboard.value = await resetDemo();
+      const d = await resetDemo();
+      if (isLatest(mine)) dashboard.value = d;
     } catch (e) {
-      error.value = message(e);
+      error.value = errorMessage(e);
     }
   }
 
@@ -165,7 +196,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
     try {
       return await redraftAction(id, { body, instruction: instruction.trim().slice(0, 300) || undefined });
     } catch (e) {
-      throw new Error(message(e));
+      throw new Error(errorMessage(e));
     }
   }
 

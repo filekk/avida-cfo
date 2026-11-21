@@ -52,7 +52,15 @@ oc set env deploy/avida-cfo --from=configmap/avida-cfo-config
 oc create route edge avida-cfo --service=avida-cfo --port=8080
 oc annotate route avida-cfo haproxy.router.openshift.io/timeout=180s
 oc get route avida-cfo -o jsonpath='{.spec.host}'
+
+# in-memory state: never two pods at once, not even during a rollout
+oc patch deploy/avida-cfo -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
 ```
+
+The route timeout is an **idle** timeout. The longest silence in the SSE stream is one model call that fails over
+to the fallback endpoint (2 × `LLM_TIMEOUT_S` = 120 s), so keep the timeout above that if you raise `LLM_TIMEOUT_S`.
+To switch an optional feature off, set its ConfigMap value to `""` instead of deleting the key (see the comments
+in `configmap.yaml`).
 
 Private repo? Add a source secret:
 `oc create secret generic gh --from-literal=username=<user> --from-literal=password=<PAT> --type=kubernetes.io/basic-auth`

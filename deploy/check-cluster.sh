@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Collects everything needed to choose the model and serving setup.
 # Usage (after `oc login`): bash deploy/check-cluster.sh > cluster-info.txt
-set -u
+# No `-e`: the script reports what it can see and carries on. `pipefail` makes the `|| echo …` fallbacks fire
+# when `oc` fails in front of `head` / `awk` (otherwise the last command's exit 0 hides the failure).
+set -uo pipefail
 
 section() { printf '\n===== %s =====\n' "$1"; }
+
+oc whoami >/dev/null 2>&1 || { echo "Not logged in – run 'oc login' first." >&2; exit 1; }
 
 section "WHO / CLUSTER"
 oc whoami; oc whoami --show-server; oc version 2>/dev/null | tail -2
@@ -21,9 +25,11 @@ section "NVIDIA DRIVER PODS"
 oc get pods -n nvidia-gpu-operator --no-headers 2>/dev/null | head -20 || echo "namespace nvidia-gpu-operator not found"
 
 section "OPENSHIFT AI COMPONENTS (DataScienceCluster)"
-oc get datasciencecluster -o jsonpath='{range .items[*].spec.components.*}{.managementState}{"\n"}{end}' 2>/dev/null >/dev/null \
-  && oc get datasciencecluster -o yaml | grep -B1 managementState | grep -v '^--' \
-  || echo "no DataScienceCluster visible (permissions?)"
+if oc get datasciencecluster -o name 2>/dev/null | grep -q .; then
+  oc get datasciencecluster -o yaml | grep -B1 managementState | grep -v '^--' || echo "no component states found"
+else
+  echo "no DataScienceCluster visible (permissions?)"
+fi
 
 section "SERVING RUNTIME TEMPLATES (look for vLLM)"
 oc get templates -n redhat-ods-applications --no-headers 2>/dev/null | awk '{print $1}' | grep -i -E 'vllm|runtime' || echo "not visible"

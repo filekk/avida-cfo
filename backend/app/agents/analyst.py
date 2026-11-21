@@ -274,7 +274,7 @@ BRIEFING_SCHEMA = {
 }
 
 
-def _uncovered_outflow(f: dict) -> dict | None:
+def uncovered_outflow(f: dict) -> dict | None:
     """The biggest payment that falls on a day when the account would be overdrawn (e.g. payroll)."""
     balance = {p["date"]: p["balance"] for p in f["series"]}
     return next((o for o in f["largest_outflows"] if balance.get(o["date"], 0) < 0), None)
@@ -300,7 +300,7 @@ def _facts(scenarios: dict, findings: list[dict], credit: dict | None, lang: str
         f"If you follow the advice, your lowest balance is {rec['min_balance']:,.0f} EUR on {rec['min_date']}{overdrawn} "
         f"(safety cushion: {rec['buffer']:,.0f} EUR)."
     )
-    if (o := _uncovered_outflow(rec)) is not None:
+    if (o := uncovered_outflow(rec)) is not None:
         facts.append(f"{o['label']}: {-o['amount']:,.0f} EUR on {o['date']} would not be covered without an overdraft.")
     if acc["min_balance"] != rec["min_balance"]:
         facts.append(f"If you accept every price increase, it drops to {acc['min_balance']:,.0f} EUR.")
@@ -343,7 +343,7 @@ def _facts_de(scenarios: dict, findings: list[dict], credit: dict | None) -> lis
         f"Wenn Sie der Empfehlung folgen, liegt Ihr niedrigster Kontostand bei {texts.eur(rec['min_balance'], L)} am "
         f"{texts.day(rec['min_date'], L)}{overdrawn} (Sicherheitspolster: {texts.eur(rec['buffer'], L)})."
     )
-    if (o := _uncovered_outflow(rec)) is not None:
+    if (o := uncovered_outflow(rec)) is not None:
         facts.append(f"{o['label']}: {texts.eur(-o['amount'], L)} am {texts.day(o['date'], L)} wären ohne "
                      "Kontokorrentkredit nicht gedeckt.")
     if acc["min_balance"] != rec["min_balance"]:

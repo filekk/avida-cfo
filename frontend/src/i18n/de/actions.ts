@@ -8,10 +8,12 @@ const de: Record<string, string> = {
   "No figures": "Keine Zahlen",
   "The email announces a change but gives no exact numbers.":
     "Die E-Mail kündigt eine Änderung an, nennt aber keine genauen Zahlen.",
+  "{n} day late": "{n} Tag zu spät",
   "{n} days late": "{n} Tage zu spät",
   "Late payment": "Verspätete Zahlung",
   "{supplier}: late payment": "{supplier}: verspätete Zahlung",
   "Invoice {invoice} · due {due} → now {now}": "Rechnung {invoice} · fällig {due} → jetzt {now}",
+  "Due {due} → now {now}": "Fällig {due} → jetzt {now}",
   "Invoice amount": "Rechnungsbetrag",
   "Days late": "Tage Verzug",
   "Lowest balance drops by": "Tiefster Kontostand sinkt um",

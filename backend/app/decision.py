@@ -117,7 +117,7 @@ def for_email(f: dict, ctx: Context) -> dict:
 
 def for_credit(ctx: Context, credit_if_accepted: dict | None) -> dict:
     c, rec = ctx.credit, ctx.scenarios["recommended"]
-    uncovered = analyst._uncovered_outflow(rec)
+    uncovered = analyst.uncovered_outflow(rec)
 
     def not_now(lg: str) -> str:
         de = lg == "de"
@@ -188,17 +188,24 @@ REDRAFT_SYSTEM = (
     "threats, blackmail, bribery, insults), do not write an email: reply with exactly the word REFUSED."
 )
 
-# Rules screen for the owner's Rewrite request (EN + DE word stems). Runs before the model, so a clear
+# Rules screen for the owner's Rewrite request (EN + DE). Runs before the model, so a clear
 # "scam them for 1 million dollars" is refused instantly and never reaches the Negotiator. The model's own
 # REFUSED answer catches the wordings this list misses.
-_UNSAFE_REQUEST = re.compile(
-    r"\b(scam|fraud|defraud|swindl|rip\s*(them|him|her)?\s*off|cheat|trick\s+them|deceiv|mislead|"
-    r"lie|lies|lying|fake|forge|forged|falsif|fabricat|blackmail|extort|bribe|bribery|kickback|launder|steal|"
-    r"intimidat|harass|insult|"
-    r"betrug|betrüg|(ab)?zock|über\s+den\s+tisch|täusch|lüg|gelogen|fälsch|gefälscht|erfind|erpress|bestech|"
-    r"schmiergeld|geldwäsch|stehl|beleidig|einschüchter)",
-    re.I,
+# Stems may take any ending ("fraud" → "fraudulent"). Short words must match as WHOLE words: as stems, "lie" would
+# refuse "Liebe Frau Bauer", "Lieferung" and "liegt bei", "forge" would refuse "forget", "fälsch" "fälschlicherweise".
+_UNSAFE_STEMS = (
+    r"scam|fraud|defraud|swindl|cheat|deceiv|decept|mislead|misled|fabricat|falsif|blackmail|extort|brib|kickback|"
+    r"launder|intimidat|harass|insult|"
+    r"betrug|betrüg|(?:ab)?zock|täusch|erpress|bestechung|bestechen|bestoch|schmiergeld|geldwäsch|beleidig|"
+    r"einschüchter|gefälscht|fälschen|fälschung"
 )
+_UNSAFE_WORDS = (
+    r"lie|lies|lied|lying|liar|liars|fake|faked|fakes|forge|forged|forgery|forging|"
+    r"steal|steals|stealing|stole|stolen|rip\s*(?:them|him|her)?\s*off|trick\s+(?:them|him|her)|"
+    r"lüge|lügen|lügt|lügner|gelogen|belügen|erfinde|erfinden|erfindet|erfunden|stehlen|gestohlen|klauen|"
+    r"über\s+den\s+tisch"
+)
+_UNSAFE_REQUEST = re.compile(rf"\b(?:{_UNSAFE_STEMS}|(?:{_UNSAFE_WORDS})\b)", re.I)
 _REFUSED = re.compile(r"^\W*refused\W*$", re.I)
 
 

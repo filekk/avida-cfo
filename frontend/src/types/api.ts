@@ -58,7 +58,12 @@ export interface SyncResultEvent {
 }
 export interface SyncErrorEvent {
   type: "error";
+  /** plain, localized words for the owner – show as delivered */
   message: string;
+  /** "sync_running" = a check is already running (maybe in another window) – wait and try again */
+  code?: "sync_running";
+  /** error type only (e.g. "RuntimeError"), for diagnostics – the details stay in the server log */
+  detail?: string;
 }
 /** GET /api/sync/trace – replay of the last sync (empty after reset). */
 export interface SyncTrace {
@@ -314,7 +319,8 @@ export interface Dashboard {
   /** language the model wrote in during the last sync (other language = rule-based texts); null before sync */
   sync_lang: Lang | null;
   scenarios: Scenarios;
-  /** `role` / `does` in the requested language; `name` stays English (stable id). Ignore `icon` (emoji – UI rule 6). */
+  /** `role` / `does` in the requested language; `name` stays English (stable id). `icon` is a Lucide icon name
+   *  (`chart` / `scale` / `mail`); the UI uses its own map in constants/agents.ts. */
   agents?: { name: AgentName; role: string; icon: string; does: string }[];
   analysis?: { summary: string; key_points: string[]; risk_level: "low" | "medium" | "high"; source?: AnswerSource } | null;
   findings: Finding[];

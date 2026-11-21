@@ -17,7 +17,7 @@ components/
                      AppIcon (+ icons.ts), tones.ts (shared tone → colour maps)
   layout/            AppSidebar, AppTopbar, NavLinks, ThemeToggle, AccessibilityMenu, AppLogo, AppFooter
   agent/             AutonomyBadge (explains itself in an AppTooltip), AgentTrace, AgentPipeline, SourceTag (challenge-specific)
-  dashboard/         KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts), BriefingCard
+  dashboard/         KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts)
   findings/          FindingSplit (email ↔ contract ↔ calculation)
   actions/           ActionCard (editable email / credit offer + Legal review + Approve / Not now | AV Rewrite),
                      RewriteDraft (AV Rewrite pop-up), DecisionTile, DecisionFocus (+ decision.ts)
@@ -25,8 +25,8 @@ components/
                      AskLauncher, the Overview's floating bubble), AskContext (full-width contextual bar in a decision,
                      between explanation and buttons, chips from contextual.ts), AskTurnItem, SuggestionChips
   contracts/         ContractUpload (drop zone, type/size check)
-api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError), one module per area, index.ts
-stores/              Pinia setup stores: dashboard (demo flow), system (config, LLM health),
+api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError, errorMessage), one module per area, index.ts
+stores/              Pinia setup stores: dashboard (demo flow),
                      ask (two separate histories: overview chat `generalTurns` and one per decision `turnsOf(key)`;
                      suggestions re-fetched on sync / reset / language switch)
 composables/         useTheme, useA11y (accessibility menu), useForecastPeriod (chart window),

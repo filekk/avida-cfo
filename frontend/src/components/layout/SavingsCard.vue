@@ -10,7 +10,7 @@ import { periodLabel } from "@/composables/useForecastPeriod";
 import { t } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
 import type { Forecast } from "@/types/api";
-import { eur, fmtDayMonth } from "@/utils/format";
+import { eur, eurSigned, fmtDayMonth } from "@/utils/format";
 import { prefersReducedMotion } from "@/utils/motion";
 
 /**
@@ -196,7 +196,7 @@ const summary = computed(() =>
         <span
           :class="['text-caption tabular-nums text-mint/80 transition-opacity duration-fast', read.gain > 0.5 ? '' : 'opacity-0']"
           :aria-hidden="read.gain > 0.5 ? undefined : 'true'"
-        >+{{ eur(read.gain) }}</span>
+        >{{ eurSigned(read.gain) }}</span>
       </span>
     </div>
 

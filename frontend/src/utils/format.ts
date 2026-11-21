@@ -14,14 +14,23 @@ const pctFmt = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 /** de-DE prints a hyphen ("-27.882 €"); typeset numbers use the real minus sign U+2212 ("−27.882 €"). */
 const minus = (s: string) => s.replace("-", "−");
 
+/**
+ * Round to the shown precision first, so values that round to zero never print a sign ("−0 €", "+0 %").
+ * `|| 0` also turns -0 (e.g. an axis tick computed from a negative range) into 0.
+ */
+const roundTo = (n: number, decimals: number) => Math.round(n * 10 ** decimals) / 10 ** decimals || 0;
+
 /** 93000 → "93.000 €" · -27882 → "−27.882 €" */
-// `n || 0` turns -0 (e.g. an axis tick computed from a negative range) into 0 → never "-0 €"
-export const eur = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmt.format(n || 0)));
+export const eur = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmt.format(roundTo(n, 0))));
 /** 5.21 → "5,21 €" */
-export const eurCents = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmtCents.format(n || 0)));
-/** 1470 → "+1.470 €" (sign always shown) */
-export const eurSigned = (n: number) => (n > 0 ? "+" : "") + minus(eurFmt.format(n));
-export const num = (n: number) => minus(numFmt.format(n));
+export const eurCents = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmtCents.format(roundTo(n, 2))));
+/** 1470 → "+1.470 €" (sign always shown, except for 0) */
+export const eurSigned = (n: number) => {
+  const r = roundTo(n, 0);
+  return (r > 0 ? "+" : "") + minus(eurFmt.format(r));
+};
+/** 4.5 → "4,5" (de-DE decimal comma like every number in the UI) */
+export const num = (n: number) => minus(numFmt.format(n || 0));
 /** 1385 → "1,4 KB" · 2_400_000 → "2,3 MB" (1 KB = 1024 bytes; de-DE decimal comma like all numbers) */
 export const fmtBytes = (n: number | null | undefined) => {
   if (n == null) return "–";
@@ -31,10 +40,15 @@ export const fmtBytes = (n: number | null | undefined) => {
   return `${pctFmt.format(kb / 1024)} MB`;
 };
 /** 15 → "+15 %" */
-export const pct = (n: number, signed = true) => `${signed && n > 0 ? "+" : ""}${minus(pctFmt.format(n))} %`;
+export const pct = (n: number, signed = true) => {
+  const r = roundTo(n, 1);
+  return `${signed && r > 0 ? "+" : ""}${minus(pctFmt.format(r))} %`;
+};
 
 // ISO "YYYY-MM-DD" must be parsed as a LOCAL date, otherwise it shifts by the timezone offset.
+// A full datetime ("2026-11-20T23:30:00+00:00", e.g. `uploaded_at`) is a moment in time → the local calendar day.
 const parseIso = (iso: string) => {
+  if (iso.includes("T")) return new Date(iso);
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d);
 };
@@ -64,10 +78,6 @@ export function fmtAgo(iso: string | null | undefined, now = Date.now()): string
   const days = Math.round((day(new Date(now)) - day(then)) / 86400000);
   return days < 7 ? rtf.format(-days, "day") : then.toLocaleDateString(intlLocale.value, { day: "numeric", month: "short", year: "numeric" });
 }
-
-/** "2027-02-03" → "3 February" / "3. Februar" (for sentences) */
-export const fmtDayMonthLong = (iso: string | null | undefined) =>
-  iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { day: "numeric", month: "long" }) : "–";
 
 /** ISO datetime → "20 Nov 2026, 14:05" / "20. Nov. 2026, 14:05" (local time) */
 export const fmtDateTime = (iso: string | null | undefined) =>

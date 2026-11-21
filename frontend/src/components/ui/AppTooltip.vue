@@ -54,17 +54,21 @@ const onKey = (e: KeyboardEvent) => {
   if (e.key === "Escape") open.value = false;
 };
 
-watch(open, (o) => {
-  const fn = o ? window.addEventListener : window.removeEventListener;
-  fn("scroll", place, true);
-  fn("resize", place);
-  fn("keydown", onKey as EventListener);
-});
+function listen(on: boolean) {
+  if (on) {
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    window.addEventListener("keydown", onKey);
+  } else {
+    window.removeEventListener("scroll", place, true);
+    window.removeEventListener("resize", place);
+    window.removeEventListener("keydown", onKey);
+  }
+}
+watch(open, listen);
 onBeforeUnmount(() => {
   clearTimeout(closeTimer);
-  window.removeEventListener("scroll", place, true);
-  window.removeEventListener("resize", place);
-  window.removeEventListener("keydown", onKey as EventListener);
+  listen(false);
 });
 </script>
 

@@ -9,11 +9,11 @@ data:
   LLM_BASE_URL: "http://avida-inference-openshift-ai-inference.openshift-ingress.svc.cluster.local/avida-models/granite-llmd/v1"
   # Must match the served model name (curl $LLM_BASE_URL/models)
   LLM_MODEL: "granite-8b"
-  # Fallback: the plain vLLM InferenceService (deploy/model/granite-8b.yaml). Used automatically when llm-d
-  # is down; only one GPU, so start it with: oc annotate isvc granite-8b -n avida-models serving.kserve.io/stop=false --overwrite
-  # Remove these two lines to switch failover off.
-  # Failover = the same vLLM pod, reached directly (bypasses the llm-d gateway + scheduler; no 2nd GPU needed).
+  # Failover endpoint, tried automatically when the llm-d gateway fails: the same vLLM pod, reached directly
+  # (bypasses the llm-d gateway + scheduler; no 2nd GPU needed – the plain granite-8b InferenceService stays stopped).
   # Its certificate is signed by the OpenShift service CA, which is mounted in every pod.
+  # To switch failover off, set LLM_FALLBACK_BASE_URL to "" – don't delete keys: `oc set env --from=configmap`
+  # references every key, and a pod whose referenced key is missing does not start.
   LLM_FALLBACK_BASE_URL: "https://granite-llmd-kserve-workload-svc.avida-models.svc.cluster.local:8000/v1"
   LLM_FALLBACK_CA_FILE: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
   LLM_FALLBACK_MODEL: "granite-8b"
@@ -25,7 +25,7 @@ data:
   FORECAST_DAYS: "90"
   DEMO_TODAY: "2026-11-20"
   TRACE_DELAY_S: "0.4"
-  # MLflow tracing of the agents (deploy/mlflow.yaml). Remove the line to switch tracing off;
-  # if MLflow is down the app keeps working, it just stops sending traces.
+  # MLflow tracing of the agents (deploy/mlflow.yaml). Set it to "" to switch tracing off (don't delete the key,
+  # see above); if MLflow is down the app keeps working, it just stops sending traces.
   MLFLOW_TRACKING_URI: "http://mlflow.avida-cfo.svc.cluster.local:5000"
   MLFLOW_EXPERIMENT_NAME: "avida-cfo-agents"
