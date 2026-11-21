@@ -175,7 +175,9 @@ async def check(extraction: dict, received: str, lang: str = "en") -> tuple[dict
         "Clauses:\n" + "\n".join(f"- {c['id']} {c['title']}: {c['text']}" for c in clauses) + "\n\n"
         f"Announced change: {change}\n"
         "Rule checks:\n" + "\n".join(f"- {c['check']}: {'OK' if c['passed'] else 'VIOLATED'} – {c['detail']}" for c in checks) + "\n"
-        f"Overall verdict (fixed, do not change it): {verdict.upper()}"
+        f"Overall verdict (fixed, do not change it): {verdict.upper()}\n"
+        + (f"Main clause (fixed – cite this clause_id and quote from it): {key_clause['id']} {key_clause['title']}"
+           if key_clause else "")
     )
     fb = fallback.contract_explanation(verdict, _party(contract), failed, key_clause, extraction["kind"])
     rule_text = {lg: texts.explanation(verdict, _party(contract), failed, extraction["kind"], True, lg)
@@ -183,12 +185,13 @@ async def check(extraction: dict, received: str, lang: str = "en") -> tuple[dict
     fb["explanation_simple"] = rule_text[lang]
     expl, source = await llm.json(SYSTEM.format(language=LANGUAGE[lang]), user, SCHEMA, fb)
 
-    # Guard against hallucinated quotes: the quote must exist in the contract, else use the real clause.
-    real = next((c for c in contract["clauses"] if c["id"] == expl.get("clause_id")), None)
+    # The main clause is decided by the rules (first failed check: price guarantee before notice period), never by
+    # the model – it may pick another clause that is also relevant but weaker. Its quote is kept only if it really
+    # comes from that clause (guard against hallucinated quotes), else the clause's own text is quoted.
+    real = key_clause
     quote = str(expl.get("quote", "")).strip().strip('"“”„')
-    if not real or not quote or quote[:40] not in real["text"]:
+    if not real or expl.get("clause_id") != real["id"] or not quote or quote[:40] not in real["text"]:
         expl["clause_id"], expl["quote"] = fb["clause_id"], fb["quote"]
-        real = key_clause
     if not str(expl.get("explanation_simple", "")).strip():
         expl["explanation_simple"] = fb["explanation_simple"]
 

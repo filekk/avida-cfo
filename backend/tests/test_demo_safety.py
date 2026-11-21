@@ -155,3 +155,23 @@ def test_negotiation_falls_back_to_template_when_rules_stay_broken(model_on):
     assert "[Your name]" not in email["payload"]["body"] and "§5.2" in email["payload"]["body"]
     assert email["source"] == "fallback" and "checked template" in body
     client.post("/api/reset")
+
+
+def test_main_clause_is_decided_by_the_rules_not_the_model(model_on):
+    """Found in the live demo run: the model cited §5.3 (notice period, also violated) instead of §5.2
+    (price guarantee) – the email then argued with the weaker clause."""
+    from app.agents import legal
+
+    email = next(e for e in data.inbox() if e["id"] == "mail-001")
+    ex = analyst.sanitize(fallback.EXTRACTIONS["mail-001"], email)
+    contract = legal.find_contract(ex["party"])
+    c53 = next(c for c in contract["clauses"] if c["id"] == "§5.3")
+
+    async def picks_53(system, user, max_tokens=400, span=None, **kw):
+        assert "Main clause (fixed" in user and "§5.2" in user
+        return json.dumps({"explanation_simple": "Not allowed.", "clause_id": "§5.3", "quote": c53["text"][:60]})
+
+    model_on.setattr(llm_mod.llm, "_complete", picks_53)
+    res, src = asyncio.run(legal.check(ex, email["received"]))
+    assert res["verdict"] == "violates" and res["clause_id"] == "§5.2" and res["clause"]["id"] == "§5.2"
+    assert res["quote"] in res["clause"]["text"]
