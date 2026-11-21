@@ -10,12 +10,22 @@ import type { AnswerSource, Autonomy, Recommendation, Verdict } from "@/types/ap
  */
 export const AUTONOMY: Record<
   Autonomy,
-  { label: string; icon: IconName; description: string; classes: string; tone: Tone; tile?: string }
+  {
+    label: string;
+    icon: IconName;
+    description: string;
+    /** longer plain-language explanation for the badge's tooltip (what the agent may do at this level) */
+    tooltip: string;
+    classes: string;
+    tone: Tone;
+    tile?: string;
+  }
 > = {
   analyzed: {
     label: "Analysed by agent",
     icon: "analyzed",
     description: "Reads and calculates on its own.",
+    tooltip: "An agent read this and did the maths on its own. It did not send or change anything.",
     classes: "border-transparent bg-mist text-mist-fg",
     tone: "info",
   },
@@ -23,6 +33,7 @@ export const AUTONOMY: Record<
     label: "Recommendation",
     icon: "recommendation",
     description: "Suggests a step. You decide.",
+    tooltip: "The agent suggests this step. Nothing happens unless you decide to do it.",
     classes: "border-transparent bg-warn-soft text-warn",
     tone: "warn",
   },
@@ -30,6 +41,7 @@ export const AUTONOMY: Record<
     label: "Needs your approval",
     icon: "approval",
     description: "Waits for your click.",
+    tooltip: "Nothing is sent until you click Approve. You can also choose Not now.",
     // outlined, not filled: the sun fill stays reserved for the one main button of a screen
     classes: "border-sun bg-surface text-fg",
     tone: "accent",
@@ -38,6 +50,7 @@ export const AUTONOMY: Record<
     label: "Simulated execution",
     icon: "simulated",
     description: "Runs in a safe sandbox. Nothing leaves.",
+    tooltip: "When you approve, it runs in a safe test mode. No real email or bank order leaves your company.",
     classes: "border-dashed border-muted bg-surface text-muted",
     tone: "neutral",
     tile: "border border-dashed border-muted",

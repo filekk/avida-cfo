@@ -13,10 +13,10 @@ layouts/             AppLayout (navy sidebar + topbar, Aurum "Panel aplikacji"),
 views/               one file per route, named *View.vue. Composes components and reads stores
 components/
   ui/                generic building blocks: BaseButton, BaseCard, StatusPill, StatTile, IconTile, EmptyState,
-                     AlertBanner, SkeletonBlock, PageHeader, CollapseTransition, AnimatedNumber,
+                     AlertBanner, SkeletonBlock, PageHeader, CollapseTransition, AnimatedNumber, AppTooltip,
                      AppIcon (+ icons.ts), tones.ts (shared tone → colour maps)
   layout/            AppSidebar, AppTopbar, NavLinks, ThemeToggle, AccessibilityMenu, AppLogo, AppFooter
-  agent/             AutonomyBadge, AutonomyLegend, AgentTrace, AgentPipeline, SourceTag (challenge-specific)
+  agent/             AutonomyBadge (explains itself in an AppTooltip), AgentTrace, AgentPipeline, SourceTag (challenge-specific)
   dashboard/         KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts), BriefingCard
   findings/          FindingSplit (email ↔ contract ↔ calculation)
   actions/           ActionCard (editable email / credit offer + Legal review + Approve / Not now | AV Rewrite),

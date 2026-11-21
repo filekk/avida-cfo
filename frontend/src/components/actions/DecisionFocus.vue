@@ -79,16 +79,15 @@ const STEP =
     </div>
 
     <div class="grid gap-5 p-4 sm:p-5">
-      <!-- title: max. two badges (status + autonomy) over the title; simulated / author / source as plain muted text -->
+      <!-- title: max. two badges (status + autonomy) over the title; author / source as plain muted text; "Simulated execution" sits next to the decision buttons -->
       <div class="grid gap-2">
         <div class="flex flex-wrap items-center gap-2">
           <StatusPill :tone="STATUS[state].tone">{{ t(STATUS[state].label) }}</StatusPill>
-          <AutonomyBadge v-if="a" :level="a.autonomy" />
+          <!-- once approved, the step that ran is the simulated execution – say so with the badge -->
+          <AutonomyBadge v-if="a" :level="a.status === 'executed' ? 'simulated' : a.autonomy" />
         </div>
         <h2 id="focus-title" class="text-xl font-semibold leading-snug">{{ title }}</h2>
         <p v-if="a" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
-          <AutonomyBadge level="simulated" plain />
-          <span aria-hidden="true">·</span>
           <span>{{ t("by {agent}", { agent: t(a.agent) }) }}</span>
           <SourceTag :source="a.source" />
         </p>
