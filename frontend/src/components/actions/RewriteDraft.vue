@@ -99,6 +99,9 @@ watch(open, (o) => o && nextTick(() => field.value?.focus()));
           <p class="text-label text-muted">{{ t("Avida rewrites the draft. Nothing is sent – you read it first.") }}</p>
         </div>
 
+        <!-- right under the heading, so a refusal ("The AI can't help with that") is seen without scrolling -->
+        <AlertBanner v-if="error" tone="warn" role="alert">{{ error }}</AlertBanner>
+
         <ul class="flex flex-wrap gap-2" :aria-label="t('Quick wishes')">
           <li v-for="c in chips" :key="c.instruction">
             <button
@@ -132,8 +135,6 @@ watch(open, (o) => o && nextTick(() => field.value?.focus()));
           </div>
           <span class="text-right text-caption tabular-nums text-muted">{{ wish.length }} / {{ MAX }}</span>
         </form>
-
-        <AlertBanner v-if="error" tone="warn" role="alert">{{ error }}</AlertBanner>
       </div>
     </Transition>
   </div>
