@@ -55,9 +55,10 @@ const STEP =
 </script>
 
 <template>
-  <section class="overflow-hidden rounded-xl border border-line bg-surface" aria-labelledby="focus-title">
-    <!-- toolbar: back · category · prev / next -->
-    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-input/40 px-3 py-2 sm:px-4">
+  <section class="rounded-xl border border-line bg-surface" aria-labelledby="focus-title">
+    <!-- toolbar: back · category · prev / next. No overflow-hidden on the card (it clipped the AV Rewrite pop-up),
+         so the toolbar rounds its own top corners. -->
+    <div class="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-line bg-input/40 px-3 py-2 sm:px-4">
       <button
         type="button"
         class="flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-gold hover:bg-mist"
