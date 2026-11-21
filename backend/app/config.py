@@ -24,6 +24,8 @@ class Settings:
     # fallback = the plain vLLM InferenceService). Empty = no failover, same behaviour as before.
     llm_fallback_base_url: str = os.getenv("LLM_FALLBACK_BASE_URL", "")
     llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
+    # CA to trust for an https:// fallback inside the cluster (OpenShift service CA, mounted in every pod)
+    llm_fallback_ca_file: str = os.getenv("LLM_FALLBACK_CA_FILE", "")
     # After the primary endpoint fails, go straight to the fallback for this many seconds.
     llm_failover_cooldown_s: float = float(os.getenv("LLM_FAILOVER_COOLDOWN_S", "30"))
     # When ALL endpoints fail (down / timeout), answer from canned data for this many seconds (0 = off).

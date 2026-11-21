@@ -140,9 +140,14 @@ oc get llmisvc granite-llmd -n avida-models -w                               # R
 Endpoint (cluster-internal, model name `granite-8b`):
 `http://avida-inference-openshift-ai-inference.openshift-ingress.svc.cluster.local/avida-models/granite-llmd/v1`
 
-**App failover** (`backend/app/llm.py`): `LLM_BASE_URL` = llm-d, `LLM_FALLBACK_BASE_URL` = the plain
-`granite-8b` predictor. If llm-d is unreachable or answers 404/5xx, the same request goes to the fallback and llm-d is
-skipped for `LLM_FAILOVER_COOLDOWN_S` (30 s); only when both fail do the cached answers kick in.
+**App failover** (`backend/app/llm.py`): `LLM_BASE_URL` = llm-d (gateway + scheduler), `LLM_FALLBACK_BASE_URL` =
+the **same vLLM pod reached directly** (`https://granite-llmd-kserve-workload-svc.avida-models.svc.cluster.local:8000/v1`).
+The cluster has one GPU, so a second model can't run next to llm-d; the direct path covers the parts most likely to
+break (gateway, routing, scheduler) at no GPU cost. The pod's certificate is signed by the OpenShift service CA →
+`LLM_FALLBACK_CA_FILE=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt` (verification stays on).
+If llm-d is unreachable or answers 404/5xx, the same request goes to the fallback and llm-d is
+skipped for `LLM_FAILOVER_COOLDOWN_S` (30 s); only when both fail do the cached answers kick in – and then the
+circuit breaker (`LLM_BREAKER_S`, 45 s) serves them at once instead of waiting for every call's timeout.
 `/api/llm/health` lists both endpoints and which one is `active`; MLflow spans carry `avida.endpoint`.
 
 Back to the plain InferenceService:

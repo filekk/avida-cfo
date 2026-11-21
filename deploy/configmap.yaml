@@ -12,7 +12,10 @@ data:
   # Fallback: the plain vLLM InferenceService (deploy/model/granite-8b.yaml). Used automatically when llm-d
   # is down; only one GPU, so start it with: oc annotate isvc granite-8b -n avida-models serving.kserve.io/stop=false --overwrite
   # Remove these two lines to switch failover off.
-  LLM_FALLBACK_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
+  # Failover = the same vLLM pod, reached directly (bypasses the llm-d gateway + scheduler; no 2nd GPU needed).
+  # Its certificate is signed by the OpenShift service CA, which is mounted in every pod.
+  LLM_FALLBACK_BASE_URL: "https://granite-llmd-kserve-workload-svc.avida-models.svc.cluster.local:8000/v1"
+  LLM_FALLBACK_CA_FILE: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
   LLM_FALLBACK_MODEL: "granite-8b"
   LLM_TIMEOUT_S: "60"
   # all endpoints down / timing out → canned answers for this many seconds instead of waiting per call

@@ -14,10 +14,13 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import re
+import ssl
 import time
 from dataclasses import dataclass
 
+import httpx
 import openai
 from openai import AsyncOpenAI
 
@@ -35,9 +38,18 @@ class Endpoint:
     client: AsyncOpenAI
 
 
-def _endpoint(name: str, base_url: str, model: str) -> Endpoint:
+def _endpoint(name: str, base_url: str, model: str, ca_file: str = "") -> Endpoint:
+    """`ca_file`: extra CA to trust for an in-cluster HTTPS endpoint (e.g. the vLLM pod behind llm-d, whose certificate
+    is signed by the OpenShift service CA). Verification stays on – it just trusts that CA."""
+    http_client = None
+    if ca_file and base_url.startswith("https://"):
+        if os.path.exists(ca_file):
+            http_client = httpx.AsyncClient(verify=ssl.create_default_context(cafile=ca_file),
+                                            timeout=settings.llm_timeout_s)
+        else:
+            log.warning("LLM %s endpoint: CA file %s not found – using the default trust store", name, ca_file)
     client = AsyncOpenAI(base_url=base_url, api_key=settings.llm_api_key,
-                         timeout=settings.llm_timeout_s, max_retries=0)
+                         timeout=settings.llm_timeout_s, max_retries=0, http_client=http_client)
     return Endpoint(name, base_url, model, client)
 
 
@@ -55,7 +67,8 @@ class LLM:
         self.endpoints = [_endpoint("primary", settings.llm_base_url, settings.llm_model)]
         if settings.llm_fallback_base_url:
             self.endpoints.append(_endpoint("fallback", settings.llm_fallback_base_url,
-                                            settings.llm_fallback_model or settings.llm_model))
+                                            settings.llm_fallback_model or settings.llm_model,
+                                            settings.llm_fallback_ca_file))
         self.client = self.endpoints[0].client
         self.model = settings.llm_model
         self._primary_down_until = 0.0
