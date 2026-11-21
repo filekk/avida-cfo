@@ -1,0 +1,21 @@
+{
+  "_about": "Simulated partner replies, keyed by the inbox email the owner answered. They 'arrive' when the owner approves the reply (execution is simulated), so the demo shows what the decision changed. effect: pays_on_time = the customer's delayed payment arrives on the original due date; price_kept = the supplier keeps the old price (the plan already assumes it).",
+  "mail-001": {
+    "from": "billing@cloudhost.example",
+    "from_name": "CloudHost GmbH – Billing",
+    "subject": "Re: Price adjustment from 01 January 2027",
+    "effect": "price_kept",
+    "body": "Dear Ms Müller,\n\nthank you for pointing out the price guarantee in §5.2 of our agreement. You are right: the price adjustment does not apply to your contract. Your monthly fee stays at EUR 9,800.00.\n\nKind regards,\nCloudHost GmbH Billing Team",
+    "summary": "CloudHost confirms: the price stays at 9,800 EUR per month.",
+    "summary_de": "CloudHost bestätigt: Der Preis bleibt bei 9.800 EUR pro Monat."
+  },
+  "mail-004": {
+    "from": "ap@bauer-maschinenbau.example",
+    "from_name": "Bauer Maschinenbau AG – Accounts Payable",
+    "subject": "Re: Invoice RE-2026-1187 – payment on 5 January 2027",
+    "effect": "pays_on_time",
+    "body": "Dear Ms Müller,\n\nthank you for your message and for pointing out §7.2 of our framework agreement. We have released a manual payment for invoice RE-2026-1187 over EUR 38,000.00. The amount will be paid on the original due date, 5 January 2027.\n\nKind regards,\nAndreas Keller\nAccounts Payable, Bauer Maschinenbau AG",
+    "summary": "Bauer confirms: 38,000 EUR arrive on time, on 5 Jan 2027.",
+    "summary_de": "Bauer bestätigt: 38.000 EUR kommen pünktlich am 05.01.2027."
+  }
+}

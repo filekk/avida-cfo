@@ -267,7 +267,9 @@ def _facts(scenarios: dict, findings: list[dict], credit: dict | None, lang: str
     facts = []
     for f in findings:
         ex = f["extraction"]
-        if ex["kind"] == "payment_delay" and ex["figures_stated"]:
+        if ex["kind"] == "payment_delay" and ex["figures_stated"] and f.get("confirmed_on_time"):
+            facts.append(f"{ex['customer']} confirmed paying {ex['amount']:,.0f} EUR on time, on {ex['due_date']}.")
+        elif ex["kind"] == "payment_delay" and ex["figures_stated"]:
             facts.append(
                 f"{ex['customer']} wants to pay {ex['amount']:,.0f} EUR {ex['days_late']} days late "
                 f"({ex['new_payment_date']} instead of {ex['due_date']}). The forecast plans with the later date."
@@ -306,7 +308,10 @@ def _facts_de(scenarios: dict, findings: list[dict], credit: dict | None) -> lis
     facts = []
     for f in findings:
         ex = f["extraction"]
-        if ex["kind"] == "payment_delay" and ex["figures_stated"]:
+        if ex["kind"] == "payment_delay" and ex["figures_stated"] and f.get("confirmed_on_time"):
+            facts.append(f"{ex['customer']} hat bestätigt, {texts.eur(ex['amount'], L)} pünktlich am "
+                         f"{texts.day(ex['due_date'], L)} zu zahlen.")
+        elif ex["kind"] == "payment_delay" and ex["figures_stated"]:
             facts.append(
                 f"{ex['customer']} möchte {texts.eur(ex['amount'], L)} {ex['days_late']} Tage später zahlen "
                 f"({texts.day(ex['new_payment_date'], L)} statt {texts.day(ex['due_date'], L)}). "
@@ -363,6 +368,16 @@ async def briefing(scenarios: dict, findings: list[dict], credit: dict | None, l
         "summary": summaries["en"], "key_points": facts["en"], "risk_level": risk, "source": sources["en"],
         "i18n": texts.de(summary=summaries["de"], key_points=facts["de"], source=sources["de"]),
     }, source
+
+
+def briefing_rules(scenarios: dict, findings: list[dict], credit: dict | None) -> dict:
+    """Same briefing without the model – after an approved decision changed the plan (instant, both languages)."""
+    rec = scenarios["recommended"]
+    risk = "high" if rec["min_balance"] < 0 else "medium" if rec["first_breach_date"] else "low"
+    facts = {lg: _facts(scenarios, findings, credit, lg) for lg in texts.LANGS}
+    summary = {lg: texts.headline(rec, lg) + (CREDIT_SENTENCE[lg] if credit else "") for lg in texts.LANGS}
+    return {"summary": summary["en"], "key_points": facts["en"], "risk_level": risk, "source": "rules",
+            "i18n": texts.de(summary=summary["de"], key_points=facts["de"], source="rules")}
 
 
 def summary_ok(summary, facts: list[str]) -> bool:

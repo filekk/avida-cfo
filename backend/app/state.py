@@ -45,6 +45,9 @@ class Store:
         self.kpis_before_sync: dict | None = None  # KPIs of the start screen → "previous" values for number animations
         self.trace: list[dict] = []  # every SSE event of the last sync (replay: GET /api/sync/trace)
         self.sync_lang: str = "en"
+        # the plan of the last sync (price adjustments kept, late payments assumed, findings) → re-run the forecast
+        # when an approved decision changes it (e.g. a customer confirms paying on time)
+        self.plan: dict | None = None
         self._ids = itertools.count(1)
 
     def add_action(self, **kwargs) -> dict:
