@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, type ComponentPublicInstance } from "vue";
 import { storeToRefs } from "pinia";
 import AskLauncher from "@/components/ask/AskLauncher.vue";
 import ForecastChart from "@/components/dashboard/ForecastChart.vue";
@@ -7,13 +7,17 @@ import KpiCard from "@/components/dashboard/KpiCard.vue";
 import PaymentsDonut from "@/components/dashboard/PaymentsDonut.vue";
 import PeriodPicker from "@/components/dashboard/PeriodPicker.vue";
 import { scenarioLines } from "@/components/dashboard/chart";
+import { pendingSavings12m, savingsForPeriod } from "@/components/dashboard/savings";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
+import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
+import type { IconName } from "@/components/ui/icons";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import { periodLabel, useForecastPeriod } from "@/composables/useForecastPeriod";
 import { t } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
-import { fmtDate } from "@/utils/format";
+import { eur, fmtDate } from "@/utils/format";
+import { prefersReducedMotion } from "@/utils/motion";
 
 /**
  * Start screen – deliberately short, one question per row:
@@ -37,6 +41,44 @@ const outflowsInPeriod = computed(() =>
 );
 
 const lowIsBad = computed(() => !!kpis.value && kpis.value.min_balance < kpis.value.safety_buffer);
+
+// --- "Saved by Avida" follows the chart period (7 days … 12 months) ---------------------------------
+const savings = computed(() => (dashboard.value ? savingsForPeriod(dashboard.value, shownDays.value) : { saved: 0, waiting: 0 }));
+/** The coloured box under the amount: what to do next / what it is worth over a year. */
+const savingsPill = computed<{ tone: "positive" | "warn" | "neutral"; icon: IconName; text: string }>(() => {
+  const d = dashboard.value;
+  const saved12 = d?.kpis.saved_liquidity ?? 0;
+  const waiting12 = d ? pendingSavings12m(d.actions) : 0;
+  const perYear = shownDays.value < 365;
+  if (waiting12 > 0) {
+    return {
+      tone: "warn",
+      icon: "clock",
+      text: perYear
+        ? t("+{amount} a year if you approve", { amount: eur(waiting12) })
+        : t("+{amount} if you approve", { amount: eur(waiting12) }),
+    };
+  }
+  if (saved12 > 0) {
+    return {
+      tone: "positive",
+      icon: "trendingUp",
+      text: perYear ? t("{amount} a year", { amount: eur(saved12) }) : t("about {amount} a month", { amount: eur(saved12 / 12) }),
+    };
+  }
+  return d?.scenarios.recommended
+    ? { tone: "neutral", icon: "check", text: t("No savings found yet") }
+    : { tone: "neutral", icon: "inbox", text: t("Check your inbox to find savings") };
+});
+
+/** The period chip: jumps to the period picker of the chart (same period, change it there). */
+const forecastCard = ref<ComponentPublicInstance | null>(null);
+function goToPeriod() {
+  const el = forecastCard.value?.$el as HTMLElement | undefined;
+  if (!el) return;
+  el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "nearest" });
+  el.querySelector<HTMLElement>('[role="group"] [aria-pressed="true"]')?.focus({ preventScroll: true });
+}
 </script>
 
 <template>
@@ -70,18 +112,36 @@ const lowIsBad = computed(() => !!kpis.value && kpis.value.min_balance < kpis.va
         :delta="lowIsBad ? { text: t('below cushion'), tone: 'negative' } : { text: t('above cushion'), tone: 'positive' }"
       />
       <KpiCard icon="shield" :label="t('Your safety cushion')" :amount="kpis.safety_buffer" :sub="t('minimum to keep')" />
+      <!-- follows the chart: "next 90 days" ↔ "next 12 months" – the chip leads to the period picker -->
       <KpiCard
         icon="piggyBank"
         :label="t('Saved by Avida')"
-        :amount="kpis.saved_liquidity"
-        :sub="t('next 12 months')"
+        :amount="savings.saved"
         :tone="kpis.saved_liquidity > 0 ? 'positive' : 'neutral'"
-      />
+        :delta="savingsPill"
+      >
+        <template #sub>
+          <button
+            type="button"
+            class="-ml-1 inline-flex w-fit items-center gap-1.5 rounded-md px-1 py-0.5 text-label text-muted transition-colors duration-fast hover:bg-input hover:text-fg"
+            :title="t('Same period as the chart – change it there')"
+            @click="goToPeriod"
+          >
+            <AppIcon name="calendar" :size="14" class="shrink-0" />
+            <Transition name="fade" mode="out-in">
+              <span :key="shownDays" class="border-b border-dashed border-muted/60">
+                {{ t("next {period}", { period: periodLabel(shownDays) }) }}
+              </span>
+            </Transition>
+          </button>
+        </template>
+      </KpiCard>
     </section>
 
     <!-- 2. where is my money going -->
     <div class="grid gap-5 lg:grid-cols-3">
       <BaseCard
+        ref="forecastCard"
         class="lg:col-span-2"
         :title="t('Your money, next {period}', { period: periodLabel(shownDays) })"
         :eyebrow="t('Forecast')"

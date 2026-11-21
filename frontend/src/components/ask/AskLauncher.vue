@@ -4,11 +4,16 @@ import { onBeforeRouteLeave } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { t } from "@/i18n";
 import { useAskStore } from "@/stores/ask";
+import { prefersReducedMotion } from "@/utils/motion";
 import AskChat from "./AskChat.vue";
+
+/** Module level: the bubble introduces itself only the first time the overview is shown after loading the app. */
+let introduced = false;
 
 /**
  * Floating "Ask your CFO" bubble (Overview only), like the chat assistants on typical websites.
- *   - navy circle bottom-right (the sun stays reserved for "Check my inbox"); click opens / closes the chat panel
+ *   - sun-yellow circle bottom-right with a navy icon (owner's choice: easy to find); click opens / closes the panel.
+ *     On the first visit after loading the app it pops in once with one soft ring – then it never moves on its own
  *   - ≥ 640px: non-modal panel above the bubble (24rem, ≤ 70vh) – the page stays fully usable
  *   - phones: bottom sheet over the page with a scrim and its own close button (modal: Tab stays inside)
  *   - Escape or the close button closes and focus returns to the bubble. Opening focuses the question field
@@ -89,6 +94,12 @@ watch(
 );
 const bubbleLabel = computed(() => (unseen.value ? `${t("Ask your CFO")}, ${t("new answer")}` : t("Ask your CFO")));
 
+// --- first appearance: a short "here I am" (once per app load, never with reduced motion) ----------------
+const introduce = ref(false);
+function onIntroEnd(e: AnimationEvent) {
+  if ((e.target as HTMLElement).classList.contains("ask-ring")) introduce.value = false;
+}
+
 // --- stay above the footer ----------------------------------------------------------------------------
 const lift = ref(0);
 let footer: Element | null = null;
@@ -117,6 +128,8 @@ function follow(on: boolean) {
 }
 
 onMounted(() => {
+  if (!introduced && !prefersReducedMotion()) introduce.value = true;
+  introduced = true;
   phoneQuery.addEventListener("change", onPhoneChange);
   // the app footer (AppLayout: <main id="main"> + <footer>), not a <footer> inside some card
   footer = document.querySelector("#main ~ footer");
@@ -197,14 +210,16 @@ onBeforeRouteLeave(() => {
           </section>
         </Transition>
 
-        <!-- the bubble: the dock rides up above the footer (--ask-lift); no entrance animation (it is there on load) -->
-        <div class="ask-dock">
+        <!-- the bubble: the dock rides up above the footer (--ask-lift). Sun yellow with a navy icon.
+             First visit in this app session: it pops in once and sends one soft ring out ("here I am"), then rests. -->
+        <div :class="['ask-dock', introduce ? 'is-intro' : '']" @animationend="onIntroEnd">
+            <span class="ask-ring pointer-events-none absolute inset-0 rounded-full border-2 border-sun opacity-0" aria-hidden="true" />
             <button
               ref="bubble"
               type="button"
               :class="[
-                'ask-bubble relative grid h-14 w-14 place-items-center rounded-full bg-side text-white shadow-pop ring-1 ring-white/20',
-                'transition-[transform,background-color] duration-fast hover:bg-side/90 active:scale-[0.98]',
+                'ask-bubble relative grid h-14 w-14 place-items-center rounded-full bg-sun text-sun-on shadow-pop ring-1 ring-sun-on/10',
+                'transition-[transform,background-color] duration-fast hover:bg-sun-hover active:scale-[0.98]',
                 open ? 'is-open' : '',
               ]"
               :aria-label="bubbleLabel"
@@ -213,8 +228,9 @@ onBeforeRouteLeave(() => {
               @click="toggle"
               @keydown.esc="open && close()"
             >
-              <!-- icon: chat ↔ chevron, both in one cell, cross-fade + turn -->
-              <span class="grid [&>*]:col-start-1 [&>*]:row-start-1" aria-hidden="true">
+              <!-- icon: chat ↔ chevron, both in one cell, cross-fade + turn.
+                   The chat glyph's tail points bottom-left, so its weight sits there: nudge it up-right to look centred. -->
+              <span class="grid translate-x-px -translate-y-px [&>*]:col-start-1 [&>*]:row-start-1" aria-hidden="true">
                 <AppIcon
                   name="ask"
                   :size="26"
@@ -229,7 +245,7 @@ onBeforeRouteLeave(() => {
               <!-- new answer while closed -->
               <span
                 :class="[
-                  'absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-sun ring-2 ring-bg transition duration-base',
+                  'absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-side ring-2 ring-sun transition duration-base',
                   unseen ? 'scale-100 opacity-100' : 'scale-0 opacity-0',
                 ]"
                 aria-hidden="true"
@@ -298,6 +314,38 @@ onBeforeRouteLeave(() => {
 @media (min-width: 1024px) {
   .ask-panel {
     height: min(70vh, 40rem, calc(100dvh - var(--ask-panel-bottom) - 5.5rem));
+  }
+}
+
+/* first appearance: pop in, then ONE soft ring goes out and fades (≈ 1.9 s in total, then it rests for good) */
+.ask-dock.is-intro .ask-bubble {
+  animation: ask-pop 520ms var(--ease-out) 350ms both;
+}
+.ask-dock.is-intro .ask-ring {
+  animation: ask-ring 1100ms var(--ease-out) 800ms both;
+}
+@keyframes ask-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ask-ring {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.55);
   }
 }
 
