@@ -120,7 +120,8 @@ const askSuggestions = computed(() => {
   if (!f) return [];
   return ask.contextSuggestions[f.key] ?? contextualSuggestions(f, ask.suggestions);
 });
-const askTurns = computed(() => ask.turns.filter((x) => x.context === focused.value?.key));
+const askTurns = computed(() => (focused.value ? ask.turnsOf(focused.value.key) : []));
+const askBusy = computed(() => !!focused.value && ask.askingIn(focused.value.key));
 onMounted(() => {
   if (!ask.suggestions.length && !ask.loadingSuggestions) ask.loadSuggestions();
 });
@@ -255,7 +256,7 @@ async function decide(id: string, approve: boolean, body?: string) {
             :key="focused.key"
             :suggestions="askSuggestions"
             :turns="askTurns"
-            :asking="ask.asking"
+            :asking="askBusy"
             @pick="askAbout"
             @ask="askAbout"
             @clear="ask.clear(focused.key)"

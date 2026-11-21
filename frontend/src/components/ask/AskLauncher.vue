@@ -87,7 +87,7 @@ function onPanelKeydown(e: KeyboardEvent) {
 // --- an answer arrived while the panel was closed → small dot on the bubble ---------------------------
 const unseen = ref(false);
 watch(
-  () => store.turns.filter((x) => x.answer || x.error).length,
+  () => store.generalTurns.filter((x) => x.answer || x.error).length, // the overview chat only
   (n, was) => {
     if (n > was && !open.value) unseen.value = true;
   },
