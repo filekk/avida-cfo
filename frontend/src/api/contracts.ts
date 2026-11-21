@@ -1,5 +1,5 @@
 import type { ContractSummary, UploadResult } from "@/types/api";
-import { http } from "./http";
+import { apiUrl, http } from "./http";
 
 /**
  * The Legal Agent's knowledge base. See docs/API.md → "Contracts: upload → live extraction → Legal Agent".
@@ -26,3 +26,10 @@ export const uploadContract = (file: File) => {
 
 /** DELETE /api/contracts/{id} – only uploaded contracts (U-001…); index contracts → 404. Returns the new list. */
 export const deleteContract = (id: string) => http.del<ContractSummary[]>(`/contracts/${encodeURIComponent(id)}`);
+
+/**
+ * GET /api/contracts/{id}/file – the original file: `inline` opens it in the browser (preview),
+ * `download` saves it. Plain URLs for <a href>, so the browser does the work (no fetch, no blob).
+ */
+export const contractFileUrl = (id: string, download = false) =>
+  apiUrl(`/contracts/${encodeURIComponent(id)}/file${download ? "?download=true" : ""}`);
