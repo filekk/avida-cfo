@@ -226,6 +226,8 @@ async def redraft(action_id: str, req: Redraft):
         return await decision.redraft(action_id, req.instruction, req.body, req.lang)
     except KeyError:
         raise HTTPException(404, "unknown action") from None
+    except decision.UnsafeInstruction as e:
+        raise HTTPException(422, str(e)) from e
     except decision.NotEditable as e:
         raise HTTPException(409, str(e)) from e
 

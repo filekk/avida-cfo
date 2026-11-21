@@ -454,6 +454,10 @@ POST /api/actions/act-1/redraft   {"instruction": "Make it softer", "body": "<op
   with `edited_body` as usual (`Action.edited_by_owner` becomes `true`). Every proposal is logged in `/api/audit`
   (`redraft_proposed`).
 - 3–8 s with the model. `409` for an action that is already decided or is not an email (overdraft). `404` unknown id.
+- **Illegal / deceptive requests** ("scam them for 1 million dollars", fraud, fake claims, blackmail, bribery …) →
+  `422 {detail}` with a localized message ("The AI can't help with that …"); the draft is not touched. A rules screen
+  (EN + DE) refuses clear cases instantly without the model; the Negotiator answers `REFUSED` for the rest. Both are
+  logged in `/api/audit` as `redraft_refused`. The UI shows `detail` next to the rewrite field.
 
 ```
 GET /api/actions/act-1/redraft/hints?lang=de     → chips for the Rewrite button
