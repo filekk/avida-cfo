@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from .. import data, fallback
+from .. import data, fallback, texts
 from ..config import settings
 from ..forecast import Adjustment, Delay, expand_items, pay_date, run_forecast, size_credit_line
 from ..llm import llm
@@ -160,7 +160,7 @@ def impact(extraction: dict) -> dict:
     """Price change: how much it costs within the forecast horizon and over the next 12 months."""
     if not extraction["figures_stated"]:
         return {"monthly": 0.0, "in_horizon": 0.0, "next_12_months": 0.0,
-                "calculation": "The email gives no figures – nothing to calculate yet."}
+                "calculation": texts.calc_no_figures("en"), "i18n": texts.de(calculation=texts.calc_no_figures("de"))}
     today = settings.today()
     eff = date.fromisoformat(extraction["effective_date"])
     horizon_end = today + timedelta(days=settings.forecast_days - 1)
@@ -176,7 +176,8 @@ def impact(extraction: dict) -> dict:
         "payments_in_horizon": payments_in_horizon,
         "next_12_months": round(delta * 12, 2),
         "horizon_end": horizon_end.isoformat(),
-        "calculation": f"{extraction['new_monthly']:,.2f} − {extraction['old_monthly']:,.2f} = {delta:,.2f} EUR/month × 12 = {delta * 12:,.2f} EUR/year",
+        "calculation": texts.calc_price(extraction["old_monthly"], extraction["new_monthly"], delta, "en"),
+        "i18n": texts.de(calculation=texts.calc_price(extraction["old_monthly"], extraction["new_monthly"], delta, "de")),
     }
 
 
@@ -193,11 +194,10 @@ def delay_impact(extraction: dict, adjustments: list[Adjustment], delays: list[D
         "due_date": extraction["due_date"], "new_payment_date": extraction["new_payment_date"],
         "min_balance_on_time": on_time, "min_date_on_time": on_time_f["min_date"],
         "min_balance_late": late, "min_date_late": late_f["min_date"], "lowest_balance_effect": effect,
-        "calculation": (
-            f"EUR {extraction['amount']:,.2f} arrives {extraction['days_late']} days later "
-            f"({this.due:%d %b %Y} → {this.new_date:%d %b %Y}). Lowest balance: {on_time:,.0f} EUR if paid on time, "
-            f"{late:,.0f} EUR if paid late → {effect:,.0f} EUR less."
-        ),
+        "calculation": texts.calc_delay(extraction["amount"], extraction["days_late"], this.due, this.new_date,
+                                        on_time, late, effect, "en"),
+        "i18n": texts.de(calculation=texts.calc_delay(extraction["amount"], extraction["days_late"], this.due,
+                                                      this.new_date, on_time, late, effect, "de")),
     }
 
 
@@ -212,21 +212,9 @@ def credit_proposal(f: dict) -> dict | None:
     return size_credit_line(f, data.company()["credit_offer"])
 
 
-def headline(f: dict) -> str:
+def headline(f: dict, lang: str = "en") -> str:
     """Plain-language status for the top of the dashboard (deterministic, no LLM)."""
-    if not f["first_breach_date"]:
-        return f"You're safe for the next {f['horizon_days']} days. Your balance stays above your safety cushion."
-    d = date.fromisoformat(f["first_breach_date"])
-    if f["min_balance"] < 0:
-        m = date.fromisoformat(f["min_date"])
-        return (
-            f"You're safe for the next {f['days_safe']} days. From {d:%d %B} your balance falls below your safety "
-            f"cushion, and on {m:%d %B} your account would be {-f['min_balance']:,.0f} EUR overdrawn."
-        )
-    return (
-        f"You're safe for the next {f['days_safe']} days. Around {d:%d %B} your balance drops to "
-        f"{f['min_balance']:,.0f} EUR – below your safety cushion of {f['buffer']:,.0f} EUR."
-    )
+    return texts.headline(f, lang)
 
 
 # --- 3) Analytical briefing (LLM explains the numbers it was given) ---------------
@@ -235,8 +223,14 @@ BRIEFING_SYSTEM = (
     "You are the Analyst Agent of a CFO assistant. You get exact facts from a cash-flow forecast. "
     "Explain to a small business owner who is not a finance expert, in at most 2 short sentences, "
     "what the situation is and what following the advice changes. "
-    "Copy numbers exactly as given. NEVER compute a new number. Answer with JSON only."
+    "Copy numbers exactly as given. NEVER compute a new number. {language} Answer with JSON only."
 )
+
+LANGUAGE = {
+    "en": "Write in English.",
+    "de": "Write in German (formal 'Sie'); keep numbers and dates exactly as written in the facts.",
+}
+CREDIT_SENTENCE = {"en": " A short overdraft bridges the gap.", "de": " Ein kurzer Kontokorrentkredit überbrückt die Lücke."}
 
 BRIEFING_SCHEMA = {
     "type": "object",
@@ -251,8 +245,10 @@ def _uncovered_outflow(f: dict) -> dict | None:
     return next((o for o in f["largest_outflows"] if balance.get(o["date"], 0) < 0), None)
 
 
-def _facts(scenarios: dict, findings: list[dict], credit: dict | None) -> list[str]:
+def _facts(scenarios: dict, findings: list[dict], credit: dict | None, lang: str = "en") -> list[str]:
     """Short, unambiguous facts – also shown to the owner as the analyst's key points."""
+    if lang == "de":
+        return _facts_de(scenarios, findings, credit)
     rec, acc = scenarios["recommended"], scenarios["if_accepted"]
     facts = []
     for f in findings:
@@ -289,20 +285,69 @@ def _facts(scenarios: dict, findings: list[dict], credit: dict | None) -> list[s
     return facts
 
 
-async def briefing(scenarios: dict, findings: list[dict], credit: dict | None) -> tuple[dict, str]:
-    """Key points are deterministic; the model only writes the 2-sentence summary."""
-    facts = _facts(scenarios, findings, credit)
+def _facts_de(scenarios: dict, findings: list[dict], credit: dict | None) -> list[str]:
+    """German key points – the same facts as `_facts`, same order."""
+    L = "de"
+    rec, acc = scenarios["recommended"], scenarios["if_accepted"]
+    facts = []
+    for f in findings:
+        ex = f["extraction"]
+        if ex["kind"] == "payment_delay" and ex["figures_stated"]:
+            facts.append(
+                f"{ex['customer']} möchte {texts.eur(ex['amount'], L)} {ex['days_late']} Tage später zahlen "
+                f"({texts.day(ex['new_payment_date'], L)} statt {texts.day(ex['due_date'], L)}). "
+                "Die Prognose rechnet mit dem späteren Datum."
+            )
+    overdrawn = " – Ihr Konto wäre überzogen" if rec["min_balance"] < 0 else ""
+    facts.append(
+        f"Wenn Sie der Empfehlung folgen, liegt Ihr niedrigster Kontostand bei {texts.eur(rec['min_balance'], L)} am "
+        f"{texts.day(rec['min_date'], L)}{overdrawn} (Sicherheitspolster: {texts.eur(rec['buffer'], L)})."
+    )
+    if (o := _uncovered_outflow(rec)) is not None:
+        facts.append(f"{o['label']}: {texts.eur(-o['amount'], L)} am {texts.day(o['date'], L)} wären ohne "
+                     "Kontokorrentkredit nicht gedeckt.")
+    if acc["min_balance"] != rec["min_balance"]:
+        facts.append(f"Wenn Sie alle Preiserhöhungen akzeptieren, sinkt er auf {texts.eur(acc['min_balance'], L)}.")
+    for f in findings:
+        ex, imp = f["extraction"], f["impact"]
+        if ex["kind"] != "price_change":
+            continue
+        if not ex["figures_stated"]:
+            facts.append(f"{ex['supplier']} hat höhere Preise ohne Zahlen angekündigt – fragen Sie zuerst nach den genauen Preisen.")
+        elif f["recommendation"] == "reject":
+            facts.append(f"Wenn Sie die Erhöhung von {ex['supplier']} ablehnen, bleiben {texts.eur(imp['next_12_months'], L)} "
+                         "pro Jahr in Ihrer Firma.")
+        elif f["recommendation"] == "accept":
+            facts.append(f"Die Erhöhung von {ex['supplier']} ist erlaubt und kostet {texts.eur(imp['next_12_months'], L)} pro Jahr.")
+    if credit:
+        facts.append(
+            f"Ein Kontokorrentkredit über {texts.eur(credit['amount'], L)} für {credit['days_needed']} Tage deckt die Lücke "
+            f"(max. {texts.eur(credit['max_interest_cost'], L)} Zinsen)."
+        )
+    return facts
+
+
+async def briefing(scenarios: dict, findings: list[dict], credit: dict | None, lang: str = "en") -> tuple[dict, str]:
+    """Key points are deterministic (both languages); the model writes the 2-sentence summary in `lang` only –
+    the other language gets the rule-based summary."""
+    facts = {lg: _facts(scenarios, findings, credit, lg) for lg in texts.LANGS}
     rec = scenarios["recommended"]
     risk = "high" if rec["min_balance"] < 0 else "medium" if rec["first_breach_date"] else "low"
-    fb = {"summary": headline(rec) + (" A short overdraft bridges the gap." if credit else "")}
+    fb = {lg: texts.headline(rec, lg) + (CREDIT_SENTENCE[lg] if credit else "") for lg in texts.LANGS}
     # Only the 3 most important facts: with all of them an 8B model writes too much and mixes them up.
-    top = facts[:3]
-    out, source = await llm.json(BRIEFING_SYSTEM, "\n".join(top), BRIEFING_SCHEMA, fb)
+    top = facts[lang][:3]
+    system = BRIEFING_SYSTEM.format(language=LANGUAGE[lang])
+    out, source = await llm.json(system, "\n".join(top), BRIEFING_SCHEMA, {"summary": fb[lang]})
 
     summary = out.get("summary")
     if not summary_ok(summary, top):
-        summary, source = fb["summary"], "fallback"
-    return {"summary": summary, "key_points": facts, "risk_level": risk}, source
+        summary, source = fb[lang], "fallback"
+    summaries, sources = dict(fb), {lg: "rules" for lg in texts.LANGS}
+    summaries[lang], sources[lang] = summary, source
+    return {
+        "summary": summaries["en"], "key_points": facts["en"], "risk_level": risk, "source": sources["en"],
+        "i18n": texts.de(summary=summaries["de"], key_points=facts["de"], source=sources["de"]),
+    }, source
 
 
 def summary_ok(summary, facts: list[str]) -> bool:

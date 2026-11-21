@@ -20,38 +20,79 @@ POST /api/reset             → back to start (use before every demo run)
 
 ## Endpoints
 
+Every endpoint marked **`?lang`** takes `lang=en|de` (default `en`, `422` otherwise) – see [Languages](#languages).
+
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/api/health` | `{"status":"ok"}` |
 | GET | `/api/llm/health` | `{"ok":true,"models":["granite-8b"],...}` – show a small "AI online" indicator |
 | GET | `/api/config` | model name, forecast days, demo "today" |
-| GET | `/api/dashboard` | `Dashboard` (below) |
-| GET | `/api/sync` | **Server-Sent Events** stream, ~20–40 s |
-| POST | `/api/actions/{id}/approve` | body `{"edited_body": "<email text>" \| null}` → `{"action": Action, "saved_liquidity": number}` |
-| POST | `/api/actions/{id}/reject` | no body → `{"action": Action, "saved_liquidity": number}` |
-| GET | `/api/ask/suggestions?lang=en\|de` | clickable questions for the current situation (see "Ask your CFO") |
-| POST | `/api/ask` | body `{"question": "…", "lang": "en"\|"de"}` → answer from the right agent (chip: instant, typed: 3–7 s) |
-| GET | `/api/contracts` | `[ContractSummary]` – the Legal Agent's contracts (`origin`: `index` = prepared in Jupyter, `uploaded` = read live by the model) |
+| GET | `/api/dashboard` **`?lang`** | `Dashboard` (below) |
+| GET | `/api/sync` **`?lang`** | **Server-Sent Events** stream, ~20–40 s: `phase` → `trace` … → `result` |
+| GET | `/api/sync/trace` | `{lang, events: [...]}` – replay of the last sync's `phase` / `trace` events (empty after reset) |
+| POST | `/api/actions/{id}/approve` **`?lang`** | body `{"edited_body": "<email text>" \| null}` → `{"action": Action, "saved_liquidity": number, "saved_liquidity_previous": number}` |
+| POST | `/api/actions/{id}/reject` **`?lang`** | no body → same as approve |
+| GET | `/api/actions/{id}/context` **`?lang`** | `ProblemContext` – one problem view: action (with `decision`), its finding, chat suggestions |
+| GET | `/api/findings/{id}/context` **`?lang`** | `ProblemContext` for a finding (also findings without an action, e.g. an allowed increase) |
+| POST | `/api/actions/{id}/review` | body `{"body": "…", "lang"}` → `DraftReview` – **instant** rule check of the owner's edited draft (no model) |
+| POST | `/api/actions/{id}/redraft` | Rewrite button: body `{"instruction"?: "make it softer", "body"?: "…", "lang"}` → `RedraftProposal`, 3–8 s. Empty instruction = "write it again". **Proposal only** – nothing changes until approve |
+| GET | `/api/actions/{id}/redraft/hints` | `?lang` → `RedraftHints` (chips + placeholder for the Rewrite button) |
+| GET | `/api/ask/suggestions?lang=en\|de[&action_id=\|&finding_id=]` | clickable questions; with an id: decision helpers for that one problem |
+| POST | `/api/ask` | body `{"question", "lang", "action_id"?, "finding_id"?, "history"?}` → answer from the right agent (chip: instant, typed: 3–7 s) |
+| GET | `/api/contracts?q=&origin=&party_type=&sort=` | `[ContractSummary]` – files page: filter + sort on the server (see Contracts) |
+| GET | `/api/contracts/{id}` | `ContractDetail` – extracted terms, all clauses, file metadata, where it was used |
+| GET | `/api/contracts/{id}/file[?download=true]` | the original document (inline preview or download) |
 | POST | `/api/contracts/upload` | multipart `file` (PDF / .md / .txt, max 5 MB) → `UploadResult`, **10–20 s** (model reads it); 422 with `detail` if unreadable |
 | DELETE | `/api/contracts/{id}` | removes an uploaded contract (`U-001`…), returns the new list; 404 for index contracts |
-| GET | `/api/policy` | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
+| GET | `/api/policy` **`?lang`** | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
 | GET | `/api/audit` | `[{time, event, ...}]` – what happened, in order |
-| POST | `/api/reset` | clears findings/actions/audit **and uploaded contracts**, returns the start `Dashboard` |
+| POST | `/api/reset` **`?lang`** | clears findings/actions/audit/trace **and uploaded contracts**, returns the start `Dashboard` |
+
+## Languages
+
+`?lang=de` returns every text the backend writes in German: `headline`, trace messages, phase labels, action
+`title` / `why` / `why_short` / `result`, `decision` labels and summaries, `explanation_simple`, check `check` /
+`detail`, `impact.calculation`, credit `calculation` / `note`, `analysis.summary` / `key_points`, policy `action`,
+agent `role` / `does`, draft-review issues.
+
+- **One sync, both languages.** Rule-based texts exist in both languages; switching language only needs
+  `GET /api/dashboard?lang=…` – nothing re-runs.
+- **Model texts exist in one language** – the `lang` of the sync (`Dashboard.sync_lang`). In the other language
+  those fields (`explanation_simple`, `analysis.summary`) hold the rule-based text and their `source` is `"rules"`.
+- **Trace messages** are written in the sync's `lang` only (they are live). Start the sync with the UI language.
+- **Never translated:** draft emails (`payload.body` – they go to the partner), original emails, contract quotes,
+  cash-flow labels from the bank data (e.g. "Payroll (12 employees)"), and the model's own review remarks.
+- `Dashboard.lang` echoes the requested language.
 
 ## SSE `/api/sync`
 
 ```js
-const es = new EventSource("/api/sync");
+const es = new EventSource("/api/sync?lang=de");
+es.addEventListener("phase",  e => setProgress(JSON.parse(e.data)));   // optional – progress bar
 es.addEventListener("trace",  e => addStep(JSON.parse(e.data)));
 es.addEventListener("result", e => { setDashboard(JSON.parse(e.data).dashboard); es.close(); });
 es.addEventListener("error",  e => { showError(e.data ? JSON.parse(e.data).message : "Connection lost"); es.close(); });
 ```
 
+`phase` event (6 stages, each `start` then `done`, always in this order):
+```json
+{ "type": "phase", "id": 1, "ts": "2026-11-21T10:10:09.913+00:00", "elapsed_ms": 0,
+  "phase": "inbox", "status": "start", "index": 1, "total": 6, "label": "Reading the inbox" }
+```
+`phase`: `inbox` → `legal` → `forecast` → `negotiation` → `approval` → `briefing`.
+
 `trace` event:
 ```json
-{ "type": "trace", "agent": "Legal Agent", "autonomy": "recommendation",
-  "message": "CloudHost GmbH: increase is NOT allowed by the contract (§5.2).", "source": "llm" }
+{ "type": "trace", "id": 12, "ts": "2026-11-21T10:10:11.402+00:00", "elapsed_ms": 1489, "phase": "legal",
+  "agent": "Legal Agent", "autonomy": "recommendation",
+  "message": "CloudHost GmbH: the increase is NOT allowed by the contract (§5.2).", "source": "llm",
+  "finding_id": "mail-001", "partner": "CloudHost GmbH" }
 ```
+- `id`: 1, 2, 3 … in stream order (shared with `phase` events) · `ts` / `elapsed_ms`: when it happened (animation timing).
+- `finding_id` + `partner` (optional): the step is about one email. During `negotiation` the negotiations of
+  different partners run **in parallel** and interleave – group by `finding_id` to show one thread per partner.
+- `action_id` (only on the "Waiting for your approval" steps): the action card this step created.
+- `email_id` (inbox steps): the email that was read.
 
 Handoff between agents (show as an arrow / chat bubble from one agent to another):
 ```json
@@ -120,6 +161,10 @@ A second `GET /api/sync` while one is running gets an `error` event ("already ru
     "min_balance": -27882, "min_date": "2027-02-03",   // can be NEGATIVE (= overdrawn) → show in red
     "safety_buffer": 15000, "saved_liquidity": 0        // grows after approvals
   },
+  "kpis_previous": { …same keys… },                   // KPIs of the start screen before this sync → animate from → to;
+                                                       // null before the first sync
+  "lang": "en",                                        // echo of ?lang
+  "sync_lang": "en",                                   // language the model wrote in during the last sync; null before sync
   "agents": [ { "name": "Analyst Agent", "role": "Analyst", "icon": "📊", "does": "…" }, … ],   // for an "our team" panel
   "analysis": {                                        // Analyst's briefing; null before sync
     "summary": "…max 3 short sentences written by the model (checked: only numbers from key_points)…",
@@ -145,9 +190,15 @@ A second `GET /api/sync` while one is running gets an `error` event ("already ru
 { "start_balance": 93000, "end_balance": 92916, "min_balance": 10958, "min_date": "2027-02-03",
   "buffer": 15000, "first_breach_date": "2027-02-01", "last_breach_date": "2027-02-04",
   "days_safe": 73, "horizon_days": 90,
-  "series": [ { "date": "2026-11-20", "balance": 79000 }, … 90 items ],   // one point per day → line chart
-  "largest_outflows": [ { "date", "amount", "label", "category", "counterparty" } ] }
+  "series": [ { "date": "2026-11-20", "balance": 79000, "inflow": 0, "outflow": -14000 }, … 90 items ],
+                                                         // one point per day → line chart; inflow/outflow → bars
+  "events": [ { "date", "amount", "label", "category", "counterparty" } ],   // EVERY payment in the horizon
+                                                         // → chart annotations ("why does it drop here?"), own filters
+  "outflows_by_category": [ { "category": "payroll", "total": -156000, "count": 4 }, … ],  // biggest first, negative
+  "inflows_by_category":  [ { "category": "revenue", "total": 300000, "count": 10 }, … ],
+  "largest_outflows": [ { "date", "amount", "label", "category", "counterparty" } ] }    // top 5 single payments
 ```
+Categories: `revenue`, `payroll`, `supplier`, `rent`, `loan`, `tax`, `other` (from the bank data – translate in the UI).
 
 `Finding` (one per detected price change or late payment – the split screen)
 ```jsonc
@@ -166,6 +217,7 @@ A second `GET /api/sync` while one is running gets an `error` event ("already ru
     "clause_id": "§5.2", "quote": "The fees under §5.1 are fixed for 24 months …",
     "clause": { "id": "§5.2", "page": 3, "title": "Price guarantee", "text": "…" },
     "contract": { "title": "Master Services Agreement – Business ERP Hosting", "file": "contracts/cloudhost_msa.md", … },
+    "source": "llm",                  // who wrote explanation_simple (rules in the other language, see Languages)
     "checks": [ { "check": "Price guarantee period", "passed": false, "detail": "Prices are fixed until 31 Aug 2027, but …", "clause_id": "§5.2" },
                 { "check": "Notice period",          "passed": false, "detail": "42 days' notice given, 90 days required.", "clause_id": "§5.3" } ]
   },
@@ -199,6 +251,9 @@ When `figures_stated` is `false` (IT-Service Kraus): `verdict: "unclear"`, `chec
   "id": "act-1", "type": "send_email",          // send_email | credit_application
   "title": "Reject the 15% price increase from CloudHost GmbH",
   "why": "…one-paragraph reason…",
+  "why_short": "The contract does not allow it. Saves 17,640 EUR over 12 months.",   // one line for compact cards
+  "partner": "CloudHost GmbH",                  // send_email only
+  "decision": Decision,                         // what changes if you approve vs. "Not now" (below)
   "agent": "Negotiator Agent", "autonomy": "approval", "execution": "simulated",
   "status": "pending",                          // pending | executed | rejected
   "savings_12m": 17640,                         // 0 for payment reminders / requests for details
@@ -206,9 +261,27 @@ When `figures_stated` is `false` (IT-Service Kraus): `verdict: "unclear"`, `chec
   "payload": { "to": "billing@cloudhost.example", "body": "Subject: …\n\nDear …" },   // editable textarea
   "reviewed_by": "Legal Agent",                 // send_email only
   "review": { "approved": true, "issues": [], "rounds": 1 },   // "✔ Checked by the Legal Agent" badge; rounds 2 = was revised
-  "result": "Email to … sent (simulated – nothing left the system)."                  // after approve
+  "result": "Email to … sent (simulated – nothing left the system).",                 // after approve
+  "edited_by_owner": true                       // after approve, only if the owner changed the draft
 }
 ```
+
+`Decision` – decision support for an action card. Deterministic: the forecast is re-run with / without the change.
+```jsonc
+{ "recommended": "approve",                     // approve | not_now
+  "certainty": "high",                          // high | medium (medium = depends on the partner, e.g. a customer may still pay late)
+  "deadline": "2027-01-01",                     // decide before … (null if none)
+  "deadline_reason": "The new price would be invoiced from this date.",
+  "options": [
+    { "choice": "approve", "label": "Send the rejection",
+      "summary": "CloudHost GmbH is told that §5.2 excludes the increase. You keep paying 9,800 EUR per month; …",
+      "effects": { "min_balance": -27882, "min_date": "2027-02-03", "cost_12m": 0, "cost_in_horizon": 0 } },
+    { "choice": "not_now", "label": "Not now",
+      "summary": "Without an objection CloudHost GmbH will likely invoice 11,270 EUR from 01 Jan 2027: …",
+      "effects": { "min_balance": -29352, "min_date": "2027-02-03", "cost_12m": 17640, "cost_in_horizon": 2940 } } ] }
+```
+`effects` keys (all optional, numbers in EUR / ISO dates): `min_balance`, `min_date`, `cost_12m`, `cost_in_horizon`,
+`credit_line`, `max_interest`. Request for details (no figures) has no `effects`.
 For `credit_application` (agent `Analyst Agent`) the payload is:
 ```jsonc
 { "product": "Business overdraft facility (Kontokorrentkredit)", "bank": "Commerzbank (simulated offer)",
@@ -238,13 +311,37 @@ extracted by the model)"* and `finding.contract.contract.origin == "uploaded"`.
     "origin": "uploaded", "extracted_by": "granite-8b (live)", "warnings": [] } }
 ```
 ```jsonc
-// GET /api/contracts  → [ContractSummary]   (uploads first, then the index)
+// GET /api/contracts  → [ContractSummary]   (default order: uploads newest first, then the index)
 [ { "id": "U-001", "supplier": "CloudHost GmbH", "title": "…", "file": "uploads/cloudhost_msa.md",
     "start_date": "2025-09-01", "origin": "uploaded", "extracted_by": "granite-8b (live)", "warnings": [],
-    "clauses": 4 },                                   // number of clauses, not the clauses themselves
+    "party": "CloudHost GmbH", "party_type": "supplier",         // supplier | customer
+    "file_name": "cloudhost_msa.md", "file_type": "md",          // md | txt | pdf
+    "size_bytes": 1385, "pages": 7,
+    "uploaded_at": "2026-11-21T10:10:09+00:00",                  // null for the prepared index
+    "extraction_seconds": 14.0, "source": "llm",                 // llm | fallback (uploads) · rules (index)
+    "warnings_count": 0,
+    "clauses": 4,                                                // number of clauses, not the clauses themselves
+    "used_in_last_sync": true, "used_by_findings": ["mail-001"] },
   { "id": "C-004", "customer": "Bauer Maschinenbau AG", "title": "…", "file": "contracts/customers/bauer_framework.md",
-    "start_date": "2025-03-01", "origin": "index", "clauses": 3 } ]
+    "start_date": "2025-03-01", "origin": "index", "party_type": "customer", "uploaded_at": null, … } ]
 ```
+Query parameters (all optional, combine freely):
+
+| Param | Values |
+|---|---|
+| `q` | text in party, title or file name (case-insensitive, max 100 chars) |
+| `origin` | `index` \| `uploaded` |
+| `party_type` | `supplier` \| `customer` |
+| `sort` | `uploaded_at`, `party`, `title`, `start_date`, `size_bytes`, `pages`; prefix `-` = descending. Empty values (e.g. `uploaded_at` of the index) always go last |
+
+The list is small – filtering on the client is fine too; the parameters exist so bookmarks / URLs can carry them.
+
+`GET /api/contracts/{id}` → `ContractDetail`: everything in `ContractSummary`, plus the extracted terms
+(`monthly_fee`, `fixed_price_until`, `price_change_notice_days`, `max_annual_increase_pct` / `payment_terms_days`,
+`changes_require_written_agreement`), `aliases`, `clauses` as **full list** and `clause_count`.
+
+`GET /api/contracts/{id}/file` → the original document (`text/markdown`, `text/plain` or `application/pdf`),
+`Content-Disposition: inline`; `?download=true` → `attachment`. Uploaded files live in memory: gone after reset.
 The same extraction code (`backend/app/extraction.py`) is benchmarked in `notebooks/contract_extraction.ipynb`.
 
 ## Ask your CFO
@@ -284,13 +381,99 @@ POST /api/ask   {"question": "Warum brauche ich einen Kontokorrentkredit?", "lan
 - `422` if `lang` is not `en`/`de` or the question is empty / longer than 500 characters.
 - Typed questions take 3–7 s → show a "thinking…" state; one request at a time is enough.
 
+### Problem chat (one action card / finding)
+
+Add `action_id` **or** `finding_id` to talk about one problem. The answer then uses only that problem's facts
+(email, contract clause and checks, calculation, the draft, the `decision` options) and the suggestions become
+decision helpers:
+
+```
+GET /api/ask/suggestions?lang=en&action_id=act-1
+```
+```jsonc
+{ "lang": "en", "note": null, "action_id": "act-1", "finding_id": "mail-001",
+  "suggestions": [ { "id": "why",      "question": "Why can I reject the CloudHost GmbH increase?", "agent": "Legal Agent" },
+                   { "id": "cost",     "question": "What does it cost me if I accept?",            "agent": "Analyst Agent" },
+                   { "id": "not_now",  "question": "What happens if I do nothing?",                "agent": "Analyst Agent" },
+                   { "id": "deadline", "question": "By when should I decide?",                     "agent": "Analyst Agent" } ] }
+```
+Suggestion ids per problem (max 4): reject → `why`, `cost`, `not_now`, `deadline` · late payment → `why`, `on_time`,
+`tone`, `not_now` · no figures → `why`, `email`, `not_now`, `deadline` · overdraft → `why`, `cost`, `not_now`, `deadline` ·
+allowed increase (finding without action) → `why`, `cost`, `negotiate`. `not_now` / `deadline` disappear once the action is decided.
+
+```
+POST /api/ask  {"question": "And what would I pay then?", "lang": "en", "action_id": "act-1",
+                "history": [ {"role": "owner", "text": "Should I reject it?"}, {"role": "agent", "text": "Yes – §5.2 …"} ]}
+```
+- `history`: the last turns of **this** conversation, oldest first, max 6 (the model sees the last 4). Only for
+  follow-ups – the backend keeps no chat state. `role`: `owner` | `agent`.
+- The response has the same shape as before plus `action_id` / `finding_id`; `suggestions` are the scoped ones.
+- Chips are instant (`source: "rules"`); typed questions use the model with the same number guard and fallback.
+- `404` for an unknown `action_id` / `finding_id` (e.g. after a reset – re-fetch the dashboard).
+- Answers are not streamed on purpose: every number is checked **before** the owner sees it. Show a "thinking…"
+  state with the routed agent instead.
+
+`GET /api/actions/{id}/context` (and `/api/findings/{id}/context`) → `ProblemContext` – one request for a
+problem view:
+```jsonc
+{ "lang": "en", "action": Action | null, "finding": Finding | null, "suggestions": { …same as above… } }
+```
+
+## Owner tools on a draft email
+
+```
+POST /api/actions/act-1/review   {"body": "<text in the editor>", "lang": "de"}     → instant, no model
+```
+```jsonc
+{ "action_id": "act-1", "approved": false, "source": "rules",
+  "issues": [ "Die E-Mail verweist nicht auf §5.2 des Vertrags.", "Die E-Mail verrät interne Finanzinformationen." ] }
+```
+Same rules the Legal Agent applies to the Negotiator: clause cited, agreed price / invoice amount stated, no
+`[placeholder]`, no internal finance (liquidity, overdraft …). Call it while the owner edits (debounced) and show the
+issues next to the editor – approving is still allowed, it is the owner's decision.
+
+```
+POST /api/actions/act-1/redraft   {"instruction": "Make it softer", "body": "<optional: text in the editor>", "lang": "en"}
+```
+```jsonc
+{ "action_id": "act-1", "attempt": 1,          // 1, 2, 3 … per action ("Version 2")
+  "instruction": "Make it softer",             // what the Negotiator was asked (default text when no hint)
+  "body": "Subject: …", "changed": true, "source": "llm",
+  "note": null,                                // model down → "…the draft is unchanged.", source "fallback", changed false
+  "review": { "approved": true, "issues": [], "source": "llm" } }   // Legal Agent's review of the proposal
+```
+- This is the back-end of the **Rewrite button** ("write the email again, with a hint from the owner").
+- `instruction` is **optional**: empty / omitted = "write it again" (a fresh version with the same facts).
+  Max 300 characters. The email keeps its language unless the owner asks for another one.
+- Iterate: send the text currently in the editor as `body`, so the next rewrite builds on the last proposal.
+- **A proposal only**: the action is not changed and nothing is sent. Put `body` into the editor; the owner approves
+  with `edited_body` as usual (`Action.edited_by_owner` becomes `true`). Every proposal is logged in `/api/audit`
+  (`redraft_proposed`).
+- 3–8 s with the model. `409` for an action that is already decided or is not an email (overdraft). `404` unknown id.
+
+```
+GET /api/actions/act-1/redraft/hints?lang=de     → chips for the Rewrite button
+```
+```jsonc
+{ "action_id": "act-1", "placeholder": "z. B. „Erwähne, dass wir seit 5 Jahren Kunde sind“",
+  "hints": [ { "id": "softer",  "label": "Freundlicher", "instruction": "Make the tone friendlier and warmer; …" },
+             { "id": "firmer",  "label": "Bestimmter",   "instruction": "…" },
+             { "id": "shorter", "label": "Kürzer",       "instruction": "…" },
+             { "id": "formal",  "label": "Förmlicher",   "instruction": "…" },
+             { "id": "german",  "label": "Auf Deutsch",  "instruction": "…" },
+             { "id": "english", "label": "Auf Englisch", "instruction": "…" } ] }
+```
+Send a chip's `instruction` unchanged as the redraft `instruction` (or let the owner type their own hint). Same
+`404` / `409` as redraft.
+
 ## Rules for the UI
 
 1. Never trigger an action without an explicit click – approve/reject only.
 2. Always show the autonomy badge next to agent steps and action cards.
 3. Show `source: "fallback"` discreetly ("cached answer") – honesty about the AI.
 4. Amounts are EUR numbers; format on the client (`Intl.NumberFormat("de-DE", {style:"currency",currency:"EUR"})`).
-5. Dates are ISO `YYYY-MM-DD`.
+5. Dates are ISO `YYYY-MM-DD`; timestamps (`ts`, `uploaded_at`, `created`, `decided`) are ISO date-times in UTC.
+6. Send `?lang=` with the UI language (dashboard, sync, decisions, policy, reset) – see [Languages](#languages).
 
 ## Deployment of the frontend
 

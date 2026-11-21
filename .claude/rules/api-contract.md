@@ -34,6 +34,15 @@ Point out the mismatch rather than papering over it.
 | POST | `/api/contracts/upload` | `uploadContract(file)` | `UploadResult`, 10–20 s; 422 `{detail}` if unreadable |
 | DELETE | `/api/contracts/{id}` | `deleteContract(id)` | `ContractSummary[]`; 404 for index contracts |
 
+### Added by the back-end on 2026-11-21 (no `@/api` function yet)
+
+`GET /api/sync/trace` (replay) · `GET /api/actions/{id}/context` and `GET /api/findings/{id}/context` (`ProblemContext`) ·
+`POST /api/actions/{id}/review` (`DraftReview`, instant) · `POST /api/actions/{id}/redraft` (Rewrite button, `RedraftProposal`, proposal only, instruction optional) ·
+`GET /api/actions/{id}/redraft/hints` (`RedraftHints`) ·
+`GET /api/contracts/{id}` (`ContractDetail`) · `GET /api/contracts/{id}/file`. Extended: `?lang=` on dashboard/sync/
+decisions/policy/reset, SSE `phase` events, `Action.decision` + `why_short`, `Dashboard.kpis_previous`, chart data in
+`Forecast`, problem chat in `/api/ask`, contract metadata + filters. Task-by-task guide: `docs/FRONTEND_HANDOFF.md`.
+
 ## Gotchas
 
 - Before the first sync, `scenarios` contains **only `current`**. `if_accepted` and `recommended` appear after sync.

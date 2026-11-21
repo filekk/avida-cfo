@@ -1,8 +1,18 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { ApiError, approveAction, getDashboard, rejectAction, resetDemo, startSync } from "@/api";
+import {
+  ApiError,
+  approveAction,
+  getDashboard,
+  getRedraftHints,
+  redraftAction,
+  rejectAction,
+  resetDemo,
+  reviewDraft,
+  startSync,
+} from "@/api";
 import { t } from "@/i18n";
-import type { Action, Dashboard, TraceEvent } from "@/types/api";
+import type { Action, Dashboard, DraftReview, RedraftHints, RedraftProposal, TraceEvent } from "@/types/api";
 
 const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
@@ -104,6 +114,37 @@ export const useDashboardStore = defineStore("dashboard", () => {
     }
   }
 
+  /**
+   * AV Rewrite = POST /api/actions/{id}/redraft (3–8 s): the Negotiator rewrites, the Legal Agent reviews.
+   * Returns a PROPOSAL for the editor – nothing is stored or sent; the owner still clicks "Approve and send".
+   * Throws: the caller (view) shows the error next to the rewrite field.
+   */
+  async function redraft(id: string, body: string, instruction: string): Promise<RedraftProposal> {
+    try {
+      return await redraftAction(id, { body, instruction: instruction.trim().slice(0, 300) || undefined });
+    } catch (e) {
+      throw new Error(message(e));
+    }
+  }
+
+  /** Chips + placeholder for the Rewrite pop-up; null when the backend has none (the UI uses its own). */
+  async function redraftHints(id: string): Promise<RedraftHints | null> {
+    try {
+      return await getRedraftHints(id);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Instant rule check of the edited draft (clause cited, amounts, no placeholder …); null when it failed. */
+  async function review(id: string, body: string, signal?: AbortSignal): Promise<DraftReview | null> {
+    try {
+      return await reviewDraft(id, body, signal);
+    } catch {
+      return null;
+    }
+  }
+
   function replaceAction(action: Action) {
     if (!dashboard.value) return;
     dashboard.value.actions = dashboard.value.actions.map((a) => (a.id === action.id ? action : a));
@@ -113,6 +154,6 @@ export const useDashboardStore = defineStore("dashboard", () => {
     dashboard, loading, error, trace, syncing, syncError, deciding,
     kpis, findings, actions, pendingActions, hasSynced, isSafe,
     findingById, actionById,
-    load, sync, cancelSync, decide, reset,
+    load, sync, cancelSync, decide, redraft, redraftHints, review, reset,
   };
 });
