@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
-from .. import data, fallback
+from .. import data, fallback, tracing
 from ..config import settings
 from ..forecast import Adjustment, Delay, expand_items, pay_date, run_forecast, size_credit_line
 from ..llm import llm
@@ -51,6 +51,7 @@ EXTRACT_SCHEMA = {
 }
 
 
+@tracing.traced("analyst.read_email")
 async def read_email(email: dict) -> tuple[dict, str]:
     user = f"From: {email['from_name']} <{email['from']}>\nSubject: {email['subject']}\nDate: {email['received']}\n\n{email['body']}"
     fb = fallback.EXTRACTIONS.get(email["id"], fallback.NOT_RELEVANT)
@@ -289,6 +290,7 @@ def _facts(scenarios: dict, findings: list[dict], credit: dict | None) -> list[s
     return facts
 
 
+@tracing.traced("analyst.briefing")
 async def briefing(scenarios: dict, findings: list[dict], credit: dict | None) -> tuple[dict, str]:
     """Key points are deterministic; the model only writes the 2-sentence summary."""
     facts = _facts(scenarios, findings, credit)

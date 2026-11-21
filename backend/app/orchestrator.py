@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 from typing import AsyncIterator, Awaitable, Callable
 
-from . import data
+from . import data, tracing
 from .agents import analyst, legal, negotiator
 from .config import settings
 from .state import ANALYZED, APPROVAL, RECOMMENDATION, store
@@ -132,6 +132,16 @@ def _verdict_line(ex: dict, res: dict) -> str:
 # --- one negotiation (runs concurrently with the others) ---------------------------
 
 async def _negotiate(f: dict, emit: Callable[[dict], Awaitable[None]]) -> dict:
+    with tracing.span(f"negotiation · {f['extraction']['party']}", tracing.CHAIN,
+                      inputs={"task": f["task"], "finding_id": f["id"]}) as s:
+        n = await _negotiate_steps(f, emit)
+        s.outputs({"approved": n["review"]["approved"], "rounds": n["rounds"], "source": n["source"],
+                   "issues": n["review"]["issues"]})
+        s.attrs({"avida.review_rounds": n["rounds"], "avida.approved": n["review"]["approved"]})
+        return n
+
+
+async def _negotiate_steps(f: dict, emit: Callable[[dict], Awaitable[None]]) -> dict:
     task, ex, res, imp = f["task"], f["extraction"], f["contract"], f["impact"]
     name = ex["party"]
     violations = " ".join(c["detail"] for c in res["checks"] if not c["passed"])
@@ -209,13 +219,34 @@ async def run_pipeline() -> AsyncIterator[dict]:
     _running = True
     background: list[asyncio.Task] = []
     try:
-        async for ev in _pipeline(background):
-            yield ev
+        # One MLflow trace per sync (no-op when tracing is off); agent and LLM spans nest under it.
+        with tracing.span("sync_inbox", tracing.CHAIN, inputs={"today": settings.today().isoformat()}) as root:
+            sources: dict[str, int] = {}
+            async for ev in _pipeline(background):
+                if ev.get("source"):
+                    sources[ev["source"]] = sources.get(ev["source"], 0) + 1
+                if ev["type"] == "result":
+                    root.outputs(_trace_summary(ev["dashboard"], sources))
+                    tracing.tag_trace(app="avida-cfo", flow="sync",
+                                      fallback_used=str(sources.get("fallback", 0) > 0).lower())
+                yield ev
     finally:
         # Client disconnected or error: don't leave LLM calls running in the background.
         for t in background:
             t.cancel()
         _running = False
+
+
+def _trace_summary(dash: dict, sources: dict) -> dict:
+    """Compact result for the MLflow trace: what the agents decided, not the whole dashboard."""
+    return {
+        "findings": {f["extraction"]["party"]: {"kind": f["kind"], "verdict": f["contract"]["verdict"],
+                                                "recommendation": f["recommendation"]} for f in dash["findings"]},
+        "actions": [a["title"] for a in dash["actions"]],
+        "min_balance": dash["kpis"]["min_balance"],
+        "risk_level": (dash.get("analysis") or {}).get("risk_level"),
+        "trace_sources": sources,
+    }
 
 
 async def _pipeline(background: list[asyncio.Task]) -> AsyncIterator[dict]:

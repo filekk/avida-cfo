@@ -15,6 +15,7 @@ from datetime import date
 
 from .agents import analyst, legal, negotiator
 from .agents.analyst import NUM_TOKEN, amounts_in, readings
+from . import tracing
 from .llm import llm
 from .state import store
 
@@ -273,6 +274,7 @@ def _norm(q: str) -> str:
     return q.strip().lower().rstrip("?!. ")
 
 
+@tracing.traced("ask_cfo", tracing.AGENT)
 async def ask(question: str, lang: str) -> dict:
     d = current_dashboard()
     sugg = suggestions(d, lang)

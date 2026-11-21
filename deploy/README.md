@@ -92,3 +92,30 @@ For the OSS-assistant bonus, install the *Continue* extension and point it at th
 
 Resource tip: single node with 32 CPU / 128 GB. Model + app + workbench + Dev Spaces fit; don't enable
 llm-d, MaaS and guardrails on top.
+
+## 6. MLflow: tracing and evaluating the agents (bonus)
+
+**Server** (namespace `avida-cfo`, next to the app):
+```bash
+oc apply -n avida-cfo -f deploy/mlflow.yaml        # PVC + Deployment + Service + Route
+oc rollout status -n avida-cfo deploy/mlflow
+oc get route -n avida-cfo mlflow -o jsonpath='{.spec.host}'   # MLflow UI
+```
+
+**Tracing** (`backend/app/tracing.py`): every inbox check becomes one MLflow trace
+`sync_inbox → analyst.read_email / legal.check / negotiation · <party> → negotiator.draft / legal.review_draft → llm.json|llm.text`
+with prompts, answers, token usage, latency and `avida.source` = `llm` / `fallback` / `rules` on every agent span.
+"Ask your CFO" (`ask_cfo`) and contract uploads (`contract_upload`) are traced too.
+It is switched on by `MLFLOW_TRACKING_URI` (see `deploy/configmap.yaml`) and is strictly optional:
+not set, package missing or server down → no-op, the app behaves exactly as before.
+Check: `curl -s https://$HOST/api/tracing/health`.
+
+**Evaluation** (`backend/eval/evaluate_agents.py`): `mlflow.genai.evaluate` runs the real agent chain on the
+hand-labelled demo inbox and scores every agent (category, party, figures, verdict, clause, draft rules,
+legal approval, share of steps answered by the model). Results: MLflow UI → experiment `avida-cfo-agent-eval`.
+```bash
+oc port-forward -n avida-cfo svc/mlflow 5000:5000 &
+oc port-forward -n avida-models svc/granite-8b-predictor 8000:8080 &
+cd backend && pip install -r eval/requirements.txt
+MLFLOW_TRACKING_URI=http://localhost:5000 LLM_BASE_URL=http://localhost:8000/v1 python eval/evaluate_agents.py
+```

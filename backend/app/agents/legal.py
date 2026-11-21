@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from .. import data, fallback
+from .. import data, fallback, tracing
 from ..llm import llm
 
 NAME = "Legal Agent"
@@ -151,6 +151,7 @@ def _normalise(extraction: dict, contract: dict) -> None:
     extraction["customer" if extraction["kind"] == "payment_delay" else "supplier"] = name
 
 
+@tracing.traced("legal.check")
 async def check(extraction: dict, received: str) -> tuple[dict, str]:
     """Entry point for every finding (price change or late payment)."""
     contract = find_contract(extraction["party"])
@@ -272,6 +273,7 @@ def _review_context(task: str, extraction: dict, legal_result: dict) -> str:
             "The email should ask for the exact current and new amounts, the start date and the contractual basis.")
 
 
+@tracing.traced("legal.review_draft")
 async def review_draft(draft: str, task: str, extraction: dict, legal_result: dict) -> tuple[dict, str]:
     rules = rule_review(draft, task, extraction, legal_result)
     user = _review_context(task, extraction, legal_result) + f"\n\nDRAFT EMAIL:\n{draft}"

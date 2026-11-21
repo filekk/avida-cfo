@@ -25,6 +25,7 @@ POST /api/reset             → back to start (use before every demo run)
 | GET | `/api/health` | `{"status":"ok"}` |
 | GET | `/api/llm/health` | `{"ok":true,"models":["granite-8b"],...}` – show a small "AI online" indicator |
 | GET | `/api/config` | model name, forecast days, demo "today" |
+| GET | `/api/tracing/health` | diagnostics only (not for the UI): is MLflow tracing of the agents on? `{"enabled":true,"experiment":"avida-cfo-agents",...}` |
 | GET | `/api/dashboard` | `Dashboard` (below) |
 | GET | `/api/sync` | **Server-Sent Events** stream, ~20–40 s |
 | POST | `/api/actions/{id}/approve` | body `{"edited_body": "<email text>" \| null}` → `{"action": Action, "saved_liquidity": number}` |

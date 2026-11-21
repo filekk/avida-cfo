@@ -14,13 +14,16 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from . import ask as ask_cfo
-from . import contract_library
+from . import contract_library, tracing
 from .config import settings
 from .llm import llm
 from .orchestrator import initial_dashboard, run_pipeline
 from .state import POLICY, store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+# MLflow tracing of the agents – only if MLFLOW_TRACKING_URI is set; connects in the background, never blocks.
+tracing.init()
 
 app = FastAPI(title="Avida CFO", version="0.1.0")
 # Only needed for local dev when Vite runs on :5173 without the proxy.
@@ -47,6 +50,12 @@ def health():
 @app.get("/api/llm/health")
 async def llm_health():
     return await llm.health()
+
+
+@app.get("/api/tracing/health")
+def tracing_health():
+    """Is MLflow tracing of the agents on? (diagnostics only, not used by the UI)"""
+    return tracing.status()
 
 
 @app.get("/api/config")
