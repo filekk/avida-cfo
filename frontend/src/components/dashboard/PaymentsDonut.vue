@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import AnimatedNumber from "@/components/ui/AnimatedNumber.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import IconTile from "@/components/ui/IconTile.vue";
 import { t, tn } from "@/i18n";
@@ -191,7 +192,7 @@ const summary = computed(
             ]"
           >
             <span class="text-caption font-semibold text-muted">{{ t("Total") }}</span>
-            <b class="font-display text-2xl font-semibold leading-tight tracking-tight tabular-nums">{{ eur(total) }}</b>
+            <b class="font-display text-2xl font-semibold leading-tight tracking-tight tabular-nums"><AnimatedNumber :value="total" /></b>
             <span class="text-caption text-muted">{{ tn(count, "in {n} payment", "in {n} payments") }}</span>
           </div>
           <!-- one layer per payment, crossfaded -->

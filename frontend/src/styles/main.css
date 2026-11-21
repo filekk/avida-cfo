@@ -81,14 +81,19 @@
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) *, :root:not([data-motion="full"]) *::before, :root:not([data-motion="full"]) *::after {
     transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
 }
+/* delays too: a staggered item (utils/motion → stagger) must not sit invisible before it appears */
 :root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
   transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
   animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
   animation-iteration-count: 1 !important;
   scroll-behavior: auto !important;
 }

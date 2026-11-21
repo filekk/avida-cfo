@@ -5,11 +5,11 @@ import { useWheelchairEgg } from "@/composables/useWheelchairEgg";
 import { t } from "@/i18n";
 import AppLogo from "./AppLogo.vue";
 
-/** Page footer: brand + the three honesty notes as icon chips (visible on mobile too, unlike the sidebar). */
+/** Page footer: brand + two honesty notes and the team signature as icon chips (visible on mobile too, unlike the sidebar). */
 const NOTES: { icon: IconName; text: string; egg?: boolean }[] = [
   { icon: "simulated", text: "Every action is simulated" },
   { icon: "scale", text: "Not legal advice" },
-  { icon: "sparkles", text: "Open-source AI on Red Hat OpenShift AI", egg: true },
+  { icon: "sparkles", text: "Made by Karkonosh", egg: true },
 ];
 
 /**
