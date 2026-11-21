@@ -25,7 +25,7 @@ withDefaults(defineProps<{ onDark?: boolean; showText?: boolean; size?: number }
       :width="size"
       :height="size"
       decoding="async"
-      :class="['shrink-0 rounded-[13%] ring-1', onDark ? 'ring-white/15' : 'ring-fg/10']"
+      class="shrink-0 object-contain"
     />
     <span v-if="showText" aria-hidden="true">
       Avida <span :class="['font-medium', onDark ? 'text-side-fg' : 'text-muted']">CFO</span>
