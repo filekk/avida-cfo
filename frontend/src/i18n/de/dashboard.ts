@@ -12,19 +12,19 @@ const de: Record<string, string> = {
   "Biggest payments ahead": "Größte anstehende Zahlungen",
   "Next {period}": "Nächste {period}",
 
-  // "Saved by Avida": KPI card (follows the chart period) + sidebar savings chart
+  // "Saved by Avida": KPI card (chart period) + sidebar card (next 30 days) – every figure in a card = one period
   "next {period}": "nächste {period}",
   "Same period as the chart – change it there": "Gleicher Zeitraum wie im Diagramm – dort ändern",
-  "+{amount} a year if you approve": "+{amount} pro Jahr nach Ihrer Freigabe",
   "+{amount} if you approve": "+{amount} nach Ihrer Freigabe",
-  "{amount} a year": "{amount} pro Jahr",
-  "about {amount} a month": "etwa {amount} pro Monat",
+  "+{amount} waiting for your OK": "+{amount} warten auf Ihre Freigabe",
+  "Waiting for your OK": "Wartet auf Ihre Freigabe",
+  "Waiting for your OK · starts {date}": "Wartet auf Ihre Freigabe · ab {date}",
+  "Approved by you": "Von Ihnen freigegeben",
+  "Savings start on {date}": "Einsparungen ab {date}",
+  "Savings start later": "Einsparungen beginnen später",
   "No savings found yet": "Noch keine Einsparungen gefunden",
   "Check your inbox to find savings": "Posteingang prüfen, um Einsparungen zu finden",
-  "Approve to start saving": "Freigeben, um zu sparen",
-  "By {month}: {amount}": "Bis {month}: {amount}",
-  "+{amount} waiting for your OK": "+{amount} warten auf Ihre Freigabe",
-  "Savings chart, next 12 months: {saved} saved, {waiting} waiting for your OK.":
-    "Spar-Diagramm, nächste 12 Monate: {saved} gespart, {waiting} warten auf Ihre Freigabe.",
+  "Your money": "Ihr Geld",
+  "Your money on {date}: {amount}.": "Ihr Geld am {date}: {amount}.",
 };
 export default de;

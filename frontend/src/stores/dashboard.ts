@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import {
   ApiError,
   approveAction,
+  getAudit,
   getDashboard,
   getRedraftHints,
   redraftAction,
@@ -35,6 +36,12 @@ export const useDashboardStore = defineStore("dashboard", () => {
   /** Action ids with a request in flight (disables their buttons). */
   const deciding = ref<Set<string>>(new Set());
 
+  /**
+   * When the inbox was last checked (ISO). Set when a check finishes; after a page reload it comes from the
+   * history (`sync_finished` in /api/audit), so "5 minutes ago" stays true. null = never / after a reset.
+   */
+  const checkedAt = ref<string | null>(null);
+
   // --- getters -----------------------------------------------------------------------------------
   const kpis = computed(() => dashboard.value?.kpis ?? null);
   const findings = computed(() => dashboard.value?.findings ?? []);
@@ -58,6 +65,17 @@ export const useDashboardStore = defineStore("dashboard", () => {
     } finally {
       loading.value = false;
     }
+    if (hasSynced.value && !checkedAt.value) loadCheckedAt();
+  }
+
+  /** Last finished inbox check from the history (best effort – without it the top bar just shows no time). */
+  async function loadCheckedAt() {
+    try {
+      const last = (await getAudit()).filter((e) => e.event === "sync_finished").pop();
+      if (last && !checkedAt.value) checkedAt.value = last.time;
+    } catch {
+      /* history unavailable – no "checked … ago" line */
+    }
   }
 
   function sync() {
@@ -69,6 +87,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
       onTrace: (e) => trace.value.push(e),
       onResult: (d) => {
         dashboard.value = d;
+        checkedAt.value = new Date().toISOString();
         syncing.value = false;
         closeSync = null;
       },
@@ -107,6 +126,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
     trace.value = [];
     syncError.value = null;
     error.value = null;
+    checkedAt.value = null;
     try {
       dashboard.value = await resetDemo();
     } catch (e) {
@@ -151,7 +171,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
   }
 
   return {
-    dashboard, loading, error, trace, syncing, syncError, deciding,
+    dashboard, loading, error, trace, syncing, syncError, deciding, checkedAt,
     kpis, findings, actions, pendingActions, hasSynced, isSafe,
     findingById, actionById,
     load, sync, cancelSync, decide, redraft, redraftHints, review, reset,

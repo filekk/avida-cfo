@@ -23,6 +23,37 @@ export function gapAt(s: Scenarios, i: number): number {
 }
 
 /**
+ * What to say next to a "Saved by Avida" amount for `days` from today. RULE: every number in the same card is for
+ * the SAME period as the amount – never a yearly figure next to a 90-day amount.
+ *   waiting  – something in this period waits for the owner's OK (`amount` = for this period, may be 0 when the
+ *              saving only starts later → `from`)
+ *   approved – saved in this period
+ *   later    – approved, but it only starts after this period (`from`)
+ *   none     – the inbox was checked, nothing to save · unchecked – no inbox check yet
+ */
+export type SavingsStatus =
+  | { kind: "waiting"; amount: number; from: string | null }
+  | { kind: "approved"; amount: number }
+  | { kind: "later"; from: string | null }
+  | { kind: "none" | "unchecked" };
+
+export function savingsStatus(d: Dashboard, days: number): SavingsStatus {
+  const { saved, waiting } = savingsForPeriod(d, days);
+  const from = firstSavingDate(d.scenarios);
+  if (pendingSavings12m(d.actions) > 0) return { kind: "waiting", amount: waiting, from };
+  if (saved > 0.5) return { kind: "approved", amount: saved };
+  if (d.kpis.saved_liquidity > 0) return { kind: "later", from };
+  return { kind: d.scenarios.recommended ? "none" : "unchecked" };
+}
+
+/** First day on which following Avida makes a difference (ISO) – "savings start on 5 Jan". null = never. */
+export function firstSavingDate(s: Scenarios): string | null {
+  const series = s.recommended?.series ?? [];
+  const i = series.findIndex((_, k) => gapAt(s, k) > 0.5);
+  return i < 0 ? null : series[i].date;
+}
+
+/**
  * Savings for the chart period (`days` from today):
  *   - 12 months → the backend's totals as they are;
  *   - shorter → the forecast gap at the end of the period, split between "approved" and "waiting"
@@ -35,17 +66,4 @@ export function savingsForPeriod(d: Dashboard, days: number): { saved: number; w
   if (days >= 365 || potential <= 0) return { saved: saved12, waiting: waiting12 };
   const gap = gapAt(d.scenarios, days - 1);
   return { saved: (gap * saved12) / potential, waiting: (gap * waiting12) / potential };
-}
-
-/**
- * Sidebar chart: the 12-month total builds up month by month (a monthly price difference comes in evenly).
- * Returns, for each of the 12 months after `startIso`'s month, its first day (ISO) and the amount saved by its end.
- */
-export function monthlyBuildUp(total12m: number, startIso: string): { month: string; value: number }[] {
-  const [y, m] = startIso.slice(0, 7).split("-").map(Number);
-  return Array.from({ length: 12 }, (_, k) => {
-    const d = new Date(y, m + k, 1); // m is 1-based → m + k = next month + k
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-    return { month, value: (total12m * (k + 1)) / 12 };
-  });
 }
