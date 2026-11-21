@@ -10,7 +10,7 @@ import { t } from "@/i18n";
 import type { Action } from "@/types/api";
 import { eur, eurCents, fmtDayMonth } from "@/utils/format";
 import RewriteDraft from "./RewriteDraft.vue";
-import type { RewrittenDraft } from "./decision";
+import type { DraftCheck, RewriteHint, RewrittenDraft } from "./decision";
 
 /**
  * One proposed action. UI rule #1: nothing happens without an explicit click on Approve / Not now.
@@ -32,10 +32,17 @@ const props = defineProps<{
   rewriting?: boolean;
   rewriteError?: string | null;
   rewritten?: RewrittenDraft | null;
+  /** chips + placeholder for the AV Rewrite pop-up (GET /redraft/hints); without them it uses its own */
+  rewriteHints?: RewriteHint[] | null;
+  rewritePlaceholder?: string | null;
+  /** latest check of the draft (rewrite review or instant check while typing); replaces the agent's first review */
+  check?: DraftCheck | null;
 }>();
 const emit = defineEmits<{
   decide: [id: string, approve: boolean, editedBody?: string];
   rewrite: [id: string, body: string, instruction: string];
+  /** the owner typed in the draft – the parent checks it (debounced POST /review) */
+  edit: [id: string, body: string];
 }>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
@@ -48,24 +55,28 @@ watch(
 
 const pending = computed(() => props.action.status === "pending");
 
-/** The text before the last rewrite (for "Undo") and the source of the rewrite shown in the editor. */
+/** The text before the last rewrite (for "Undo") and the last rewrite shown under the editor. */
 const beforeRewrite = ref<string | null>(null);
-const rewriteSource = ref<RewrittenDraft["source"] | null>(null);
+const lastRewrite = ref<RewrittenDraft | null>(null);
 watch(
   () => props.rewritten?.n,
   () => {
-    if (!props.rewritten) return;
+    const r = props.rewritten;
+    if (!r) return;
+    lastRewrite.value = r;
+    if (!r.changed) return; // model unavailable → the draft stays, only the note is shown
     beforeRewrite.value = body.value;
-    body.value = props.rewritten.body;
-    rewriteSource.value = props.rewritten.source;
+    body.value = r.body;
   },
 );
 function undoRewrite() {
   if (beforeRewrite.value === null) return;
   body.value = beforeRewrite.value;
   beforeRewrite.value = null;
-  rewriteSource.value = null;
+  lastRewrite.value = null;
+  emit("edit", props.action.id, body.value);
 }
+const onInput = () => emit("edit", props.action.id, body.value);
 const askRewrite = (instruction: string) => emit("rewrite", props.action.id, body.value, instruction);
 const approve = () => emit("decide", props.action.id, true, props.action.type === "send_email" ? body.value : undefined);
 const decline = () => emit("decide", props.action.id, false);
@@ -116,9 +127,26 @@ const decline = () => emit("decide", props.action.id, false);
       <span><b class="text-fg">{{ t("Why:") }} </b>{{ action.why }}</span>
     </p>
 
-    <!-- four-eyes principle: the Legal Agent reviewed the Negotiator's draft (issues come from the backend as delivered) -->
+    <!-- four-eyes principle: the Legal Agent reviewed the Negotiator's draft (issues come from the backend as delivered).
+         Once the owner rewrites or edits the text, the latest check of THAT text replaces it. -->
     <div
-      v-if="action.type === 'send_email' && action.review"
+      v-if="action.type === 'send_email' && check && pending"
+      :class="['grid gap-1.5 rounded-lg p-3 text-sm', check.approved ? 'bg-positive-soft text-positive' : 'bg-warn-soft text-warn']"
+      role="status"
+    >
+      <p class="flex flex-wrap items-center gap-2 font-semibold">
+        <AppIcon :name="check.approved ? 'checkCircle' : 'alert'" :size="18" />
+        <template v-if="check.approved">
+          {{ check.origin === "rewrite" ? t("New version checked by the Legal Agent – approved") : t("Your text passes the checks") }}
+        </template>
+        <template v-else>{{ t("Please check before sending:") }}</template>
+      </p>
+      <ul v-if="check.issues.length" class="grid gap-1 pl-7">
+        <li v-for="i in check.issues" :key="i" class="list-disc">{{ i }}</li>
+      </ul>
+    </div>
+    <div
+      v-else-if="action.type === 'send_email' && action.review"
       :class="['grid gap-1.5 rounded-lg p-3 text-sm', action.review.approved ? 'bg-positive-soft text-positive' : 'bg-warn-soft text-warn']"
     >
       <p class="flex flex-wrap items-center gap-2 font-semibold">
@@ -152,6 +180,7 @@ const decline = () => emit("decide", props.action.id, false);
         <textarea
           v-model="body"
           :disabled="!pending"
+          @input="onInput"
           rows="8"
           :aria-busy="rewriting || undefined"
           :class="[
@@ -162,11 +191,15 @@ const decline = () => emit("decide", props.action.id, false);
       </label>
       <!-- after AV Rewrite: say so (honest about the AI) + one-click undo -->
       <CollapseTransition>
-        <div v-if="pending && rewriteSource" role="status">
+        <div v-if="pending && lastRewrite" role="status">
           <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
             <AppIcon name="sparkles" :size="16" />
-            <span>{{ t("Rewritten by Avida – please read it before sending.") }}</span>
-            <SourceTag :source="rewriteSource" />
+            <template v-if="lastRewrite.changed">
+              <span class="font-semibold text-fg">{{ t("Version {n}", { n: lastRewrite.attempt }) }}</span>
+              <span>{{ t("Rewritten by Avida – please read it before sending.") }}</span>
+            </template>
+            <span v-else>{{ lastRewrite.note ?? t("The draft is unchanged.") }}</span>
+            <SourceTag :source="lastRewrite.source" />
             <button
               v-if="beforeRewrite !== null"
               type="button"
@@ -226,6 +259,8 @@ const decline = () => emit("decide", props.action.id, false);
           :busy="rewriting"
           :error="rewriteError"
           :disabled="busy"
+          :hints="rewriteHints"
+          :placeholder="rewritePlaceholder"
           @submit="askRewrite"
         />
       </div>

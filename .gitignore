@@ -16,3 +16,8 @@ backend/static/
 cluster-info.txt
 *.kubeconfig
 kubeconfig
+
+# macOS Finder metadata and duplicates ("file 2.vue")
+.DS_Store
+* 2.*
+* 2/

@@ -74,36 +74,9 @@ A cheaper option is `outflows_by_category_30d` / `_90d` buckets.
 
 ---
 
-## 4. AV Rewrite: rewrite an email draft along the owner's wish
+## 4. AV Rewrite – DONE by the back-end as `POST /api/actions/{id}/redraft`
 
-**Why:** in the Action center focus view the owner can tell Avida in a few words how a draft should change
-("be firmer", "mention a 2 % discount for paying early") instead of editing the text by hand. The button
-("AV Rewrite") sits on the right of the decision bar, next to **Approve and send** / **Not now**.
-
-**Proposal:**
-
-```
-POST /api/actions/{id}/rewrite
-{ "body": "<draft as it is in the editor now>", "instruction": "be firmer", "lang": "en" | "de" }
-→ 200 { "body": "<new draft>", "source": "llm" | "fallback" }
-```
-
-| Item | Proposal |
-|---|---|
-| Only for | `send_email` actions with `status: "pending"`; otherwise `409 {detail}` |
-| `body` | the editor text (the owner may already have changed it), 1–5000 characters |
-| `instruction` | 1–200 characters, `422` otherwise |
-| `lang` | UI language of the instruction. The draft itself stays in the recipient's language (see §1) |
-| Side effects | **none**: nothing is stored, sent or written to the audit. The owner still has to approve; the approved text arrives as `edited_body` as today |
-| Guard rails | keep the facts: amounts, dates, clause ids and the recipient must not change (same checks as the Legal Agent review if cheap) |
-| Fallback | model down → return the `body` unchanged with `source: "fallback"` (the UI labels it "cached answer") |
-| Unknown id | `404 {detail}` |
-
-**Front-end today:** `api/actions.ts → rewriteDraft()`, types `RewriteRequest` / `RewriteResult` in `types/api.ts`
-(marked PROPOSED). Until the endpoint exists, `404`/`405` show "AV Rewrite is not connected yet. Your draft is
-unchanged" in the pop-up; nothing else breaks.
-
-**Note on "Ask your CFO" in a decision (no change needed):** the focus view now shows a contextual Ask panel above
-the verdict. Chips that the backend already suggests for this supplier are sent unchanged (instant answer); the
-others and typed questions go out as a typed question with the case in front ("CloudHost GmbH: price change – …").
-A `context: {finding_id | action_id}` field on `POST /api/ask` would let the agent answer more precisely, if you want to add it.
+Implemented on `backend/frontend-support` (see `docs/FRONTEND_HANDOFF.md` §3) and wired in the front-end:
+`api/actions.ts → redraftAction()` + `getRedraftHints()` (chips) + `reviewDraft()` (instant check while typing),
+problem chat via `getActionContext()` / `getFindingContext()` and `askCfo(q, { action_id | finding_id, history })`.
+The earlier `/rewrite` proposal is withdrawn.
