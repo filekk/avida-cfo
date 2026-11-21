@@ -18,7 +18,8 @@ withDefaults(
     icon?: IconName;
     sub?: string;
     tone?: "neutral" | "positive" | "negative";
-    delta?: { text: string; tone: "positive" | "negative" | "neutral" };
+    /** coloured box under the amount; `icon` overrides the trend arrow (e.g. a clock for "waiting") */
+    delta?: { text: string; tone: "positive" | "negative" | "neutral" | "warn"; icon?: IconName };
   }>(),
   { tone: "neutral" },
 );
@@ -33,9 +34,11 @@ withDefaults(
       <div class="grid min-w-0 content-start gap-1">
         <span class="text-label font-medium text-muted">{{ label }}</span>
         <AnimatedNumber :value="amount" :class="['font-display text-kpi font-semibold', TONE_TEXT[tone]]" />
-        <span v-if="sub" class="text-label text-muted">{{ sub }}</span>
+        <!-- #sub: richer sub line (e.g. the period chip of "Saved by Avida") -->
+        <slot name="sub"><span v-if="sub" class="text-label text-muted">{{ sub }}</span></slot>
         <StatusPill v-if="delta" :tone="delta.tone" class="mt-1">
-          <AppIcon :name="TONE_TREND[delta.tone]" :size="14" />{{ delta.text }}
+          <AppIcon :name="delta.icon ?? TONE_TREND[delta.tone === 'warn' ? 'neutral' : delta.tone]" :size="14" class="shrink-0" />
+          <Transition name="fade" mode="out-in"><span :key="delta.text">{{ delta.text }}</span></Transition>
         </StatusPill>
       </div>
     </div>

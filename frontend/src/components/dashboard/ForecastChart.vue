@@ -51,13 +51,23 @@ const dateAt = (i: number) => base.value?.series[i]?.date ?? null;
 /** The main line first in read-outs and the bubble. */
 const ordered = computed(() => [...props.lines].reverse());
 
-/** Where the scales should end up (x = days shown, y = value range incl. 0 and the cushion). */
+// --- "without Avida" loss: main line (follow Avida) minus the risk line (accept every increase) ------
+// The gap is tiny next to the balance (≈ 1–3 k€ on a 130 k€ axis), so it gets its own strip under the
+// chart with its own scale – same x axis, so hover / selection line up with the days above.
+const risk = computed(() => props.lines.find((l) => l.tone === "risk") ?? null);
+const lossAt = (i: number) => (risk.value && main.value ? Math.max(0, bal(main.value, i) - bal(risk.value, i)) : 0);
+const hasLoss = computed(() => !!risk.value && (base.value?.series ?? []).some((_, i) => lossAt(i) > 0));
+const lossMaxIn = (len: number) => Math.max(0, ...Array.from({ length: len }, (_, i) => lossAt(i)));
+
+/** Where the scales should end up (x = days shown, y = value range incl. 0 and the cushion, loss strip). */
 const target = computed(() => {
   const values = props.lines.flatMap((l) => l.forecast.series.slice(0, n.value).map((s) => s.balance));
-  if (!values.length) return { span: 1, yMin: 0, yMax: 1 };
+  const strip = hasLoss.value ? 1 : 0;
+  const lossMax = Math.max(1, lossMaxIn(n.value)) * 1.12;
+  if (!values.length) return { span: 1, yMin: 0, yMax: 1, strip, lossMax };
   const lo = Math.min(0, buffer.value, ...values);
   const hi = Math.max(buffer.value, ...values);
-  return { span: n.value - 1, yMin: lo, yMax: hi + (hi - lo || 1) * 0.07 };
+  return { span: n.value - 1, yMin: lo, yMax: hi + (hi - lo || 1) * 0.07, strip, lossMax };
 });
 
 // Scales on screen glide to the target (zoom when the period changes, rescale after a sync).
@@ -77,6 +87,8 @@ watch(target, (to) => {
       span: from.span + (to.span - from.span) * e,
       yMin: from.yMin + (to.yMin - from.yMin) * e,
       yMax: from.yMax + (to.yMax - from.yMax) * e,
+      strip: from.strip + (to.strip - from.strip) * e,
+      lossMax: from.lossMax + (to.lossMax - from.lossMax) * e,
     };
     if (e < 1) viewFrame = requestAnimationFrame(step);
   };
@@ -108,6 +120,39 @@ const plot = computed(() => ({
 const sx = (i: number) => plot.value.x0 + (i / (view.value.span || 1)) * (plot.value.x1 - plot.value.x0);
 const sy = (v: number) =>
   plot.value.y0 + ((view.value.yMax - v) / (view.value.yMax - view.value.yMin || 1)) * (plot.value.y1 - plot.value.y0);
+
+/**
+ * Loss strip geometry: a small header line ("Without Avida you would lose … −2.940 €") and a panel where the
+ * loss grows DOWNWARDS from a zero line (money draining away). It slides open (view.strip 0→1) after a sync;
+ * the date labels move below it, so one x axis serves both.
+ */
+const strip = computed(() => {
+  const head = Math.round(fontPx.value * 1.25 + 12);
+  const h = Math.round(fontPx.value * 2.4 + 26);
+  const top = plot.value.y1 + head; // zero line
+  return { head, h, top, bottom: top + h, k: view.value.strip };
+});
+const svgH = computed(() => H.value + Math.round((strip.value.head + strip.value.h) * view.value.strip));
+const ly = (v: number) => strip.value.top + 2 + (v / (view.value.lossMax || 1)) * (strip.value.h - 4);
+const guideBottom = computed(() => (hasLoss.value ? strip.value.bottom : plot.value.y1));
+const lossDrawn = computed(() => {
+  if (!hasLoss.value) return null;
+  const last = Math.min(total.value - 1, Math.ceil(view.value.span) + 1);
+  const pts = Array.from({ length: last + 1 }, (_, i) => [sx(i), ly(lossAt(i))] as const);
+  const d = monotonePath(pts);
+  const end = pts[pts.length - 1]?.[0] ?? plot.value.x0;
+  return { d, area: `${d}L${end.toFixed(1)},${strip.value.top}L${plot.value.x0},${strip.value.top}Z` };
+});
+/** Day the strip's header talks about: hovered day → selected day / period end → end of the window. */
+const lossIndex = computed(() => {
+  if (hover.value !== null && !dragging.value) return hoverIndex.value;
+  if (sel.value) return selHi.value;
+  return n.value - 1;
+});
+const lossHead = computed(() => ({
+  label: W.value < 520 ? t("Without Avida") : t("Without Avida you would lose"),
+  value: `${eur(-lossAt(lossIndex.value))} · ${fmtDayMonth(dateAt(lossIndex.value))}`,
+}));
 
 const xTicks = computed(() => {
   // as many date labels as fit without touching (≈5.5 characters each), 2…5
@@ -350,6 +395,16 @@ const rangePayments = computed(() => {
     .sort((a, b) => a.date.localeCompare(b.date));
 });
 const rangeDays = computed(() => selHi.value - selLo.value + 1);
+
+/** Read-out row "Without Avida": by the chosen day (today mode: by the end of the window) / within the period. */
+const lossRow = computed(() => {
+  if (mode.value === "range") {
+    const v = lossAt(selHi.value) - lossAt(selLo.value);
+    return { value: v, text: t("less in this period") };
+  }
+  const i = mode.value === "day" ? dayIndex.value : n.value - 1;
+  return { value: lossAt(i), text: t("less by {date}", { date: fmtDayMonth(dateAt(i)) }) };
+});
 const inDays = (i: number) => (i === 0 ? t("Today") : tn(i, "in {n} day", "in {n} days"));
 const startsIn = (i: number) => (i === 0 ? t("from today") : tn(i, "starts in {n} day", "starts in {n} days"));
 
@@ -378,7 +433,7 @@ const copyText = computed(() => {
     const pays = rangePayments.value.length
       ? `${t("Big payments")}: ${rangePayments.value.map((o) => `${o.label} ${fmtDayMonth(o.date)} ${eur(o.amount)}`).join("; ")}`
       : t("No big payments in this range");
-    return `${head.value.main} (${tn(rangeDays.value, "{n} day", "{n} days")}) – ${rows}. ${pays}.`;
+    return `${head.value.main} (${tn(rangeDays.value, "{n} day", "{n} days")}) – ${rows}. ${pays}.${lossCopy.value}`;
   }
   const rows = dayRows.value
     .map((r) =>
@@ -388,9 +443,12 @@ const copyText = computed(() => {
     )
     .join("; ");
   return mode.value === "day"
-    ? `${fmtDate(dateAt(dayIndex.value))} (${inDays(dayIndex.value)}) – ${rows}`
-    : `${t("Today")}, ${fmtDate(dateAt(0))} – ${rows}`;
+    ? `${fmtDate(dateAt(dayIndex.value))} (${inDays(dayIndex.value)}) – ${rows}${lossCopy.value}`
+    : `${t("Today")}, ${fmtDate(dateAt(0))} – ${rows}${lossCopy.value}`;
 });
+const lossCopy = computed(() =>
+  hasLoss.value ? ` ${t("Without Avida")}: ${eur(-lossRow.value.value)} ${lossRow.value.text}.` : "",
+);
 
 const copied = ref(false);
 let copyTimer = 0;
@@ -499,15 +557,15 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
       <svg
         ref="svgEl"
         :width="W"
-        :height="H"
-        :viewBox="`0 0 ${W} ${H}`"
+        :height="svgH"
+        :viewBox="`0 0 ${W} ${svgH}`"
         :class="['block w-full select-none overflow-visible [touch-action:pan-y]', dragging ? 'cursor-ew-resize' : 'cursor-crosshair']"
         role="img"
         :aria-label="t('Cash forecast for the next {n} days. Lowest balance {amount} on {date}.', {
           n,
           amount: eur(mainMin.value),
           date: fmtDate(dateAt(mainMin.index)),
-        })"
+        }) + (hasLoss ? ` ${t('Without Avida')}: ${eur(-lossAt(n - 1))} ${t('less by {date}', { date: fmtDate(dateAt(n - 1)) })}.` : '')"
         @pointerdown="onDown"
         @pointermove="onMove"
         @pointerup="onUp"
@@ -516,7 +574,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
       >
         <defs>
           <clipPath :id="clipId">
-            <rect :x="plot.x0 - 2" :y="0" :width="Math.max(0, revealX - plot.x0 + 4)" :height="H" />
+            <rect :x="plot.x0 - 2" :y="0" :width="Math.max(0, revealX - plot.x0 + 4)" :height="svgH" />
           </clipPath>
         </defs>
 
@@ -553,7 +611,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
 
         <!-- selected period: soft band (sky = selection colour) -->
         <rect
-          x="0" :y="plot.y0" width="1" :height="plot.y1 - plot.y0"
+          x="0" :y="plot.y0" width="1" :height="guideBottom - plot.y0"
           class="pointer-events-none fill-sky transition-[transform,opacity] duration-fast"
           :style="{
             transform: `translateX(${selX0}px) scaleX(${Math.max(1, selX1 - selX0)})`,
@@ -564,7 +622,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
         <!-- x labels -->
         <text
           v-for="(i, k) in xTicks" :key="k"
-          :x="sx(i)" :y="H - 10"
+          :x="sx(i)" :y="svgH - 10"
           :text-anchor="k === 0 ? 'start' : k === xTicks.length - 1 ? 'end' : 'middle'"
           class="fill-muted text-caption tabular-nums"
         >{{ i === 0 ? t("Today") : fmtDayMonth(dateAt(i)) }}</text>
@@ -584,6 +642,26 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
               :stroke-dasharray="p.line.tone === 'risk' ? '6 5' : undefined"
             />
           </TransitionGroup>
+        </g>
+
+        <!-- "without Avida" strip: header (what you would lose by the day in focus) + loss growing downwards -->
+        <g v-if="hasLoss || strip.k > 0.01" :opacity="strip.k" aria-hidden="true">
+          <text :x="plot.x0" :y="plot.y1 + strip.head - 6" class="fill-muted text-caption">{{ lossHead.label }}</text>
+          <text
+            :x="plot.x1" :y="plot.y1 + strip.head - 6" text-anchor="end"
+            :class="['text-caption font-semibold tabular-nums', lossAt(lossIndex) > 0 ? 'fill-negative' : 'fill-muted']"
+          >{{ lossHead.value }}</text>
+          <line :x1="plot.x0" :x2="plot.x1" :y1="strip.top" :y2="strip.top" class="stroke-grid" stroke-width="1" />
+          <g v-if="lossDrawn" :clip-path="`url(#${clipId})`">
+            <path :d="lossDrawn.area" class="fill-chart-alt" fill-opacity="0.12" />
+            <path :d="lossDrawn.d" fill="none" class="stroke-chart-alt" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          </g>
+          <!-- the day in focus (end of the window by default) -->
+          <circle
+            cx="0" cy="0" r="4" class="fill-chart-alt stroke-surface transition-[transform,opacity] duration-fast" stroke-width="2"
+            :style="{ transform: `translate(${sx(lossIndex)}px, ${ly(lossAt(lossIndex))}px)` }"
+            :opacity="shownAt(lossIndex) ? 1 : 0"
+          />
         </g>
 
         <!-- points only where they carry meaning: the lowest point of each line (the rest appear on hover) -->
@@ -610,7 +688,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
         <g class="pointer-events-none transition-opacity duration-base" :opacity="sel ? 1 : 0" aria-hidden="true">
           <line
             v-for="(x, k) in [selX0, selX1]" :key="`edge-${k}`"
-            x1="0" x2="0" :y1="plot.y0 - 2" :y2="plot.y1"
+            x1="0" x2="0" :y1="plot.y0 - 2" :y2="guideBottom"
             class="stroke-fg transition-transform duration-fast" stroke-width="1.5"
             :style="{ transform: `translateX(${x}px)` }"
           />
@@ -636,7 +714,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           aria-hidden="true"
         >
           <line
-            x1="0" x2="0" :y1="plot.y0" :y2="plot.y1"
+            x1="0" x2="0" :y1="plot.y0" :y2="guideBottom"
             class="stroke-muted transition-transform duration-fast" stroke-width="1" stroke-dasharray="3 3"
             :style="{ transform: `translateX(${hoverX}px)` }"
           />
@@ -663,6 +741,12 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           <b class="font-semibold tabular-nums" :class="bal(l, hoverIndex) < buffer ? 'text-negative' : 'text-fg'">
             {{ eur(bal(l, hoverIndex)) }}
           </b>
+        </span>
+        <span v-if="hasLoss" class="flex items-center justify-between gap-3 border-t border-line pt-1 text-label">
+          <span class="flex items-center gap-1.5 text-muted">
+            <span class="h-2 w-2 rounded-full bg-chart-alt" />{{ t("Without Avida") }}
+          </span>
+          <b :class="['font-semibold tabular-nums', lossAt(hoverIndex) > 0 ? 'text-negative' : 'text-fg']">{{ eur(-lossAt(hoverIndex)) }}</b>
         </span>
       </div>
     </div>
@@ -761,6 +845,21 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                     </span>
                   </span>
                 </li>
+                <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1">
+                  <svg width="28" height="8" class="mt-2" aria-hidden="true">
+                    <line x1="1" x2="27" y1="4" y2="4" class="stroke-chart-alt" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                  <span class="text-label font-medium leading-snug">{{ t("Without Avida you would lose") }}</span>
+                  <span
+                    :class="[
+                      'col-start-2 font-display text-base font-semibold tracking-tight tabular-nums sm:text-lg',
+                      lossRow.value > 0 ? 'text-negative' : 'text-muted',
+                    ]"
+                  >
+                    {{ eur(-lossRow.value) }}
+                    <span class="ml-1 font-sans text-label font-normal text-muted">{{ lossRow.text }}</span>
+                  </span>
+                </li>
               </ul>
               <div class="grid gap-2 border-t border-line pt-3">
                 <span class="text-label font-semibold">{{ t("Big payments in this range") }}</span>
@@ -805,6 +904,19 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 </span>
                 <span v-else class="col-start-2 text-label text-muted">
                   {{ t("Lowest ahead {amount} · {date}", { amount: eur(r.min), date: fmtDayMonth(r.minDate) }) }}
+                </span>
+              </li>
+              <!-- what following Avida is worth: the gap between the two lines, as money you would lose without it -->
+              <li v-if="hasLoss" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-line pt-3">
+                <svg width="28" height="8" class="mt-2" aria-hidden="true">
+                  <line x1="1" x2="27" y1="4" y2="4" class="stroke-chart-alt" stroke-width="2" stroke-linecap="round" />
+                </svg>
+                <span class="text-label font-medium leading-snug">{{ t("Without Avida you would lose") }}</span>
+                <span class="col-start-2 flex flex-wrap items-baseline gap-x-2">
+                  <b :class="['font-display text-lg font-semibold tracking-tight tabular-nums', lossRow.value > 0 ? 'text-negative' : 'text-muted']">
+                    {{ eur(-lossRow.value) }}
+                  </b>
+                  <span class="text-label text-muted">{{ lossRow.text }}</span>
                 </span>
               </li>
             </ul>
