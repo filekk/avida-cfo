@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, timedelta
 
@@ -15,6 +16,8 @@ from .. import data, fallback, texts, tracing
 from ..config import settings
 from ..forecast import Adjustment, Delay, expand_items, pay_date, run_forecast, size_credit_line
 from ..llm import llm
+
+log = logging.getLogger("avida.analyst")
 
 NAME = "Analyst Agent"
 
@@ -56,7 +59,17 @@ async def read_email(email: dict) -> tuple[dict, str]:
     user = f"From: {email['from_name']} <{email['from']}>\nSubject: {email['subject']}\nDate: {email['received']}\n\n{email['body']}"
     fb = fallback.EXTRACTIONS.get(email["id"], fallback.NOT_RELEVANT)
     raw, source = await llm.json(EXTRACT_SYSTEM, user, EXTRACT_SCHEMA, fb)
-    return sanitize(raw, email), source
+    out = sanitize(raw, email)
+    # Demo guard: for the prepared inbox we know what each email is. If the model reads a key email differently
+    # (wrong kind, or misses figures that are in the text), the whole story breaks – use the checked reading
+    # instead and say so honestly (source "fallback" → "cached answer" in the UI).
+    if source == "llm" and email["id"] in fallback.EXTRACTIONS:
+        ref = sanitize(fb, email)
+        if out["kind"] != ref["kind"] or (ref["figures_stated"] and not out["figures_stated"]):
+            log.warning("read_email %s: model said %s/%s, expected %s/%s – using the checked reading",
+                        email["id"], out["kind"], out["figures_stated"], ref["kind"], ref["figures_stated"])
+            return ref, "fallback"
+    return out, source
 
 
 def sanitize(r: dict, email: dict) -> dict:

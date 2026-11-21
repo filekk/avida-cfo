@@ -15,6 +15,8 @@ data:
   LLM_FALLBACK_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
   LLM_FALLBACK_MODEL: "granite-8b"
   LLM_TIMEOUT_S: "60"
+  # all endpoints down / timing out → canned answers for this many seconds instead of waiting per call
+  LLM_BREAKER_S: "45"
   LLM_ENABLED: "true"
   DEMO_FALLBACK: "true"
   FORECAST_DAYS: "90"

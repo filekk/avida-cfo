@@ -17,10 +17,11 @@ Nothing here executes anything: `redraft()` returns a proposal, the owner still 
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from . import texts, tracing
-from .agents import analyst, legal, negotiator
+from .agents import analyst, legal
 from .llm import llm
 from .state import store
 
@@ -217,35 +218,75 @@ def _attempts(action_id: str) -> int:
     return sum(1 for e in store.audit if e.get("event") == "redraft_proposed" and e.get("action") == action_id)
 
 
+_PREAMBLE = re.compile(r"^.*?(?=^(subject|betreff)\s*:)", re.I | re.S | re.M)
+
+
+def _clean_email(text: str) -> str:
+    """Models like to add "Sure! Here is the email:" or ``` fences – keep only the email itself."""
+    t = re.sub(r"```[a-z]*", "", text).replace("**", "").strip()
+    return _PREAMBLE.sub("", t, count=1).strip() or t
+
+
+def _issues(text: str, f: dict) -> list[str]:
+    return legal.rule_review(text, f["task"], f["extraction"], f["contract"])
+
+
 @tracing.traced("negotiator.redraft", tracing.AGENT)
 async def redraft(action_id: str, instruction: str, body: str | None, lang: str) -> dict:
     """The owner asks for a change in plain words → Negotiator rewrites → Legal reviews. Returns a PROPOSAL:
     the action is not changed; the UI puts the text into the editor and the owner approves as usual.
-    Empty `instruction` = "write it again" (a fresh version with the same facts)."""
+    Empty `instruction` = "write it again" (a fresh version with the same facts).
+
+    Safety net (demo): a rewrite that breaks a hard rule the current text kept (clause, amount, placeholder,
+    internal finance) gets one fix round; if it is still broken, the current text is returned unchanged with a note,
+    so the editor never receives a worse email than it had."""
     a, f = _context(action_id)
     if a["status"] != "pending":
         raise NotEditable("This action has already been decided.")
     instruction = instruction.strip() or DEFAULT_REWRITE
-    current = body or a["payload"]["body"]
+    current = body if body and body.strip() else a["payload"]["body"]
     user = f"OWNER'S REQUEST: {instruction}\n\nCURRENT DRAFT:\n{current}"
     new, source = await llm.text(REDRAFT_SYSTEM, user, current, max_tokens=500)
-    review, rsrc = await legal.review_draft(new, f["task"], f["extraction"], f["contract"])
-    rules_now = legal.rule_review(new, f["task"], f["extraction"], f["contract"], lang)
-    store.log("redraft_proposed", action=a["id"], instruction=instruction, source=source, approved=review["approved"])
+    new = _clean_email(new) if source == "llm" else current
+    de = lang == "de"
     note = None
-    if source == "fallback":
-        note = ("Das Modell ist gerade nicht erreichbar – der Entwurf ist unverändert." if lang == "de"
+
+    if source == "llm":
+        before = set(_issues(current, f))
+        broken = [i for i in _issues(new, f) if i not in before]
+        if broken:
+            fix = (f"{user}\n\nYOUR VERSION:\n{new}\n\nIt breaks these rules – fix them and keep the owner's request:\n- "
+                   + "\n- ".join(broken))
+            new2, s2 = await llm.text(REDRAFT_SYSTEM, fix, new, max_tokens=500)
+            new2 = _clean_email(new2)
+            if s2 == "llm" and not [i for i in _issues(new2, f) if i not in before]:
+                new = new2
+            else:
+                new, source = current, "fallback"
+                note = ("Die neue Fassung hat Vertragsangaben verloren – der Entwurf bleibt unverändert. "
+                        "Bitte formulieren Sie die Bitte anders." if de else
+                        "The new version lost contract details – the draft is unchanged. Please try another wording.")
+    else:
+        note = ("Das Modell ist gerade nicht erreichbar – der Entwurf ist unverändert." if de
                 else "The model is not available right now – the draft is unchanged.")
+
+    changed = new.strip() != current.strip()
+    rules_now = legal.rule_review(new, f["task"], f["extraction"], f["contract"], lang)
+    if changed:
+        review, rsrc = await legal.review_draft(new, f["task"], f["extraction"], f["contract"])
+        model_remarks = [i for i in review["issues"] if i not in review["rule_issues"]]
+    else:  # nothing new to review – the instant rule check is enough
+        rsrc, model_remarks = "rules", []
+    store.log("redraft_proposed", action=a["id"], instruction=instruction, source=source, changed=changed,
+              approved=not (rules_now or model_remarks))
     return {
         "action_id": a["id"],
         "attempt": _attempts(a["id"]),  # 1, 2, 3 … – "Version 2" in the UI
         "instruction": instruction,
         "body": new,
-        "changed": new.strip() != current.strip(),
+        "changed": changed,
         "source": source,
         "note": note,
         # Legal Agent's review of the proposal: rule issues in the UI language, model remarks in English
-        "review": {"approved": review["approved"],
-                   "issues": rules_now + [i for i in review["issues"] if i not in review["rule_issues"]],
-                   "source": rsrc},
+        "review": {"approved": not (rules_now or model_remarks), "issues": rules_now + model_remarks, "source": rsrc},
     }

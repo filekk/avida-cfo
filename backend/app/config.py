@@ -26,6 +26,8 @@ class Settings:
     llm_fallback_model: str = os.getenv("LLM_FALLBACK_MODEL", "")
     # After the primary endpoint fails, go straight to the fallback for this many seconds.
     llm_failover_cooldown_s: float = float(os.getenv("LLM_FAILOVER_COOLDOWN_S", "30"))
+    # When ALL endpoints fail (down / timeout), answer from canned data for this many seconds (0 = off).
+    llm_breaker_s: float = float(os.getenv("LLM_BREAKER_S", "45"))
     # If the model is unreachable or returns garbage, use canned answers instead of failing the demo.
     demo_fallback: bool = _bool("DEMO_FALLBACK", True)
 

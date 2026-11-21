@@ -1,0 +1,157 @@
+"""Bugs found in the 2026-11-21 review + demo safety nets (model down, chatty or wrong)."""
+import asyncio
+import json
+import os
+
+os.environ.setdefault("LLM_ENABLED", "false")
+os.environ.setdefault("TRACE_DELAY_S", "0")
+
+import httpx  # noqa: E402
+import openai  # noqa: E402
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app import data, fallback  # noqa: E402
+from app import llm as llm_mod  # noqa: E402
+from app.agents import analyst  # noqa: E402
+from app.main import app  # noqa: E402
+
+client = TestClient(app)
+
+
+def _sync(lang: str = "en") -> str:
+    with client.stream("GET", f"/api/sync?lang={lang}") as r:
+        return "".join(r.iter_text())
+
+
+@pytest.fixture
+def synced():
+    client.post("/api/reset")
+    _sync()
+    yield
+    client.post("/api/reset")
+
+
+@pytest.fixture
+def model_on(monkeypatch):
+    """Pretend the model is enabled; each test sets what `_complete` returns."""
+    object.__setattr__(llm_mod.settings, "llm_enabled", True)
+    llm_mod.llm._all_down_until = 0.0
+    yield monkeypatch
+    object.__setattr__(llm_mod.settings, "llm_enabled", False)
+    llm_mod.llm._all_down_until = 0.0
+
+
+# --- review findings ---------------------------------------------------------------------------
+
+def test_long_or_many_history_turns_never_fail_the_question(synced):
+    long = {"role": "agent", "text": "x" * 2600}
+    r = client.post("/api/ask", json={"question": "Why?", "action_id": "act-1", "history": [long]})
+    assert r.status_code == 200
+    r = client.post("/api/ask", json={"question": "Why?", "action_id": "act-1",
+                                      "history": [{"role": "owner", "text": "q"}] * 9})
+    assert r.status_code == 200
+
+
+def test_blank_edited_body_keeps_the_reviewed_draft(synced):
+    draft = client.get("/api/dashboard").json()["actions"][0]["payload"]["body"]
+    a = client.post("/api/actions/act-1/approve", json={"edited_body": "   \n "}).json()["action"]
+    assert a["payload"]["body"] == draft and not a.get("edited_by_owner")
+
+
+def test_sync_error_is_plain_and_localized(monkeypatch):
+    from app import orchestrator
+    monkeypatch.setattr(orchestrator, "_running", True)
+    body = _sync("de")
+    ev = json.loads(body.split("data: ", 1)[1].split("\n", 1)[0])
+    assert body.startswith("event: error") and "läuft bereits" in ev["message"] and ev["code"] == "sync_running"
+
+
+# --- Rewrite button safety net -----------------------------------------------------------------
+
+def test_redraft_strips_chatty_preamble(synced, model_on):
+    draft = client.get("/api/dashboard").json()["actions"][0]["payload"]["body"]
+
+    async def complete(system, user, max_tokens=400, span=None, **kw):
+        if "json_schema" in str(kw):
+            return '{"approved": true, "issues": []}'
+        return "Sure! Here is the softer email:\n\n```\n" + draft.replace("do not accept", "cannot accept") + "\n```"
+
+    model_on.setattr(llm_mod.llm, "_complete", complete)
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "softer"}).json()
+    assert r["body"].lower().startswith("subject") and "```" not in r["body"] and r["changed"]
+    assert r["review"]["approved"]
+
+
+def test_redraft_that_loses_the_clause_is_not_proposed(synced, model_on):
+    draft = client.get("/api/dashboard").json()["actions"][0]["payload"]["body"]
+    calls = []
+
+    async def complete(system, user, max_tokens=400, span=None, **kw):
+        if "json_schema" in str(kw):
+            return '{"approved": true, "issues": []}'
+        calls.append(user)
+        return "Subject: Price\n\nDear team, please keep the old price. Thanks."  # no clause, no amount
+
+    model_on.setattr(llm_mod.llm, "_complete", complete)
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "much shorter", "lang": "de"}).json()
+    assert len(calls) == 2  # one fix round
+    assert r["body"] == draft and r["changed"] is False and r["source"] == "fallback"
+    assert "Vertragsangaben" in r["note"]
+
+
+# --- model down: circuit breaker ---------------------------------------------------------------
+
+def test_breaker_skips_the_model_after_all_endpoints_fail(model_on):
+    calls = []
+
+    async def down(system, user, max_tokens=400, span=None, **kw):
+        calls.append(1)
+        raise openai.APITimeoutError(request=httpx.Request("POST", "http://x"))
+
+    model_on.setattr(llm_mod.llm, "_complete", down)
+    out1 = asyncio.run(llm_mod.llm.text("s", "u", "canned"))
+    out2 = asyncio.run(llm_mod.llm.json("s", "u", {}, {"a": 1}))
+    assert out1 == ("canned", "fallback") and out2 == ({"a": 1}, "fallback")
+    assert len(calls) == 1  # the second call did not wait for another timeout
+
+
+def test_bad_json_does_not_open_the_breaker(model_on):
+    async def garbage(system, user, max_tokens=400, span=None, **kw):
+        return "not json"
+
+    model_on.setattr(llm_mod.llm, "_complete", garbage)
+    asyncio.run(llm_mod.llm.json("s", "u", {}, {"a": 1}))
+    assert not llm_mod.llm._broken()
+
+
+# --- model reads a key demo email wrong ----------------------------------------------------------
+
+def test_wrong_reading_of_a_demo_email_uses_the_checked_one(model_on):
+    email = next(e for e in data.inbox() if e["id"] == "mail-001")
+
+    async def wrong(system, user, max_tokens=400, span=None, **kw):
+        return json.dumps({"kind": "other", "counterparty": "CloudHost GmbH", "summary": "newsletter"})
+
+    model_on.setattr(llm_mod.llm, "_complete", wrong)
+    ex, src = asyncio.run(analyst.read_email(email))
+    assert src == "fallback" and ex["kind"] == "price_change" and ex["figures_stated"]
+    assert ex == analyst.sanitize(fallback.EXTRACTIONS["mail-001"], email)
+
+
+def test_negotiation_falls_back_to_template_when_rules_stay_broken(model_on):
+    async def complete(system, user, max_tokens=400, span=None, **kw):
+        if "json_schema" in str(kw):
+            if "Contract clause" in user or "DRAFT EMAIL" in user:
+                return '{"approved": true, "issues": []}'
+            raise ValueError("let the other JSON calls use their fallbacks")
+        return "Subject: Hello\n\nPlease reconsider. [Your name]"  # breaks the rules every time
+
+    model_on.setattr(llm_mod.llm, "_complete", complete)
+    client.post("/api/reset")
+    body = _sync()
+    client_d = client.get("/api/dashboard").json()
+    email = next(a for a in client_d["actions"] if a["id"] == "act-1")
+    assert "[Your name]" not in email["payload"]["body"] and "§5.2" in email["payload"]["body"]
+    assert email["source"] == "fallback" and "checked template" in body
+    client.post("/api/reset")

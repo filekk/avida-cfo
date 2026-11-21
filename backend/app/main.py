@@ -12,13 +12,13 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from . import ask as ask_cfo
 from . import contract_library, decision, tracing
 from .config import settings
 from .llm import llm
-from .orchestrator import initial_dashboard, run_pipeline
+from .orchestrator import SyncAlreadyRunning, initial_dashboard, run_pipeline
 from .state import POLICY, store
 from .texts import localize
 
@@ -41,7 +41,13 @@ Lang = Literal["en", "de"]
 
 class Turn(BaseModel):
     role: Literal["owner", "agent"]
-    text: str = Field(max_length=2000)
+    text: str
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _clip(cls, v):
+        # the UI sends the agent's own answers back – a long answer must never make the next question fail (422)
+        return str(v or "")[:2000]
 
 
 class Question(BaseModel):
@@ -50,8 +56,13 @@ class Question(BaseModel):
     # Problem chat: talk about ONE action card / finding (facts + suggestions limited to it)
     action_id: str | None = None
     finding_id: str | None = None
-    # last turns of this conversation (oldest first, max 6) – for follow-ups like "and why?"
-    history: list[Turn] = Field(default_factory=list, max_length=6)
+    # last turns of this conversation (oldest first) – for follow-ups like "and why?". Only the last 6 are used.
+    history: list[Turn] = Field(default_factory=list)
+
+    @field_validator("history", mode="before")
+    @classmethod
+    def _last_turns(cls, v):
+        return list(v or [])[-6:]
 
 
 class DraftCheck(BaseModel):
@@ -127,9 +138,16 @@ async def sync(lang: Lang = "en"):
                     if ev["type"] == "result":
                         ev = {"type": "result", "dashboard": _dash(ev["dashboard"], lang)}
                     yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+        except SyncAlreadyRunning:
+            msg = ("Die Prüfung läuft bereits (vielleicht in einem anderen Fenster) – bitte kurz warten." if lang == "de"
+                   else "A check is already running (maybe in another window) – please wait a moment.")
+            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': msg, 'code': 'sync_running'})}\n\n"
         except Exception as e:  # noqa: BLE001
             logging.exception("pipeline failed")
-            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            # plain words for the owner; the technical reason stays in `detail` and in the log
+            msg = ("Bei der Prüfung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut." if lang == "de"
+                   else "Something went wrong during the check. Please try again.")
+            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': msg, 'detail': str(e)})}\n\n"
 
     return StreamingResponse(
         events(),
