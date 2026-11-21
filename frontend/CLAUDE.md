@@ -27,7 +27,8 @@ components/
   contracts/         ContractUpload (drop zone, type/size check)
 api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError), one module per area, index.ts
 stores/              Pinia setup stores: dashboard (demo flow), system (config, LLM health),
-                     ask (one shared conversation + suggestions, re-fetched on sync / reset / language switch)
+                     ask (two separate histories: overview chat `generalTurns` and one per decision `turnsOf(key)`;
+                     suggestions re-fetched on sync / reset / language switch)
 composables/         useTheme, useA11y (accessibility menu), useForecastPeriod (chart window),
                      useTweenedNumber, useAsyncData (view-local fetches)
 types/api.ts         TS mirror of docs/API.md, the single source of types

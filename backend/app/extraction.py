@@ -161,6 +161,48 @@ def sanity_check(out: dict) -> list[str]:
     return warnings
 
 
+# Words that say which side OUR company is on (German + English contracts). "Auftraggeber" = the one who orders
+# (we receive the service → the other party is our supplier); "Auftragnehmer" = the one who delivers.
+_WE_RECEIVE = r"auftraggeber|kunde|kundin|mieter|mieterin|besteller|käufer|leasingnehmer|customer|client|buyer|purchaser|lessee|tenant"
+_WE_DELIVER = r"auftragnehmer|lieferant|anbieter|dienstleister|vermieter|verkäufer|leasinggeber|supplier|provider|vendor|contractor|seller|lessor|landlord"
+
+
+def role_from_text(text: str, own_company: str) -> str | None:
+    """'supplier' / 'customer' (= the OTHER party's role) from how the contract labels OUR company, else None.
+    Looks right after our name ("Müller GmbH … (nachfolgend „Auftraggeber“)") and right before it ("Mieter: Müller")."""
+    if not own_company:
+        return None
+    t = text.lower()
+    name = re.escape(own_company.lower())
+    votes = {"supplier": 0, "customer": 0}
+    for m in re.finditer(name, t):
+        # the label right AFTER our name wins ("Müller GmbH, Stuttgart (Auftraggeber)"); the one before it only counts
+        # when nothing follows ("Mieter: Müller GmbH") – just before our name usually sits the OTHER party's label
+        after, before = t[m.end(): m.end() + 160], t[max(0, m.start() - 30): m.start()]
+        for window, last in ((after, False), (before, True)):
+            hits = [(x.start(), "supplier") for x in re.finditer(rf"\b({_WE_RECEIVE})\b", window)]
+            hits += [(x.start(), "customer") for x in re.finditer(rf"\b({_WE_DELIVER})\b", window)]
+            if hits:
+                # after our name: the first label; before it: the label closest to our name
+                votes[(max(hits) if last else min(hits))[1]] += 1
+                break
+    if votes["supplier"] == votes["customer"]:
+        return None
+    return "supplier" if votes["supplier"] > votes["customer"] else "customer"
+
+
+def _title(raw_title, pages: list[str]) -> str:
+    """The model sometimes returns a section heading ("Laufzeit", "§2 Term") as the title – then use the
+    document's own first line (e.g. "IT-Supportvertrag")."""
+    title = str(raw_title or "").strip()
+    text = "\n".join(pages)
+    first = next((ln.strip(" #*") for ln in text.splitlines() if ln.strip(" #*")), "")
+    is_section = bool(title) and re.search(rf"(§\s*\d+[\w.]*|^\s*\d+(\.\d+)*)\s*{re.escape(title)}\b", text, re.I | re.M)
+    if (not title or is_section) and first and len(first) <= 90:
+        return first
+    return title
+
+
 def clean(raw: dict, pages: list[str], own_company: str = "") -> dict:
     """Normalise the model output and attach `warnings` the owner should look at before trusting it.
 
@@ -176,11 +218,18 @@ def clean(raw: dict, pages: list[str], own_company: str = "") -> dict:
     if own_company and party and _squash(own_company) in _squash(party):
         warnings.append("The model named our own company as the other party – please check.")
     role = raw.get("role") if raw.get("role") in ("supplier", "customer") else "supplier"
+    # The model mixes up German roles (Auftraggeber / Auftragnehmer). A wrong role silently drops the price terms
+    # (they are kept for suppliers only), so the contract text decides when it is clear.
+    by_text = role_from_text("\n".join(pages), own_company)
+    if by_text and by_text != role:
+        warnings.append(f"The model read {party or 'the other party'} as our {role}; the contract text says "
+                        f"{by_text} – corrected.")
+        role = by_text
 
     out: dict = {
         "counterparty": party,
         "role": role,
-        "title": str(raw.get("title") or "").strip(),
+        "title": _title(raw.get("title"), pages),
         "start_date": _iso(raw.get("start_date")),
         "monthly_fee": _num(raw.get("monthly_fee")),
         "fixed_price_until": _iso(raw.get("fixed_price_until")),

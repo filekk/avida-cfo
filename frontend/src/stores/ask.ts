@@ -24,9 +24,9 @@ export interface AskTurn {
 }
 
 /**
- * "Ask your CFO" (docs/API.md → Ask your CFO). App-level, so there is ONE conversation that survives navigation:
- * the overview's floating chat (components/ask/AskChat) shows every turn; the contextual panel inside one Action
- * center decision (components/ask/AskContext) shows only the turns asked there (`context`).
+ * "Ask your CFO" (docs/API.md → Ask your CFO). App-level, so the conversations survive navigation. Two separate
+ * histories: the overview's floating chat (components/ask/AskChat → `generalTurns`) and one per Action center
+ * decision (components/ask/AskContext → `turnsOf(key)`); neither shows nor clears the other's turns.
  * Suggestions are re-fetched whenever they can change: language switch, sync finished, reset.
  */
 export const useAskStore = defineStore("ask", () => {
@@ -37,8 +37,15 @@ export const useAskStore = defineStore("ask", () => {
   const loadingSuggestions = ref(false);
   const suggestionsError = ref<string | null>(null);
 
+  /** Every turn of both conversations; views read them through `generalTurns` / `turnsOf(context)`. */
   const turns = ref<AskTurn[]>([]);
-  const asking = computed(() => turns.value.some((x) => !x.answer && !x.error));
+  const pending = (x: AskTurn) => !x.answer && !x.error;
+  /** The overview chat: only questions asked there (not the ones from inside an Action center decision). */
+  const generalTurns = computed(() => turns.value.filter((x) => !x.context));
+  /** The overview chat is waiting for an answer (the Action center has its own flag: `askingIn`). */
+  const asking = computed(() => generalTurns.value.some(pending));
+  const turnsOf = (context: string) => turns.value.filter((x) => x.context === context);
+  const askingIn = (context: string) => turnsOf(context).some(pending);
   let nextId = 1;
 
   async function loadSuggestions() {
@@ -92,7 +99,8 @@ export const useAskStore = defineStore("ask", () => {
    */
   async function ask(question: string, opts: { context?: string } & ProblemRef = {}) {
     const q = question.trim().slice(0, 500);
-    if (!q || asking.value) return;
+    // one question at a time per conversation – the overview chat and a decision's chat don't block each other
+    if (!q || (opts.context ? askingIn(opts.context) : asking.value)) return;
     const history = opts.context ? historyOf(opts.context) : [];
     const turn: AskTurn = { id: nextId++, question: q, context: opts.context };
     turns.value.push(turn);
@@ -109,16 +117,21 @@ export const useAskStore = defineStore("ask", () => {
         if (a.suggestions?.length) contextSuggestions.value[opts.context] = a.suggestions;
       } else {
         suggestions.value = a.suggestions;
+        note.value = a.note;
       }
-      note.value = a.note;
     } catch (e) {
       turns.value[i] = { ...turn, error: message(e) };
     }
   }
 
-  /** Without `context`: the whole conversation. With it: only the turns of that decision. */
+  /** Without `context`: the overview chat only. With it: only the turns of that decision. */
   function clear(context?: string) {
-    turns.value = context ? turns.value.filter((x) => x.context !== context) : [];
+    turns.value = turns.value.filter((x) => (context ? x.context !== context : !!x.context));
+  }
+
+  /** Both conversations (demo reset: old answers talk about numbers that are gone). */
+  function clearAll() {
+    turns.value = [];
   }
 
   // What the backend can suggest depends on the language and on whether the inbox was checked.
@@ -129,15 +142,15 @@ export const useAskStore = defineStore("ask", () => {
   watch(
     () => [dashboard.hasSynced, dashboard.findings.length] as const,
     ([synced], [wasSynced]) => {
-      if (wasSynced && !synced) clear(); // demo reset → old answers talk about numbers that are gone
+      if (wasSynced && !synced) clearAll(); // demo reset → old answers talk about numbers that are gone
       contextSuggestions.value = {};
       loadSuggestions();
     },
   );
 
   return {
-    suggestions, note, loadingSuggestions, suggestionsError, turns, asking,
+    suggestions, note, loadingSuggestions, suggestionsError, turns, generalTurns, asking, turnsOf, askingIn,
     contextSuggestions, contextLoading,
-    loadSuggestions, loadContext, ask, clear,
+    loadSuggestions, loadContext, ask, clear, clearAll,
   };
 });

@@ -26,7 +26,8 @@ import SuggestionChips from "./SuggestionChips.vue";
 const props = withDefaults(defineProps<{ compact?: boolean }>(), { compact: false });
 
 const store = useAskStore();
-const { suggestions, note, loadingSuggestions, suggestionsError, turns, asking } = storeToRefs(store);
+// only the overview conversation – questions asked inside an Action center decision live there
+const { suggestions, note, loadingSuggestions, suggestionsError, generalTurns: turns, asking } = storeToRefs(store);
 
 const MAX = 500;
 const draft = ref("");

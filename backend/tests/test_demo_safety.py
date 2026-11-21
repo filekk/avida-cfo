@@ -175,3 +175,30 @@ def test_main_clause_is_decided_by_the_rules_not_the_model(model_on):
     res, src = asyncio.run(legal.check(ex, email["received"]))
     assert res["verdict"] == "violates" and res["clause_id"] == "§5.2" and res["clause"]["id"] == "§5.2"
     assert res["quote"] in res["clause"]["text"]
+
+
+# --- contract upload: roles and titles (found by uploading a German PDF in the demo test) -------------
+
+def test_role_comes_from_the_contract_text_not_only_the_model():
+    from app import extraction as x
+
+    own = "Müller Feinmechanik GmbH"
+    de = ("IT-Supportvertrag\nzwischen IT-Service Kraus e.K., Stuttgart (nachfolgend\n„Auftragnehmer“)\n"
+          "und Müller Feinmechanik GmbH, Industriestraße 4, 70565 Stuttgart (nachfolgend „Auftraggeber“).\n"
+          "§2 Laufzeit\nDer Vertrag beginnt am 1. Juli 2025.\n§3 Vergütung\n3.2 Die Pauschale von 1.450,00 EUR ist bis "
+          "zum 30. Juni 2027 fest vereinbart. Preiserhöhungen vor diesem Datum sind ausgeschlossen.")
+    assert x.role_from_text(de, own) == "supplier"
+    assert x.role_from_text("Vermieter: Schwab GmbH\nMieter: Müller Feinmechanik GmbH\n", own) == "supplier"
+    assert x.role_from_text('Between Müller Feinmechanik GmbH ("Supplier") and Bauer AG ("Customer")', own) == "customer"
+    assert x.role_from_text("A contract without labels.", own) is None
+    # the model said "customer" → corrected, price terms kept, title from the document
+    raw = {"counterparty": "IT-Service Kraus e.K.", "role": "customer", "title": "Laufzeit", "start_date": "2025-07-01",
+           "monthly_fee": 1450, "fixed_price_until": "2027-06-30", "price_change_notice_days": 90,
+           "max_annual_increase_pct": 5, "payment_terms_days": 14, "changes_require_written_agreement": True,
+           "clauses": [{"id": "3.2", "page": 1, "title": "Vergütung",
+                        "text": "Die Pauschale von 1.450,00 EUR ist bis zum 30. Juni 2027 fest vereinbart."}]}
+    ex = x.clean(raw, [de], own)
+    assert ex["role"] == "supplier" and ex["title"] == "IT-Supportvertrag"
+    assert any("corrected" in w for w in ex["warnings"])
+    entry = x.to_index_entry(ex, "U-001", "uploads/k.pdf")
+    assert entry["supplier"] == "IT-Service Kraus e.K." and entry["fixed_price_until"] == "2027-06-30"
