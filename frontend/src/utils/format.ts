@@ -39,6 +39,14 @@ export const fmtDate = (iso: string | null | undefined) =>
 export const fmtDayMonth = (iso: string | null | undefined) =>
   iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { day: "numeric", month: "short" }) : "–";
 
+/** "2027-02-03" → "Feb" / "Feb." (chart axes) */
+export const fmtMonth = (iso: string | null | undefined) =>
+  iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { month: "short" }) : "–";
+
+/** "2027-02-03" → "February 2027" / "Februar 2027" */
+export const fmtMonthYear = (iso: string | null | undefined) =>
+  iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { month: "long", year: "numeric" }) : "–";
+
 /** "2027-02-03" → "3 February" / "3. Februar" (for sentences) */
 export const fmtDayMonthLong = (iso: string | null | undefined) =>
   iso ? parseIso(iso).toLocaleDateString(intlLocale.value, { day: "numeric", month: "long" }) : "–";
