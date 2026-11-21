@@ -33,7 +33,7 @@ const de: Record<string, string> = {
   "Based on your emails": "Aus Ihren E-Mails",
   "Based on your forecast": "Aus Ihrer Prognose",
   "Supplier price changes, checked against your contracts.": "Preisänderungen von Lieferanten, geprüft anhand Ihrer Verträge.",
-  "Steps that keep your balance above your safety cushion.": "Schritte, die Ihren Kontostand über dem Sicherheitspuffer halten.",
+  "Steps that keep your balance above your safety cushion.": "Schritte, die Ihren Kontostand über dem Sicherheitspolster halten.",
   "No email needs your decision right now.": "Gerade braucht keine E-Mail Ihre Entscheidung.",
   "Your forecast needs no action right now.": "Für Ihre Prognose ist gerade nichts zu tun.",
   Pending: "Offen",

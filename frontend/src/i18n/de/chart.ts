@@ -31,7 +31,7 @@ const de: Record<string, string> = {
     "Prognosediagramm. Klicken Sie auf einen Tag oder nutzen Sie die Pfeiltasten. Halten Sie die Umschalttaste gedrückt, um einen Zeitraum zu wählen. Escape führt zurück zu heute.",
   "Cash forecast for the next {n} days. Lowest balance {amount} on {date}.":
     "Liquiditätsprognose für die nächsten {n} Tage. Tiefster Kontostand {amount} am {date}.",
-  "Safety cushion {amount}": "Sicherheitspuffer {amount}",
+  "Safety cushion {amount}": "Sicherheitspolster {amount}",
   "Cushion {amount}": "Puffer {amount}",
   "Lowest · {date}": "Tiefster Stand · {date}",
   "Click a day to see it · drag to compare a period": "Klicken Sie auf einen Tag · ziehen Sie, um einen Zeitraum zu vergleichen",

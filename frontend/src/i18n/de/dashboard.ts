@@ -5,7 +5,7 @@ const de: Record<string, string> = {
   "Lowest balance ahead": "Niedrigster Kontostand",
   "below cushion": "unter dem Puffer",
   "above cushion": "über dem Puffer",
-  "Your safety cushion": "Ihr Sicherheitspuffer",
+  "Your safety cushion": "Ihr Sicherheitspolster",
   "minimum to keep": "Mindestbetrag",
   Forecast: "Prognose",
   "Your money, next {period}": "Ihr Geld, nächste {period}",
