@@ -7,6 +7,10 @@ you agree and update `docs/API.md`. The front-end is already prepared for each i
 
 ## 1. `lang` on every endpoint (EN / DE)
 
+> **Status 2026-11-21: implemented by the back-end** (branch `backend/frontend-support`). See `docs/API.md` → Languages
+> and `docs/FRONTEND_HANDOFF.md`. Difference from the proposal: model-written texts exist only in the sync's
+> language (`Dashboard.sync_lang`); the other language gets the rule-based text.
+
 **Why:** the UI now has an English/German switch, and every UI label is translated. Texts the backend writes
 still arrive in English in German mode: the headline, agent step messages, action `title`/`why`/`result`,
 `explanation_simple`, check `detail`, `calculation`, the backend-dev `analysis.summary` and `key_points`.
@@ -41,6 +45,9 @@ After a language switch the front-end calls `GET /api/dashboard` again.
 
 ## 2. Spending by category for the payments donut (optional)
 
+> **Status 2026-11-21: implemented.** `Forecast.outflows_by_category` / `inflows_by_category` (whole horizon) and
+> `Forecast.events` (every payment) to cut any period on the client.
+
 **Why:** the "Biggest payments ahead" donut can only show `largest_outflows`, which is the top 5 single
 payments (`liquidity.py`: `[:5]`). A real "where does my money go" donut needs totals per category over the
 forecast window.
@@ -64,3 +71,12 @@ A cheaper option is `outflows_by_category_30d` / `_90d` buckets.
   - `Dashboard.analysis` (briefing, `risk_level`);
   - "Ask your CFO" (`/api/ask`, `/api/ask/suggestions`);
   - contract upload.
+
+---
+
+## 4. AV Rewrite – DONE by the back-end as `POST /api/actions/{id}/redraft`
+
+Implemented on `backend/frontend-support` (see `docs/FRONTEND_HANDOFF.md` §3) and wired in the front-end:
+`api/actions.ts → redraftAction()` + `getRedraftHints()` (chips) + `reviewDraft()` (instant check while typing),
+problem chat via `getActionContext()` / `getFindingContext()` and `askCfo(q, { action_id | finding_id, history })`.
+The earlier `/rewrite` proposal is withdrawn.

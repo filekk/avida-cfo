@@ -19,10 +19,11 @@ components/
   agent/             AutonomyBadge, AutonomyLegend, AgentTrace, AgentPipeline, SourceTag (challenge-specific)
   dashboard/         KpiCard, ForecastChart, PeriodPicker, PaymentsDonut (+ chart.ts), BriefingCard
   findings/          FindingSplit (email ↔ contract ↔ calculation)
-  actions/           ActionCard (editable email / credit offer + Legal review + Approve / Not now)
-  ask/               "Ask your CFO" (no page; /ask → Action center #ask): AskChat (reads the ask store; card in
-                     the Action center + `compact` in AskLauncher, the Overview's floating bubble), AskTurnItem,
-                     SuggestionChips
+  actions/           ActionCard (editable email / credit offer + Legal review + Approve / Not now | AV Rewrite),
+                     RewriteDraft (AV Rewrite pop-up), DecisionTile, DecisionFocus (+ decision.ts)
+  ask/               "Ask your CFO" (no page; /ask → Action center): AskChat (reads the ask store; `compact` in
+                     AskLauncher, the Overview's floating bubble), AskContext (full-width contextual bar in a decision,
+                     between explanation and buttons, chips from contextual.ts), AskTurnItem, SuggestionChips
   contracts/         ContractUpload (drop zone, type/size check)
 api/                 the only place that talks HTTP: http.ts (fetch wrapper, ApiError), one module per area, index.ts
 stores/              Pinia setup stores: dashboard (demo flow), system (config, LLM health),

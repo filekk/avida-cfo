@@ -101,5 +101,27 @@ const de: Record<string, string> = {
   Before: "Vorher",
   Now: "Jetzt",
   "/month": "/Monat",
+  // AV Rewrite (decision bar in the focus view)
+  "AV Rewrite": "AV Umschreiben",
+  "Rewriting…": "Wird umgeschrieben …",
+  "Rewrite the draft with AI": "Entwurf mit KI umschreiben",
+  "How should the email change?": "Wie soll sich die E-Mail ändern?",
+  "Avida rewrites the draft. Nothing is sent – you read it first.":
+    "Avida schreibt den Entwurf um. Es wird nichts gesendet – Sie lesen ihn zuerst.",
+  "Quick wishes": "Schnelle Wünsche",
+  "Be firmer": "Bestimmter formulieren",
+  "Be friendlier": "Freundlicher formulieren",
+  "Make it shorter": "Kürzer fassen",
+  "Mention a 2 % discount for paying early": "2 % Skonto bei früher Zahlung erwähnen",
+  "Your wish for the email": "Ihr Wunsch für die E-Mail",
+  "e.g. be firmer, mention the discount": "z. B. bestimmter, Rabatt erwähnen",
+  Rewrite: "Umschreiben",
+  "Rewritten by Avida – please read it before sending.": "Von Avida umgeschrieben – bitte vor dem Senden lesen.",
+  Undo: "Rückgängig",
+  "Version {n}": "Version {n}",
+  "The draft is unchanged.": "Der Entwurf ist unverändert.",
+  "New version checked by the Legal Agent – approved": "Neue Version vom Rechts-Agenten geprüft – freigegeben",
+  "Your text passes the checks": "Ihr Text besteht die Prüfung",
+  "Please check before sending:": "Bitte vor dem Senden prüfen:",
 };
 export default de;

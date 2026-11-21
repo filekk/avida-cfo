@@ -7,6 +7,8 @@ from __future__ import annotations
 import itertools
 from datetime import datetime, timezone
 
+from . import texts
+
 # The four levels required by the challenge card.
 ANALYZED = "analyzed"          # agent does it on its own
 RECOMMENDATION = "recommendation"
@@ -23,6 +25,8 @@ POLICY = [
     {"action": "Send email to a supplier or customer", "agent": "Negotiator Agent", "autonomy": APPROVAL, "execution": SIMULATED},
     {"action": "Apply for a credit facility", "agent": "Analyst Agent", "autonomy": APPROVAL, "execution": SIMULATED},
 ]
+for _rule in POLICY:
+    _rule["i18n"] = texts.de(action=texts.POLICY_DE[_rule["action"]])
 
 
 def _now() -> str:
@@ -38,6 +42,9 @@ class Store:
         self.actions: dict[str, dict] = {}
         self.audit: list[dict] = []
         self.saved_liquidity: float = 0.0
+        self.kpis_before_sync: dict | None = None  # KPIs of the start screen → "previous" values for number animations
+        self.trace: list[dict] = []  # every SSE event of the last sync (replay: GET /api/sync/trace)
+        self.sync_lang: str = "en"
         self._ids = itertools.count(1)
 
     def add_action(self, **kwargs) -> dict:
@@ -60,10 +67,12 @@ class Store:
         if a["status"] != "pending":
             return a
         if approve:
-            if edited_body and a.get("payload", {}).get("body") is not None:
+            if edited_body and a.get("payload", {}).get("body") is not None and edited_body != a["payload"]["body"]:
                 a["payload"]["body"] = edited_body
+                a["edited_by_owner"] = True
             a["status"] = "executed"
-            a["result"] = _simulate(a)
+            a["result"] = _simulate(a, "en")
+            a.setdefault("i18n", {}).setdefault("de", {})["result"] = _simulate(a, "de")
             self.saved_liquidity += a.get("savings_12m", 0.0)
             self.log("approved", action=a["id"], title=a["title"], result=a["result"])
         else:
@@ -73,13 +82,13 @@ class Store:
         return a
 
 
-def _simulate(action: dict) -> str:
+def _simulate(action: dict, lang: str) -> str:
     if action["type"] == "send_email":
-        return f"Email to {action['payload']['to']} sent (simulated – nothing left the system)."
+        return texts.result_email(action["payload"]["to"], lang)
     if action["type"] == "credit_application":
         p = action["payload"]
-        return f"Application for {p['amount']:,.0f} EUR {p['product']} prepared and submitted (simulated)."
-    return "Done (simulated)."
+        return texts.result_credit(p["amount"], p["product"], lang)
+    return texts.result_other(lang)
 
 
 store = Store()

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from .. import data, fallback
+from .. import data, fallback, texts
 from ..llm import llm
 
 NAME = "Legal Agent"
@@ -23,8 +23,13 @@ SYSTEM = (
     "You get contract clauses, a change announced by a supplier or customer (a price increase or a later payment) "
     "and the results of automatic rule checks. Explain in at most 2 short, friendly sentences whether the change is "
     "allowed, and pick the single clause that matters most. Quote it word for word. "
-    "Do not give legal advice beyond the contract text. Answer with JSON only."
+    "Do not give legal advice beyond the contract text. {language} Answer with JSON only."
 )
+
+LANGUAGE = {
+    "en": "Write explanation_simple in English.",
+    "de": "Write explanation_simple in German (formal 'Sie'). The quote stays word for word in the contract's language.",
+}
 
 SCHEMA = {
     "type": "object",
@@ -67,36 +72,21 @@ def rule_checks(contract: dict, extraction: dict, received: date) -> list[dict]:
     if contract.get("fixed_price_until"):
         until = date.fromisoformat(contract["fixed_price_until"])
         ok = eff > until
-        checks.append({
-            "check": "Price guarantee period",
-            "passed": ok,
-            "clause_id": _clause_with(contract, "guarantee"),
-            "detail": (
-                f"Prices are fixed until {until:%d %b %Y}, but the increase starts on {eff:%d %b %Y}."
-                if not ok else f"The price guarantee ended on {until:%d %b %Y}."
-            ),
-        })
+        checks.append(_check("Price guarantee period", ok, _clause_with(contract, "guarantee"),
+                             lambda lg: texts.check_guarantee(until, eff, ok, lg)))
 
     if contract.get("price_change_notice_days"):
         need = contract["price_change_notice_days"]
         given = (eff - received).days
         ok = given >= need
-        checks.append({
-            "check": "Notice period",
-            "passed": ok,
-            "clause_id": _clause_with(contract, "notice"),
-            "detail": f"{given} days' notice given, {need} days required." if not ok else f"{given} days' notice given ({need} required).",
-        })
+        checks.append(_check("Notice period", ok, _clause_with(contract, "notice"),
+                             lambda lg: texts.check_notice(given, need, ok, lg)))
 
     if contract.get("max_annual_increase_pct") is not None:
         cap = contract["max_annual_increase_pct"]
         ok = extraction["increase_pct"] <= cap
-        checks.append({
-            "check": "Maximum yearly increase",
-            "passed": ok,
-            "clause_id": _clause_with(contract, "index"),
-            "detail": f"Increase of {extraction['increase_pct']}% vs. allowed maximum of {cap}%.",
-        })
+        checks.append(_check("Maximum yearly increase", ok, _clause_with(contract, "index"),
+                             lambda lg: texts.check_cap(extraction["increase_pct"], cap, lg)))
     return checks
 
 
@@ -104,21 +94,19 @@ def payment_checks(contract: dict, extraction: dict) -> list[dict]:
     """Late customer payment: agreed due date, and whether payment dates may be changed one-sidedly."""
     due, new = date.fromisoformat(extraction["due_date"]), date.fromisoformat(extraction["new_payment_date"])
     late = (new - due).days
-    inv = extraction.get("invoice") or "the invoice"
-    checks = [{
-        "check": "Agreed payment date",
-        "passed": late <= 0,
-        "clause_id": _clause_with(contract, "payable"),
-        "detail": f"{inv} is due on {due:%d %b %Y}; payment is announced for {new:%d %b %Y} ({late} days late).",
-    }]
+    inv = extraction.get("invoice") or None
+    checks = [_check("Agreed payment date", late <= 0, _clause_with(contract, "payable"),
+                     lambda lg: texts.check_payment(inv, due, new, late, lg))]
     if contract.get("changes_require_written_agreement"):
-        checks.append({
-            "check": "Change of payment date",
-            "passed": late <= 0,
-            "clause_id": _clause_with(contract, "written agreement"),
-            "detail": "Payment dates can only be changed by written agreement of both parties – no such agreement exists.",
-        })
+        checks.append(_check("Change of payment date", late <= 0, _clause_with(contract, "written agreement"),
+                             texts.check_written))
     return checks
+
+
+def _check(name: str, passed: bool, clause_id: str, detail) -> dict:
+    """One rule check; `detail(lang)` writes the sentence (English in the fields, German in the overlay)."""
+    return {"check": name, "passed": passed, "clause_id": clause_id, "detail": detail("en"),
+            "i18n": texts.de(check=texts.CHECK_DE.get(name, name), detail=detail("de"))}
 
 
 def _clause_with(contract: dict, word: str) -> str:
@@ -129,10 +117,15 @@ def _clause_with(contract: dict, word: str) -> str:
 
 
 def _unclear(extraction: dict, contract: dict | None, figures: bool) -> tuple[dict, str]:
-    fb = fallback.contract_explanation("unclear", extraction["party"], [], None, extraction["kind"], figures)
-    if not contract and not figures:
-        fb["explanation_simple"] += f" There is also no contract with {extraction['party']} on file."
-    return {"verdict": "unclear", "contract": _contract_info(contract), "clause": None, "checks": [], "clauses": [], **fb}, "rules"
+    party = extraction["party"]
+
+    def text(lg: str) -> str:
+        t = texts.explanation("unclear", party, [], extraction["kind"], figures, lg)
+        return t + (texts.no_contract_either(party, lg) if not contract and not figures else "")
+
+    return {"verdict": "unclear", "contract": _contract_info(contract), "clause": None, "checks": [], "clauses": [],
+            "explanation_simple": text("en"), "clause_id": "", "quote": "", "source": "rules",
+            "i18n": texts.de(explanation_simple=text("de"))}, "rules"
 
 
 def _contract_info(contract: dict | None) -> dict | None:
@@ -151,8 +144,9 @@ def _normalise(extraction: dict, contract: dict) -> None:
     extraction["customer" if extraction["kind"] == "payment_delay" else "supplier"] = name
 
 
-async def check(extraction: dict, received: str) -> tuple[dict, str]:
-    """Entry point for every finding (price change or late payment)."""
+async def check(extraction: dict, received: str, lang: str = "en") -> tuple[dict, str]:
+    """Entry point for every finding (price change or late payment). The model explains in `lang`; the other
+    language gets the rule-based explanation."""
     contract = find_contract(extraction["party"])
     if contract:
         _normalise(extraction, contract)
@@ -183,7 +177,10 @@ async def check(extraction: dict, received: str) -> tuple[dict, str]:
         f"Overall verdict (fixed, do not change it): {verdict.upper()}"
     )
     fb = fallback.contract_explanation(verdict, _party(contract), failed, key_clause, extraction["kind"])
-    expl, source = await llm.json(SYSTEM, user, SCHEMA, fb)
+    rule_text = {lg: texts.explanation(verdict, _party(contract), failed, extraction["kind"], True, lg)
+                 for lg in texts.LANGS}
+    fb["explanation_simple"] = rule_text[lang]
+    expl, source = await llm.json(SYSTEM.format(language=LANGUAGE[lang]), user, SCHEMA, fb)
 
     # Guard against hallucinated quotes: the quote must exist in the contract, else use the real clause.
     real = next((c for c in contract["clauses"] if c["id"] == expl.get("clause_id")), None)
@@ -194,13 +191,21 @@ async def check(extraction: dict, received: str) -> tuple[dict, str]:
     if not str(expl.get("explanation_simple", "")).strip():
         expl["explanation_simple"] = fb["explanation_simple"]
 
+    explained = dict(rule_text)
+    explained[lang] = str(expl["explanation_simple"]).strip()
+    sources = {lg: "rules" for lg in texts.LANGS}
+    sources[lang] = source
     return {
         "verdict": verdict,
         "contract": _contract_info(contract),
         "clause": real,
         "checks": checks,
         "clauses": clauses,
-        **expl,
+        "clause_id": expl["clause_id"],
+        "quote": expl["quote"],
+        "explanation_simple": explained["en"],
+        "source": sources["en"],
+        "i18n": texts.de(explanation_simple=explained["de"], source=sources["de"]),
     }, source
 
 
@@ -234,23 +239,30 @@ def _digits(s: str) -> str:
     return re.sub(r"[^0-9]", "", s)
 
 
-def rule_review(draft: str, task: str, extraction: dict, legal_result: dict) -> list[str]:
+def rule_review(draft: str, task: str, extraction: dict, legal_result: dict, lang: str = "en") -> list[str]:
     """Deterministic checks the draft must pass regardless of what the model thinks.
 
     task: reject_price | payment_reminder | ask_details
+    lang: language of the issue texts (the Negotiator always gets English).
     """
+    de = lang == "de"
     issues = []
     clause = legal_result.get("clause") or {}
     if task in ("reject_price", "payment_reminder") and clause.get("id") and clause["id"] not in draft:
-        issues.append(f"The email does not refer to {clause['id']} of the contract.")
+        issues.append(f"Die E-Mail verweist nicht auf {clause['id']} des Vertrags." if de
+                      else f"The email does not refer to {clause['id']} of the contract.")
     if task == "reject_price" and _digits(f"{extraction['old_monthly']:.0f}") not in _digits(draft):
-        issues.append(f"The email does not state the agreed price of EUR {extraction['old_monthly']:,.2f}.")
+        issues.append(f"Die E-Mail nennt den vereinbarten Preis von {texts.eur(extraction['old_monthly'], lang, 2)} nicht."
+                      if de else f"The email does not state the agreed price of EUR {extraction['old_monthly']:,.2f}.")
     if task == "payment_reminder" and _digits(f"{extraction['amount']:.0f}") not in _digits(draft):
-        issues.append(f"The email does not state the invoice amount of EUR {extraction['amount']:,.2f}.")
+        issues.append(f"Die E-Mail nennt den Rechnungsbetrag von {texts.eur(extraction['amount'], lang, 2)} nicht."
+                      if de else f"The email does not state the invoice amount of EUR {extraction['amount']:,.2f}.")
     if re.search(r"\[[^\]]{2,40}\]", draft):
-        issues.append("The email still contains a placeholder in square brackets.")
+        issues.append("Die E-Mail enthält noch einen Platzhalter in eckigen Klammern." if de
+                      else "The email still contains a placeholder in square brackets.")
     if INTERNAL_FINANCE.search(draft):
-        issues.append("The email reveals internal financial information.")
+        issues.append("Die E-Mail verrät interne Finanzinformationen." if de
+                      else "The email reveals internal financial information.")
     return issues
 
 
