@@ -54,3 +54,6 @@ Next steps: connect real mailboxes and bank APIs (PSD2), grow the evaluation set
 
 ## Source Code Repository *
 https://github.com/filekk/avida-cfo
+
+## APP Website
+https://youtube.com/shorts/AAlxAzFihZ0
