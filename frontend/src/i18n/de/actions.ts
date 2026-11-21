@@ -123,5 +123,7 @@ const de: Record<string, string> = {
   "New version checked by the Legal Agent – approved": "Neue Version vom Rechts-Agenten geprüft – freigegeben",
   "Your text passes the checks": "Ihr Text besteht die Prüfung",
   "Please check before sending:": "Bitte vor dem Senden prüfen:",
+  "Approving runs in a safe test mode – nothing really leaves your company.":
+    "Die Freigabe läuft in einem sicheren Testmodus – nichts verlässt wirklich Ihr Unternehmen.",
 };
 export default de;

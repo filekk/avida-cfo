@@ -42,12 +42,8 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/ContractsView.vue"),
     meta: { title: "Your contracts" },
   },
-  {
-    path: "/policy",
-    name: "policy",
-    component: () => import("@/views/PolicyView.vue"),
-    meta: { title: "What your agents may do" },
-  },
+  // "Agent permissions" page removed: every autonomy badge explains itself in a tooltip. Old links → overview.
+  { path: "/policy", name: "policy", redirect: { name: "dashboard" } },
   {
     path: "/history",
     name: "history",

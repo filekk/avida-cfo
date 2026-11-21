@@ -93,14 +93,12 @@ const decline = () => emit("decide", props.action.id, false);
           ]
     "
   >
-    <!-- one badge (autonomy) over the title, simulated / author / source as muted text · sm+: savings on the right -->
+    <!-- one badge (autonomy) over the title, author / source as muted text · sm+: savings on the right -->
     <div v-if="!embedded" class="grid gap-3 sm:flex sm:items-start sm:gap-4">
       <div class="grid min-w-0 gap-2 sm:flex-1">
-        <AutonomyBadge :level="action.autonomy" />
+        <AutonomyBadge :level="action.status === 'executed' ? 'simulated' : action.autonomy" />
         <h3 class="text-xl font-semibold leading-snug">{{ action.title }}</h3>
         <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
-          <AutonomyBadge level="simulated" plain />
-          <span aria-hidden="true">·</span>
           <span>{{ t("by {agent}", { agent: t(action.agent) }) }}</span>
           <SourceTag :source="action.source" />
         </p>
@@ -246,23 +244,30 @@ const decline = () => emit("decide", props.action.id, false);
         Phones: everything stacked full width · sm+: one row, AV Rewrite pushed right; if it does not fit, it wraps
         to its own line (flex-wrap) – the buttons never overlap.
       -->
-      <div v-if="pending" key="pending" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-        <div class="grid gap-3 sm:flex sm:flex-wrap">
-          <BaseButton size="lg" icon="check" :loading="busy" :disabled="rewriting" @click="approve">
-            {{ action.type === "send_email" ? t("Approve and send") : t("Approve and apply") }}
-          </BaseButton>
-          <BaseButton size="lg" variant="secondary" :disabled="busy" @click="decline">{{ t("Not now") }}</BaseButton>
+      <div v-if="pending" key="pending" class="grid gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+          <div class="grid gap-3 sm:flex sm:flex-wrap">
+            <BaseButton size="lg" icon="check" :loading="busy" :disabled="rewriting" @click="approve">
+              {{ action.type === "send_email" ? t("Approve and send") : t("Approve and apply") }}
+            </BaseButton>
+            <BaseButton size="lg" variant="secondary" :disabled="busy" @click="decline">{{ t("Not now") }}</BaseButton>
+          </div>
+          <RewriteDraft
+            v-if="rewritable && action.type === 'send_email'"
+            class="sm:ml-auto"
+            :busy="rewriting"
+            :error="rewriteError"
+            :disabled="busy"
+            :hints="rewriteHints"
+            :placeholder="rewritePlaceholder"
+            @submit="askRewrite"
+          />
         </div>
-        <RewriteDraft
-          v-if="rewritable && action.type === 'send_email'"
-          class="sm:ml-auto"
-          :busy="rewriting"
-          :error="rewriteError"
-          :disabled="busy"
-          :hints="rewriteHints"
-          :placeholder="rewritePlaceholder"
-          @submit="askRewrite"
-        />
+        <!-- what "Approve" really does: the simulated execution (badge explains itself in a tooltip) -->
+        <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
+          <AutonomyBadge level="simulated" />
+          <span>{{ t("Approving runs in a safe test mode – nothing really leaves your company.") }}</span>
+        </p>
       </div>
       <p
         v-else
@@ -274,8 +279,9 @@ const decline = () => emit("decide", props.action.id, false);
         role="status"
       >
         <AppIcon :name="action.status === 'executed' ? 'checkCircle' : 'xCircle'" :size="20" class="mt-0.5" />
-        <span class="min-w-0 [overflow-wrap:anywhere]">
-          {{ action.status === "executed" ? action.result : t("You declined this. Nothing was done.") }}
+        <span class="grid min-w-0 gap-2 [overflow-wrap:anywhere]">
+          <span>{{ action.status === "executed" ? action.result : t("You declined this. Nothing was done.") }}</span>
+          <AutonomyBadge v-if="action.status === 'executed'" level="simulated" class="font-normal" />
         </span>
       </p>
     </Transition>
