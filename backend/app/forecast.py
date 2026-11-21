@@ -6,6 +6,8 @@ import math
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 
+from . import texts
+
 
 @dataclass
 class CashItem:
@@ -98,10 +100,27 @@ def expand_items(
     return items
 
 
+def _by_category(items: list[CashItem], outflows: bool) -> list[dict]:
+    """Totals per category over the whole horizon (outflows negative), biggest first."""
+    acc: dict[str, dict] = {}
+    for it in items:
+        if (it.amount < 0) != outflows or it.amount == 0:
+            continue
+        c = acc.setdefault(it.category, {"category": it.category, "total": 0.0, "count": 0})
+        c["total"] += it.amount
+        c["count"] += 1
+    out = [{**c, "total": round(c["total"], 2)} for c in acc.values()]
+    return sorted(out, key=lambda c: abs(c["total"]), reverse=True)
+
+
 def run_forecast(start_balance: float, items: list[CashItem], start: date, days: int, buffer: float) -> dict:
     by_day: dict[date, float] = {}
+    ins: dict[date, float] = {}
+    outs: dict[date, float] = {}
     for it in items:
         by_day[it.date] = by_day.get(it.date, 0.0) + it.amount
+        bucket = ins if it.amount > 0 else outs
+        bucket[it.date] = bucket.get(it.date, 0.0) + it.amount
 
     balance = start_balance
     series = []
@@ -111,7 +130,8 @@ def run_forecast(start_balance: float, items: list[CashItem], start: date, days:
     for i in range(days):
         d = start + timedelta(days=i)
         balance += by_day.get(d, 0.0)
-        series.append({"date": d.isoformat(), "balance": round(balance, 2)})
+        series.append({"date": d.isoformat(), "balance": round(balance, 2),
+                       "inflow": round(ins.get(d, 0.0), 2), "outflow": round(outs.get(d, 0.0), 2)})
         if balance < min_balance:
             min_balance, min_date = balance, d
         if balance < buffer:
@@ -129,6 +149,10 @@ def run_forecast(start_balance: float, items: list[CashItem], start: date, days:
         "days_safe": (first_breach - start).days if first_breach else days,
         "horizon_days": days,
         "series": series,
+        # every dated payment in the horizon → chart annotations ("why does it drop here?") and own aggregations
+        "events": [it.to_dict() for it in items],
+        "outflows_by_category": _by_category(items, outflows=True),
+        "inflows_by_category": _by_category(items, outflows=False),
     }
 
 
@@ -155,10 +179,12 @@ def size_credit_line(forecast: dict, offer: dict) -> dict | None:
         "days_needed": days_needed,
         "indicative_rate_pct": offer["indicative_rate_pct"],
         "max_interest_cost": round(max_interest, 2),
-        "calculation": (
-            f"Lowest balance {forecast['min_balance']:,.0f} EUR on {forecast['min_date']} vs. safety buffer "
-            f"{forecast['buffer']:,.0f} EUR → gap {gap:,.0f} EUR, rounded up to {amount:,.0f} EUR. "
-            f"Max. interest: {amount:,.0f} × {offer['indicative_rate_pct']}% × {days_needed}/365 = {max_interest:,.0f} EUR."
-        ),
+        "calculation": texts.calc_credit(forecast["min_balance"], forecast["min_date"], forecast["buffer"], gap, amount,
+                                         offer["indicative_rate_pct"], days_needed, max_interest, "en"),
         "note": offer.get("note", ""),
+        "i18n": texts.de(
+            calculation=texts.calc_credit(forecast["min_balance"], forecast["min_date"], forecast["buffer"], gap, amount,
+                                          offer["indicative_rate_pct"], days_needed, max_interest, "de"),
+            note=texts.CREDIT_NOTE_DE,
+        ),
     }
