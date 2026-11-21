@@ -8,7 +8,7 @@ Avida is an AI CFO for small business owners: it reads emails and contracts, spo
 
 ## Technology Stack *
 - **Languages:** Python, TypeScript/JavaScript
-- **Frontend:** React, Vite
+- **Frontend:** Vue 3, TypeScript, Vite, Pinia, Vue Router, Tailwind CSS
 - **Backend:** FastAPI, Uvicorn, Pydantic, pypdf, OpenAI-compatible client, Server-Sent Events
 - **AI & models:** IBM Granite 3.3 8B Instruct, served by vLLM (KServe) and llm-d behind a private inference gateway
 - **Agents & orchestration:** multi-agent pipeline (Analyst, Legal, Negotiator), OGX, MCP server and MCP registry
