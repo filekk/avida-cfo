@@ -57,7 +57,7 @@ def test_no_i18n_key_ever_leaves_the_api(synced_de):
 def test_dashboard_in_both_languages_after_one_sync(synced_de):
     de = synced_de[-1]["dashboard"]
     assert de["lang"] == "de" and de["sync_lang"] == "de"
-    assert de["headline"].startswith("Sie sind die nächsten 69 Tage sicher")
+    assert de["headline"].startswith("Sie sind die nächsten 61 Tage sicher")
     cloud = next(a for a in de["actions"] if a.get("finding_id") == "mail-001")
     assert cloud["title"] == "Preiserhöhung um 15 % von CloudHost GmbH ablehnen"
     f = next(f for f in de["findings"] if f["id"] == "mail-001")
@@ -67,7 +67,7 @@ def test_dashboard_in_both_languages_after_one_sync(synced_de):
                                       if x["id"] == "mail-001")["email"]["body"]  # originals untouched
     # the same state in English – nothing re-runs
     en = client.get("/api/dashboard?lang=en").json()
-    assert en["headline"].startswith("You're safe for the next 69 days")
+    assert en["headline"].startswith("You're safe for the next 61 days")
     assert next(a for a in en["actions"] if a.get("finding_id") == "mail-001")["title"].startswith("Reject the 15%")
     assert "Subject:" in cloud["payload"]["body"]  # drafts are not translated
 
@@ -108,7 +108,7 @@ def test_trace_replay(synced):
 
 def test_kpis_previous_and_chart_data(synced):
     d = client.get("/api/dashboard").json()
-    assert d["kpis_previous"]["min_balance"] == 26000 and d["kpis"]["min_balance"] == -12882
+    assert d["kpis_previous"]["min_balance"] == 9000 and d["kpis"]["min_balance"] == -29882
     rec = d["scenarios"]["recommended"]
     day = rec["series"][0]
     assert {"inflow", "outflow"} <= day.keys()
@@ -129,10 +129,10 @@ def test_every_action_has_a_decision(synced):
     cloud = next(a for a in d["actions"] if a.get("finding_id") == "mail-001")["decision"]
     assert cloud["deadline"] == "2027-01-01"
     approve, not_now = cloud["options"]
-    assert approve["effects"]["min_balance"] == -12882 and not_now["effects"]["min_balance"] == -14352
+    assert approve["effects"]["min_balance"] == -29882 and not_now["effects"]["min_balance"] == -31352
     assert not_now["effects"]["cost_12m"] == 17640
     bauer = next(a for a in d["actions"] if a.get("finding_id") == "mail-004")["decision"]
-    assert bauer["certainty"] == "medium" and bauer["options"][0]["effects"]["min_balance"] == 25118
+    assert bauer["certainty"] == "medium" and bauer["options"][0]["effects"]["min_balance"] == 8118
 
 
 # --- problem chat -------------------------------------------------------------------------

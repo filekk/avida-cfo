@@ -269,16 +269,26 @@ When `figures_stated` is `false` (IT-Service Kraus): `verdict: "unclear"`, `chec
 }
 ```
 
-**After an approval the plan can change.** Approved emails get the partner's **simulated** reply
-(`backend/data/replies_mock.json`, demo data – nothing left the system). When the reply changes the facts (Bauer
-confirms paying RE-2026-1187 on the original due date), the backend drops that delay and re-runs the forecast:
-`kpis`, `headline`, `analysis` (rule-based, `source: "rules"`), `scenarios.recommended` and `scenarios.if_accepted`
-change, and a pending overdraft gets `decision.recommended: "not_now"` + a "No longer needed" `why_short`.
-→ After `approve`, **re-fetch `GET /api/dashboard`** and take those parts. Audit events: `reply_received`, `plan_updated`.
+**After a decision the plan can change** (`approve` **and** `reject`). Approved emails get the partner's
+**simulated** reply (`backend/data/replies_mock.json`, demo data – nothing left the system). The backend then re-runs
+the forecast: `kpis`, `headline`, `analysis` (rule-based, `source: "rules"`), `scenarios.recommended` and
+`scenarios.if_accepted` change.
+- Bauer's reply confirms paying RE-2026-1187 on the original due date → the delay leaves the plan.
+- "Not now" on a price rejection (CloudHost) → nobody objects, so the increase goes into the plan.
+- Approved overdraft → the plan draws it on the first day below the cushion and repays it the day after the last one
+  (events "Overdraft drawn/repaid (simulated)"), never more than the approved amount.
+- The pending overdraft offer follows the plan: re-sized (`payload`, `title`, `why`, `decision`; `why_short` "Updated
+  after your decisions: …") or "No longer needed" with `decision.recommended: "not_now"`.
+
+→ After every decision, **re-fetch `GET /api/dashboard`** and take those parts. Audit: `reply_received`, `plan_updated`.
+Demo arc: start 9,000 € (below the 15,000 € cushion) → after sync −29,882 € → e.g. "Not now" on CloudHost and Kraus,
+approve Bauer (6,648 €, overdraft offer 45,000 → 10,000 €) and the overdraft → safe for 90 days. The overdraft alone
+also turns it green.
+
 **`Action.savings_events`** `[{date, amount}]` = dated savings inside the 90-day horizon; "Saved by Avida" for a period
 = sum of the **approved** actions' events before the period end (pending ones = "waiting for your OK"). Every approval
 adds its own: CloudHost rejection 1,470 € on 15 Jan + 15 Feb (set at sync); after the replies arrive, Bauer on time =
-the overdraft interest no longer needed (54.66 € one-off), IT-Service Kraus keeps its price = 130 € on 10 Jan + 10 Feb
+the interest of the overdraft that is no longer needed (one-off, e.g. 176.99 €), IT-Service Kraus keeps its price = 130 € on 10 Jan + 10 Feb
 (`savings_12m` 1,560). `kpis.saved_liquidity` stays the 12-month total and grows the same way.
 Demo arc: start 26,000 € (safe) → after sync −12,882 € (below the 15,000 € cushion) → after the Bauer reminder 25,118 € (safe).
 

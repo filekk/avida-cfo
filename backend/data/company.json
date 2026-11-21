@@ -4,7 +4,7 @@
   "city": "Frankfurt am Main",
   "currency": "EUR",
   "accounts": [
-    { "iban": "DE89 3704 0044 0532 0130 00", "name": "Business current account", "balance": 108000 }
+    { "iban": "DE89 3704 0044 0532 0130 00", "name": "Business current account", "balance": 91000 }
   ],
   "safety_buffer": 15000,
   "credit_offer": {
