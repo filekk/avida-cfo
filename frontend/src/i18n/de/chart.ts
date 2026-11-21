@@ -4,6 +4,11 @@ const de: Record<string, string> = {
   "{n} day": "{n} Tag",
   "{n} days": "{n} Tage",
   "12 months": "12 Monate",
+  // loss strip under the forecast ("without Avida")
+  "Without Avida": "Ohne Avida",
+  "Without Avida you would lose": "Ohne Avida würden Sie verlieren",
+  "less by {date}": "weniger bis {date}",
+  "less in this period": "weniger in diesem Zeitraum",
   "Forecast period": "Prognosezeitraum",
   Week: "Woche",
   Month: "Monat",
