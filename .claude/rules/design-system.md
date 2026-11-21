@@ -101,7 +101,8 @@ Before adding anything visual, ask: "does this carry information?" If not, leave
   Everywhere else (lists, rows, card headers, chat, timelines, tables): a plain 16–18px `text-muted` `<AppIcon>` –
   or no icon at all when the text says enough. One icon size per component.
 - **`StatTile`** – label (with a small muted icon) + value. No tile. `tone` colours only the value.
-- **`KpiCard`** – dashboard KPIs (`tone` colours value + tile, amount glides via `AnimatedNumber`).
+  `value` = ready text (dates, ranges) · `amount` (+ optional `format`) = a number that counts up via `AnimatedNumber`.
+- **`KpiCard`** – dashboard KPIs (`tone` colours value + tile, amount counts up via `AnimatedNumber`).
 
 ## Motion — only as a response, nothing moves at rest
 
@@ -113,12 +114,25 @@ Before adding anything visual, ask: "does this carry information?" If not, leave
   height – no max-height hacks), `fade` for swaps, `page` for route changes (App.vue), `rise` for blocks that appear.
 - `animate-rise` **only for items that arrive live** (agent trace steps, a new chat answer, an alert). Never for lists
   loaded at once (tables, legends, chips, timelines, cards).
+- **Agent results delivered together** (e.g. what Avida read from an uploaded contract, `UploadSummary`) may fill in
+  in reading order: `animate-rise` + `:style="stagger(i, n)"` from `utils/motion.ts` (whole cascade < 1 s).
+- **Chat bubbles** (`AskTurnItem`): the question fades in and rises 8px from its corner (scale .98 → 1); thinking line →
+  answer is an out-in swap where the slot grows its height smoothly, so the text below never jumps.
+- **Wheel scrolling** is smoothed page-wide by Lenis (`utils/smoothScroll.ts`, MIT): it eases the native window scroll
+  (no transforms → text stays sharp), lerp 0.15 ≈ 0.4 s per notch. Boxes with their own scroll keep it
+  (`allowNestedScroll`); touch, keyboard and scrollbar stay native; off under reduced motion. Don't add CSS
+  `scroll-behavior: smooth` or a second smooth-scroll library.
 - Loading: `ThinkingSpinner` (a plain 2px ring, one turning arc; `md` keeps the agent icon) or a **static**
   `SkeletonBlock`. One loading indicator per place.
-- Values that change animate (`AnimatedNumber` – e.g. "Saved by Avida" after an approval, ring arcs). Reserve space for
-  hover read-outs → no layout shift.
+- **Key numbers count up and glide** (`AnimatedNumber`, `StatTile :amount`): they count up from 0 when they appear
+  (0.9 s, ease-out – every time the page opens) and glide to every new value (0.7 s). Used for the four KPIs, the donut
+  total, the forecast read-out, the Action center counters, "You save" and the sidebar "Saved by Avida". Not for hover
+  read-outs, legends, axis labels or table/list rows. A read-out that is re-created on a mode switch passes
+  `:count-up="false"` after the first show (see `ForecastChart`). The box keeps the final value's width → no layout shift.
+  Ring arcs animate too. Reserve space for hover read-outs → no layout shift.
 - Reduced motion: the OS setting and the accessibility menu (`html[data-motion="reduce"]`) cut every
-  transition to 1ms. JS animations must check it too (see `useTweenedNumber`). Keep `data-motion` support intact.
+  transition to 1ms and drop delays. JS animations must check it too (see `useTweenedNumber`, `smoothScroll`).
+  Keep `data-motion` support intact.
 
 ## Charts (plain SVG)
 

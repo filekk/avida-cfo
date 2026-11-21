@@ -52,6 +52,8 @@ const inCategory = (c: DecisionCategory, open: boolean) =>
 
 const pendingCount = computed(() => items.value.filter(isOpenItem).length);
 const approvedCount = computed(() => actions.value.filter((a) => a.status === "executed").length);
+/** the two counters count up / glide like the money figures – whole numbers on the way */
+const count = (n: number) => String(Math.round(n));
 
 const partOpen = reactive<Record<DecisionCategory, Record<PartKey, boolean>>>({
   emails: { pending: true, resolved: false },
@@ -223,8 +225,8 @@ async function decide(id: string, approve: boolean, body?: string) {
     <BaseCard :aria-label="t('Summary')">
       <!-- "Saved by Avida" is not repeated here: it lives in the navigation (sidebar card) on every page -->
       <div class="grid gap-4 sm:grid-cols-2">
-        <StatTile icon="approval" tone="warn" :label="t('Waiting for you')" :value="String(pendingCount)" />
-        <StatTile icon="decisions" tone="info" :label="t('Already approved')" :value="String(approvedCount)" />
+        <StatTile icon="approval" tone="warn" :label="t('Waiting for you')" :amount="pendingCount" :format="count" />
+        <StatTile icon="decisions" tone="info" :label="t('Already approved')" :amount="approvedCount" :format="count" />
       </div>
     </BaseCard>
 

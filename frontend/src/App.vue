@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watchEffect } from "vue";
 import { useRoute } from "vue-router";
+import { NAV_ITEMS } from "@/constants/navigation";
 import { t } from "@/i18n";
 import AppLayout from "@/layouts/AppLayout.vue";
 import BlankLayout from "@/layouts/BlankLayout.vue";
@@ -9,10 +10,11 @@ import BlankLayout from "@/layouts/BlankLayout.vue";
 const route = useRoute();
 const layout = computed(() => (route.meta.layout === "blank" ? BlankLayout : AppLayout));
 
-// Browser tab title follows the page AND the language.
+// Browser tab title: "Avida CFO | <page>", page = its name in the menu (short, easy to spot among tabs);
+// pages outside the menu (404) use meta.title. Follows the language.
 watchEffect(() => {
-  const title = route.meta.title as string | undefined;
-  document.title = title ? `${t(title)} · Avida CFO` : "Avida CFO";
+  const page = NAV_ITEMS.find((n) => n.to === route.name)?.label ?? route.meta.title;
+  document.title = page ? `Avida CFO | ${t(page)}` : "Avida CFO";
 });
 </script>
 

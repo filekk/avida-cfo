@@ -34,6 +34,8 @@ composables/         useTheme, useA11y (accessibility menu), useForecastPeriod (
 types/api.ts         TS mirror of docs/API.md, the single source of types
 constants/           autonomy labels/colours, verdicts, navigation
 utils/format.ts      eur(), fmtDate()… all formatting lives here
+utils/motion.ts      prefersReducedMotion() (OS + accessibility menu), stagger() for cascades of agent results
+utils/smoothScroll.ts  page-wide smooth wheel scrolling (Lenis), installed in main.ts
 styles/              main.css (Tailwind + base), tokens.css (Aurum CSS variables, light/dark)
 assets/fonts/        Plus Jakarta Sans, Inter, JetBrains Mono (local woff2, OFL)
 ```

@@ -10,3 +10,13 @@ export function prefersReducedMotion(): boolean {
   if (choice === "full") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * One after another: results an agent delivers together (e.g. what Avida read from a new contract) appear in reading
+ * order instead of all at once. Item `i` of `n` starts a little after the one before it; the whole cascade fits in
+ * ~0.9 s however many items there are. Use with `class="animate-rise"`. Reduced motion drops the delays (main.css).
+ */
+export function stagger(i: number, n: number): { animationDelay: string } {
+  const step = Math.min(70, 900 / Math.max(1, n));
+  return { animationDelay: `${Math.round(i * step)}ms` };
+}
