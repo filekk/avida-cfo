@@ -5,20 +5,22 @@ import json
 import logging
 from contextlib import aclosing
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from typing import Literal
+from urllib.parse import quote
 
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import ask as ask_cfo
-from . import contract_library
+from . import contract_library, decision
 from .config import settings
 from .llm import llm
 from .orchestrator import initial_dashboard, run_pipeline
 from .state import POLICY, store
+from .texts import localize
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -34,9 +36,36 @@ class Decision(BaseModel):
 Lang = Literal["en", "de"]
 
 
+class Turn(BaseModel):
+    role: Literal["owner", "agent"]
+    text: str = Field(max_length=2000)
+
+
 class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
     lang: Lang = "en"
+    # Problem chat: talk about ONE action card / finding (facts + suggestions limited to it)
+    action_id: str | None = None
+    finding_id: str | None = None
+    # last turns of this conversation (oldest first, max 6) – for follow-ups like "and why?"
+    history: list[Turn] = Field(default_factory=list, max_length=6)
+
+
+class DraftCheck(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+    lang: Lang = "en"
+
+
+class Redraft(BaseModel):
+    instruction: str = Field(min_length=1, max_length=300)
+    body: str | None = Field(default=None, max_length=5000)  # the text currently in the editor (default: the draft)
+    lang: Lang = "en"
+
+
+def _dash(d: dict, lang: str) -> dict:
+    out = localize(d, lang)
+    out["lang"] = lang
+    return out
 
 
 @app.get("/api/health")
@@ -60,8 +89,7 @@ def config():
     }
 
 
-@app.get("/api/dashboard")
-def dashboard():
+def _current() -> dict:
     if store.dashboard:
         d = store.dashboard
         # refresh live parts (counter, action statuses)
@@ -71,15 +99,23 @@ def dashboard():
     return initial_dashboard()
 
 
+@app.get("/api/dashboard")
+def dashboard(lang: Lang = "en"):
+    return _dash(_current(), lang)
+
+
 @app.get("/api/sync")
-async def sync():
-    """Server-Sent Events stream: one `trace` event per agent step, then a final `result`."""
+async def sync(lang: Lang = "en"):
+    """Server-Sent Events stream: `phase` events (progress), one `trace` event per agent step, then `result`.
+    Trace texts are written in `lang`; the model writes its texts (explanations, briefing) in `lang` too."""
 
     async def events():
         try:
             # aclosing: if the browser disconnects, the pipeline is closed right away (and cancels its LLM calls).
-            async with aclosing(run_pipeline()) as pipeline:
+            async with aclosing(run_pipeline(lang)) as pipeline:
                 async for ev in pipeline:
+                    if ev["type"] == "result":
+                        ev = {"type": "result", "dashboard": _dash(ev["dashboard"], lang)}
                     yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
         except Exception as e:  # noqa: BLE001
             logging.exception("pipeline failed")
@@ -92,39 +128,137 @@ async def sync():
     )
 
 
+@app.get("/api/sync/trace")
+def sync_trace():
+    """Replay of the last inbox check: every `phase` / `trace` event, in the language of that sync."""
+    return {"lang": store.sync_lang if store.trace else None, "events": store.trace}
+
+
 @app.post("/api/actions/{action_id}/approve")
-def approve(action_id: str, decision: Decision | None = None):
-    return _decide(action_id, True, decision)
+def approve(action_id: str, body: Decision | None = None, lang: Lang = "en"):
+    return _decide(action_id, True, body, lang)
 
 
 @app.post("/api/actions/{action_id}/reject")
-def reject(action_id: str):
-    return _decide(action_id, False, None)
+def reject(action_id: str, lang: Lang = "en"):
+    return _decide(action_id, False, None, lang)
 
 
-def _decide(action_id: str, approve: bool, decision: Decision | None):
+def _decide(action_id: str, approve: bool, body: Decision | None, lang: str):
     if action_id not in store.actions:
         raise HTTPException(404, "unknown action")
-    action = store.decide(action_id, approve, decision.edited_body if decision else None)
-    return {"action": action, "saved_liquidity": store.saved_liquidity}
+    before = store.saved_liquidity
+    action = store.decide(action_id, approve, body.edited_body if body else None)
+    return {"action": localize(action, lang), "saved_liquidity": store.saved_liquidity,
+            "saved_liquidity_previous": before}
+
+
+def _workspace(f: dict | None, a: dict | None, lang: str) -> dict:
+    d = _current()
+    return {"lang": lang, "action": localize(a, lang) if a else None, "finding": localize(f, lang) if f else None,
+            "suggestions": ask_cfo.public_scoped(d, f, a, lang)}
+
+
+@app.get("/api/actions/{action_id}/context")
+def action_context(action_id: str, lang: Lang = "en"):
+    """Everything for one problem view: the action (with `decision`), its finding and the chat suggestions."""
+    try:
+        f, a = ask_cfo.resolve_scope(_current(), action_id, None)
+    except ask_cfo.UnknownScope:
+        raise HTTPException(404, "unknown action") from None
+    return _workspace(f, a, lang)
+
+
+@app.get("/api/findings/{finding_id}/context")
+def finding_context(finding_id: str, lang: Lang = "en"):
+    """Same as the action context, for a finding (also findings without an action, e.g. an allowed increase)."""
+    try:
+        f, a = ask_cfo.resolve_scope(_current(), None, finding_id)
+    except ask_cfo.UnknownScope:
+        raise HTTPException(404, "unknown finding") from None
+    return _workspace(f, a, lang)
+
+
+@app.post("/api/actions/{action_id}/review")
+def review_draft(action_id: str, req: DraftCheck):
+    """Instant rule check of the owner's edited draft (no model) – same rules as the Legal Agent's review."""
+    try:
+        return decision.review_body(action_id, req.body, req.lang)
+    except KeyError:
+        raise HTTPException(404, "unknown action") from None
+    except decision.NotEditable as e:
+        raise HTTPException(409, str(e)) from e
+
+
+@app.post("/api/actions/{action_id}/redraft")
+async def redraft(action_id: str, req: Redraft):
+    """Owner asks for a change in plain words → Negotiator rewrites, Legal reviews → a PROPOSAL (nothing is sent,
+    the action is not changed; the owner approves with `edited_body` as usual). 3–8 s with the model."""
+    try:
+        return await decision.redraft(action_id, req.instruction.strip(), req.body, req.lang)
+    except KeyError:
+        raise HTTPException(404, "unknown action") from None
+    except decision.NotEditable as e:
+        raise HTTPException(409, str(e)) from e
 
 
 @app.get("/api/ask/suggestions")
-def ask_suggestions(lang: Lang = "en"):
-    """Questions that fit the current situation (change after a sync), in the site's language."""
-    return ask_cfo.public_suggestions(ask_cfo.current_dashboard(), lang)
+def ask_suggestions(lang: Lang = "en", action_id: str | None = None, finding_id: str | None = None):
+    """Questions that fit the current situation (change after a sync), in the site's language.
+    With action_id / finding_id: decision helpers for that one problem."""
+    d = ask_cfo.current_dashboard()
+    if not (action_id or finding_id):
+        return ask_cfo.public_suggestions(d, lang)
+    try:
+        f, a = ask_cfo.resolve_scope(d, action_id, finding_id)
+    except ask_cfo.UnknownScope as e:
+        raise HTTPException(404, str(e)) from None
+    return ask_cfo.public_scoped(d, f, a, lang)
 
 
 @app.post("/api/ask")
 async def ask(q: Question):
-    """'Ask your CFO': the right agent answers from the numbers already computed (guarded, with fallback)."""
-    return await ask_cfo.ask(q.question.strip(), q.lang)
+    """'Ask your CFO': the right agent answers from the numbers already computed (guarded, with fallback).
+    With action_id / finding_id the conversation is about that one problem."""
+    try:
+        return await ask_cfo.ask(q.question.strip(), q.lang, q.action_id, q.finding_id,
+                                 [t.model_dump() for t in q.history])
+    except ask_cfo.UnknownScope as e:
+        raise HTTPException(404, str(e)) from None
 
 
 @app.get("/api/contracts")
-def contracts():
+def contracts(
+    q: str | None = Query(None, max_length=100, description="text in party, title or file name"),
+    origin: Literal["index", "uploaded"] | None = None,
+    party_type: Literal["supplier", "customer"] | None = None,
+    sort: Literal["uploaded_at", "-uploaded_at", "party", "-party", "title", "-title", "start_date", "-start_date",
+                  "size_bytes", "-size_bytes", "pages", "-pages"] | None = None,
+):
     """The Legal Agent's knowledge base: notebook-prepared index + contracts uploaded at runtime."""
-    return contract_library.listing()
+    return contract_library.listing(q, origin, party_type, sort)
+
+
+@app.get("/api/contracts/{contract_id}")
+def contract_detail(contract_id: str):
+    c = contract_library.detail(contract_id)
+    if not c:
+        raise HTTPException(404, "unknown contract")
+    return c
+
+
+@app.get("/api/contracts/{contract_id}/file")
+def contract_file(contract_id: str, download: bool = False):
+    """The original document (preview inline, or `?download=true`)."""
+    f = contract_library.original_file(contract_id)
+    if not f:
+        raise HTTPException(404, "no file for this contract")
+    name, content, media = f
+    disposition = "attachment" if download else "inline"
+    # RFC 6266/5987: ASCII fallback + UTF-8 name (uploads may be called "Rahmenvertrag – Müller.pdf")
+    ascii_name = name.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
+    header = f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}"
+    return Response(content, media_type=media, headers={"Content-Disposition": header})
 
 
 @app.post("/api/contracts/upload")
@@ -150,8 +284,8 @@ def delete_contract(contract_id: str):
 
 
 @app.get("/api/policy")
-def policy():
-    return POLICY
+def policy(lang: Lang = "en"):
+    return localize(POLICY, lang)
 
 
 @app.get("/api/audit")
@@ -160,11 +294,11 @@ def audit():
 
 
 @app.post("/api/reset")
-def reset():
+def reset(lang: Lang = "en"):
     """Clean demo start: findings, actions, audit AND contracts uploaded at runtime."""
     store.reset()
     contract_library.clear_uploads()
-    return initial_dashboard()
+    return _dash(initial_dashboard(), lang)
 
 
 # --- Frontend (built by Vite into STATIC_DIR) ---------------------------------

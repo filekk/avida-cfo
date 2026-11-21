@@ -14,16 +14,43 @@ export type AgentName = "Analyst Agent" | "Legal Agent" | "Negotiator Agent";
 export type AnswerSource = "llm" | "fallback" | "rules";
 
 // ---- SSE /api/sync ------------------------------------------------------------------------------
-export interface TraceEvent {
+export type SyncPhase = "inbox" | "legal" | "forecast" | "negotiation" | "approval" | "briefing";
+/** Fields every `phase` / `trace` event carries (stamped by the backend). */
+interface StampedEvent {
+  /** 1, 2, 3 … in stream order (shared by phase + trace events) */
+  id: number;
+  ts: IsoDateTime;
+  /** ms since the sync started → animation timing */
+  elapsed_ms: number;
+  /** stage the event belongs to */
+  phase: SyncPhase;
+}
+/** Progress: each of the 6 stages sends `start` then `done`, always in the order of SyncPhase. */
+export interface PhaseEvent extends StampedEvent {
+  type: "phase";
+  status: "start" | "done";
+  /** 1-based position of `phase`, `total` = 6 */
+  index: number;
+  total: number;
+  /** already in the sync's language */
+  label: string;
+}
+export interface TraceEvent extends StampedEvent {
   type: "trace";
   agent: AgentName;
   autonomy: Autonomy;
+  /** in the sync's language (`/api/sync?lang=`) */
   message: string;
   source?: AnswerSource;
   email_id?: string;
   /** Handoff: the step is a message from `agent` to `to` (shown as "A → B"). */
-  to?: string;
+  to?: AgentName;
   kind?: "handoff" | (string & {});
+  /** The step is about one email – group parallel negotiations by this (one thread per partner). */
+  finding_id?: string;
+  partner?: string;
+  /** Only on "Waiting for your approval" steps: the action card that was created. */
+  action_id?: string;
 }
 export interface SyncResultEvent {
   type: "result";
@@ -33,11 +60,28 @@ export interface SyncErrorEvent {
   type: "error";
   message: string;
 }
+/** GET /api/sync/trace – replay of the last sync (empty after reset). */
+export interface SyncTrace {
+  lang: Lang | null;
+  events: (PhaseEvent | TraceEvent)[];
+}
 
 // ---- Forecast -----------------------------------------------------------------------------------
 export interface SeriesPoint {
   date: IsoDate;
   balance: number;
+  /** sum of incoming payments that day (≥ 0) */
+  inflow: number;
+  /** sum of outgoing payments that day (≤ 0) */
+  outflow: number;
+}
+/** revenue | payroll | supplier | rent | loan | tax | other (from the bank data – translate in the UI) */
+export type CashCategory = "revenue" | "payroll" | "supplier" | "rent" | "loan" | "tax" | "other" | (string & {});
+export interface CategoryTotal {
+  category: CashCategory;
+  /** whole horizon; negative for outflows */
+  total: number;
+  count: number;
 }
 export interface Outflow {
   date: IsoDate;
@@ -57,6 +101,12 @@ export interface Forecast {
   days_safe: number;
   horizon_days: number;
   series: SeriesPoint[];
+  /** every dated payment in the horizon (inflows positive, outflows negative) → chart annotations, own filters */
+  events: Outflow[];
+  /** biggest first */
+  outflows_by_category: CategoryTotal[];
+  inflows_by_category: CategoryTotal[];
+  /** top 5 single payments */
   largest_outflows: Outflow[];
 }
 /** Before the first sync only `current` exists. */
@@ -130,6 +180,8 @@ export interface ContractCheck {
 export interface ContractResult {
   verdict: Verdict;
   explanation_simple: string;
+  /** who wrote explanation_simple: the model in the sync language, `rules` in the other language */
+  source?: AnswerSource;
   clause_id?: string;
   quote?: string;
   clause?: Clause | null;
@@ -183,10 +235,36 @@ export interface CreditPayload {
   calculation: string;
   note: string;
 }
+/** What changes if the owner approves vs. says "Not now" – deterministic (forecast re-run). */
+export interface DecisionEffects {
+  min_balance?: number;
+  min_date?: IsoDate;
+  cost_12m?: number;
+  cost_in_horizon?: number;
+  credit_line?: number;
+  max_interest?: number;
+}
+export interface DecisionOption {
+  choice: "approve" | "not_now";
+  label: string;
+  summary: string;
+  effects: DecisionEffects;
+}
+export interface Decision {
+  recommended: "approve" | "not_now";
+  /** medium = the outcome depends on the partner (e.g. a customer may still pay late) */
+  certainty: "high" | "medium";
+  deadline: IsoDate | null;
+  deadline_reason: string | null;
+  options: DecisionOption[];
+}
 interface ActionBase {
   id: string;
   title: string;
   why: string;
+  /** one line for compact cards */
+  why_short: string;
+  decision: Decision;
   agent: AgentName;
   autonomy: Autonomy; // always "approval" today
   execution: "simulated";
@@ -195,8 +273,12 @@ interface ActionBase {
   source?: AnswerSource;
   result?: string; // after approve
   finding_id?: string;
+  /** send_email only: supplier / customer name */
+  partner?: string;
   reviewed_by?: string;
   review?: { approved: boolean; issues: string[]; rounds: number };
+  /** after approve: the owner changed the draft before sending */
+  edited_by_owner?: boolean;
   created?: IsoDateTime;
   decided?: IsoDateTime;
 }
@@ -223,19 +305,26 @@ export interface Dashboard {
   today: IsoDate;
   headline: string;
   kpis: Kpis;
+  /** KPIs of the start screen before the last sync → animate numbers from → to. null before the first sync. */
+  kpis_previous: Kpis | null;
+  /** language the model wrote in during the last sync (other language = rule-based texts); null before sync */
+  sync_lang: Lang | null;
   scenarios: Scenarios;
-  agents?: { name: string; role: string; icon: string; does: string }[];
+  /** `role` / `does` in the requested language; `name` stays English (stable id). Ignore `icon` (emoji – UI rule 6). */
+  agents?: { name: AgentName; role: string; icon: string; does: string }[];
   analysis?: { summary: string; key_points: string[]; risk_level: "low" | "medium" | "high"; source?: AnswerSource } | null;
   findings: Finding[];
   actions: Action[];
-  /** PROPOSED (frontend/CONTRACT_PROPOSALS.md): language the backend wrote its texts in, echoing `?lang=`. */
-  lang?: "en" | "de";
+  /** echo of `?lang=` – every backend text in this response is in this language (see docs/API.md → Languages) */
+  lang: Lang;
 }
 
 // ---- Misc endpoints -----------------------------------------------------------------------------
 export interface DecisionResponse {
   action: Action;
   saved_liquidity: number;
+  /** counter before this decision → animate from → to */
+  saved_liquidity_previous: number;
 }
 export interface PolicyRule {
   action: string;
@@ -258,7 +347,8 @@ export interface AppConfig {
 // ---- Ask your CFO (GET /api/ask/suggestions, POST /api/ask) -------------------------------------
 export type Lang = "en" | "de";
 export interface AskSuggestion {
-  /** stable id: overdraft | on_time | reject | no_figures | safe | big_payments */
+  /** stable id. General: overdraft | on_time | reject | no_figures | safe | big_payments.
+   *  Problem chat: why | cost | on_time | tone | email | negotiate | not_now | deadline */
   id: string;
   /** already in the requested language – send it back UNCHANGED when the chip is clicked */
   question: string;
@@ -269,6 +359,46 @@ export interface AskSuggestions {
   /** only before the first sync ("more precise questions after the inbox check"), else null */
   note: string | null;
   suggestions: AskSuggestion[];
+  /** problem chat only: the problem these suggestions are about */
+  action_id?: string | null;
+  finding_id?: string | null;
+}
+/** One turn of a problem chat, sent back as `history` (oldest first, max 6). */
+export interface ChatTurn {
+  role: "owner" | "agent";
+  text: string;
+}
+/** POST /api/ask body */
+export interface AskRequest {
+  question: string;
+  lang: Lang;
+  action_id?: string;
+  finding_id?: string;
+  history?: ChatTurn[];
+}
+/** GET /api/actions/{id}/context, GET /api/findings/{id}/context */
+export interface ProblemContext {
+  lang: Lang;
+  action: Action | null;
+  finding: Finding | null;
+  suggestions: AskSuggestions;
+}
+/** POST /api/actions/{id}/review – instant rule check of the owner's edited draft */
+export interface DraftReview {
+  action_id: string;
+  approved: boolean;
+  issues: string[];
+  source: "rules";
+}
+/** POST /api/actions/{id}/redraft – a PROPOSAL; nothing changes until the owner approves with edited_body */
+export interface RedraftProposal {
+  action_id: string;
+  body: string;
+  changed: boolean;
+  source: AnswerSource;
+  /** set when the model was unavailable ("the draft is unchanged") */
+  note: string | null;
+  review: { approved: boolean; issues: string[]; source: AnswerSource };
 }
 export interface AskAnswer extends Omit<AskSuggestions, "lang"> {
   question: string;
@@ -297,6 +427,42 @@ export interface ContractSummary {
   warnings?: string[];
   /** number of clauses the Legal Agent can quote */
   clauses: number;
+  party: string;
+  party_type: "supplier" | "customer";
+  file_name: string;
+  file_type: "md" | "txt" | "pdf" | (string & {});
+  size_bytes: number | null;
+  pages: number | null;
+  /** null for the notebook-prepared index */
+  uploaded_at: IsoDateTime | null;
+  extraction_seconds: number | null;
+  /** llm | fallback for uploads, rules for the prepared index */
+  source: AnswerSource;
+  warnings_count: number;
+  used_in_last_sync: boolean;
+  used_by_findings: string[];
+}
+/** GET /api/contracts query parameters */
+export type ContractSort =
+  | "uploaded_at" | "party" | "title" | "start_date" | "size_bytes" | "pages"
+  | "-uploaded_at" | "-party" | "-title" | "-start_date" | "-size_bytes" | "-pages";
+export interface ContractQuery {
+  q?: string;
+  origin?: ContractOrigin;
+  party_type?: "supplier" | "customer";
+  sort?: ContractSort;
+}
+/** GET /api/contracts/{id} */
+export interface ContractDetail extends Omit<ContractSummary, "clauses"> {
+  aliases?: string[];
+  monthly_fee?: number | null;
+  fixed_price_until?: IsoDate | null;
+  price_change_notice_days?: number | null;
+  max_annual_increase_pct?: number | null;
+  payment_terms_days?: number | null;
+  changes_require_written_agreement?: boolean | null;
+  clauses: Clause[];
+  clause_count: number;
 }
 export interface UploadedContract {
   id: string;
@@ -318,6 +484,11 @@ export interface UploadedContract {
   origin: "uploaded";
   extracted_by: string;
   warnings: string[];
+  uploaded_at: IsoDateTime;
+  size_bytes: number;
+  pages: number;
+  extraction_seconds: number;
+  source: AnswerSource;
 }
 export interface UploadResult {
   contract: UploadedContract;
