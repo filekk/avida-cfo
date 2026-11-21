@@ -42,8 +42,8 @@ Every endpoint marked **`?lang`** takes `lang=en|de` (default `en`, `422` otherw
 | POST | `/api/ask` | body `{"question", "lang", "action_id"?, "finding_id"?, "history"?}` → answer from the right agent (chip: instant, typed: 3–7 s) |
 | GET | `/api/contracts?q=&origin=&party_type=&sort=` | `[ContractSummary]` – files page: filter + sort on the server (see Contracts) |
 | GET | `/api/contracts/{id}` | `ContractDetail` – extracted terms, all clauses, file metadata, where it was used |
-| GET | `/api/contracts/{id}/file[?download=true]` | the original document (inline preview or download) |
-| POST | `/api/contracts/upload` | multipart `file` (PDF / .md / .txt, max 5 MB) → `UploadResult`, **10–20 s** (model reads it); 422 with `detail` if unreadable |
+| GET | `/api/contracts/{id}/file[?download=true]` | the original document (inline preview or download); only PDF / Markdown / text, always with `X-Content-Type-Options: nosniff` |
+| POST | `/api/contracts/upload` | multipart `file` (`.pdf` / `.md` / `.markdown` / `.txt` only, max 5 MB, at most 10 uploaded contracts) → `UploadResult`, **10–20 s** (model reads it); 422 with `detail` if the type is not allowed, the cap is reached or the file is unreadable |
 | DELETE | `/api/contracts/{id}` | removes an uploaded contract (`U-001`…), returns the new list; 404 for index contracts |
 | GET | `/api/policy` **`?lang`** | `[{action, agent, autonomy, execution}]` – the autonomy matrix |
 | GET | `/api/audit` | `[{time, event, ...}]` – what happened, in order |
@@ -166,7 +166,7 @@ A second `GET /api/sync` while one is running gets an `error` event ("already ru
                                                        // null before the first sync
   "lang": "en",                                        // echo of ?lang
   "sync_lang": "en",                                   // language the model wrote in during the last sync; null before sync
-  "agents": [ { "name": "Analyst Agent", "role": "Analyst", "icon": "📊", "does": "…" }, … ],   // for an "our team" panel
+  "agents": [ { "name": "Analyst Agent", "role": "Analyst", "icon": "chart", "does": "…" }, … ],  // "our team" panel; icon = Lucide name (chart / scale / mail)
   "analysis": {                                        // Analyst's briefing; null before sync
     "summary": "…max 3 short sentences written by the model (checked: only numbers from key_points)…",
     "key_points": [ "Bauer Maschinenbau AG wants to pay 38,000 EUR 30 days late (2027-02-04 instead of 2027-01-05). …",
@@ -502,9 +502,12 @@ Send a chip's `instruction` unchanged as the redraft `instruction` (or let the o
 ## Errors and demo safety nets
 
 - SSE `error` event: `message` is plain, localized text for the owner (show it as is). `code: "sync_running"` = another
-  window is already checking the inbox (wait and retry); `detail` carries the technical reason for other failures.
+  window is already checking the inbox (wait and retry); for other failures `detail` carries only the error type
+  (e.g. `"RuntimeError"`) – the technical details stay in the server log.
 - `POST /api/ask`: `history` is never rejected – only the last 6 turns are used, each clipped to 2000 characters.
-- `approve` with a blank `edited_body` keeps the reviewed draft (a cleared editor never sends an empty email).
+- `approve` with a blank `edited_body` keeps the reviewed draft (a cleared editor never sends an empty email);
+  `edited_body` longer than 5000 characters → 422.
+- An unknown `/api/...` path is a JSON `404 {"detail": "Not Found"}` – never the HTML page of the front-end.
 - Model down / timing out on every endpoint → the backend answers from canned data for `LLM_BREAKER_S` seconds
   (default 45) instead of waiting for each call's timeout; those answers are `source: "fallback"` as usual.
 - A demo email the model reads differently from the checked reading (wrong kind, missed figures) uses the checked
@@ -522,6 +525,6 @@ Send a chip's `instruction` unchanged as the redraft `instruction` (or let the o
 
 ## Deployment of the frontend
 
-The production image builds `frontend/` with `npm install && npm run build` and serves `frontend/dist`
-from FastAPI (same origin → no CORS, no extra route). Keep: `frontend/package.json` with a `build`
+The production image builds `frontend/` with `npm ci && npm run build` and serves `frontend/dist`
+from FastAPI (same origin → no CORS, no extra route; `CORS_ORIGINS` only lists the local Vite dev server). Keep: `frontend/package.json` with a `build`
 script that outputs to `dist/`, assets under `dist/assets/`. Any framework works.

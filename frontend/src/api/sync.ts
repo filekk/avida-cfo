@@ -20,15 +20,24 @@ export function startSync({ onTrace, onResult, onError }: SyncHandlers): () => v
     finished = true;
     es.close();
   };
+  const parse = <T>(e: Event): T | null => {
+    try {
+      return JSON.parse((e as MessageEvent<string>).data) as T;
+    } catch {
+      return null;
+    }
+  };
 
   es.addEventListener("trace", (e) => {
-    onTrace(JSON.parse((e as MessageEvent<string>).data) as TraceEvent);
+    const step = parse<TraceEvent>(e);
+    if (step) onTrace(step); // a broken frame (e.g. cut by a proxy) only loses that one step
   });
 
   es.addEventListener("result", (e) => {
-    const payload = JSON.parse((e as MessageEvent<string>).data) as SyncResultEvent;
+    const payload = parse<SyncResultEvent>(e);
     close();
-    onResult(payload.dashboard);
+    if (payload?.dashboard) onResult(payload.dashboard);
+    else onError(t("The check finished, but its result could not be read. Please reload the page."));
   });
 
   // Fires both for a server-sent `event: error` (has data) and for a dropped connection (no data).

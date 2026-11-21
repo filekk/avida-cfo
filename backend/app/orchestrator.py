@@ -31,12 +31,13 @@ from .config import settings
 from .forecast import CashItem
 from .state import ANALYZED, APPROVAL, RECOMMENDATION, store
 
+# `icon` is a Lucide icon name (the UI's icon set – no emoji anywhere, see CLAUDE.md).
 AGENTS = [
-    {"name": analyst.NAME, "role": "Analyst", "icon": "📊",
+    {"name": analyst.NAME, "role": "Analyst", "icon": "chart",
      "does": "Reads the inbox, forecasts your cash and explains the numbers."},
-    {"name": legal.NAME, "role": "Lawyer", "icon": "⚖️",
+    {"name": legal.NAME, "role": "Lawyer", "icon": "scale",
      "does": "Checks every change against your contracts and reviews outgoing emails."},
-    {"name": negotiator.NAME, "role": "Negotiator", "icon": "✉️",
+    {"name": negotiator.NAME, "role": "Negotiator", "icon": "mail",
      "does": "Writes the replies to suppliers and customers, based on the lawyer's findings and the analyst's numbers."},
 ]
 for _a in AGENTS:
@@ -98,6 +99,17 @@ def initial_dashboard() -> dict:
     """What the owner sees before syncing: today's forecast, no findings."""
     f = analyst.forecast([])
     return _dashboard(scenarios={"current": f}, recommended=f, findings=[], analysis=None)
+
+
+def current_dashboard() -> dict:
+    """The live dashboard: the last sync's result with its live parts refreshed (the "Saved by Avida" counter and
+    the action statuses change with every decision), or the start screen before the first sync."""
+    d = store.dashboard
+    if not d:
+        return initial_dashboard()
+    d["kpis"]["saved_liquidity"] = store.saved_liquidity
+    d["actions"] = list(store.actions.values())
+    return d
 
 
 def _kpis(recommended: dict) -> dict:
@@ -296,7 +308,7 @@ async def _negotiate_steps(f: dict, emit: Callable[[dict], Awaitable[None]], lan
         elif review.get("rule_issues"):
             # Demo safety net: after two rounds the draft still breaks a hard rule (clause, amount, placeholder,
             # internal finance) → the owner gets the checked template instead of a wrong email.
-            body, src = negotiator._template(task, ex, res), "fallback"
+            body, src = negotiator.template(task, ex, res), "fallback"
             review = {"approved": True, "issues": [], "rule_issues": []}
             rsrc = "rules"
             msg = (f"Entwurf an {name} verletzt weiter Regeln – geprüfte Vorlage verwendet." if de
@@ -398,6 +410,7 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
     background: list[asyncio.Task] = []
     started = time.perf_counter()
     seq, phase = 0, None
+    completed = False
     try:
         # One MLflow trace per sync (no-op when tracing is off); agent and LLM spans nest under it.
         with tracing.span("sync_inbox", tracing.CHAIN,
@@ -414,6 +427,7 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
                           "elapsed_ms": int((time.perf_counter() - started) * 1000), "phase": phase, **ev}
                     store.trace.append(ev)
                 if ev["type"] == "result":
+                    completed = True
                     root.outputs(_trace_summary(ev["dashboard"], sources))
                     tracing.tag_trace(app="avida-cfo", flow="sync", lang=lang,
                                       fallback_used=str(sources.get("fallback", 0) > 0).lower())
@@ -422,6 +436,11 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
         # Client disconnected or error: don't leave LLM calls running in the background.
         for t in background:
             t.cancel()
+        if not completed:
+            # A half-built run (the store was reset at its start) must not leave pending actions on the start
+            # screen without the findings and plan they belong to.
+            store.actions.clear()
+            store.plan = None
         _running = False
 
 
@@ -529,25 +548,38 @@ def _replan(d: dict, plan: dict) -> None:
 
 
 def _update_credit_offer(base: dict, acc_base: dict, need: dict | None, adj: list, plan: dict) -> None:
-    """The pending overdraft offer follows the plan: gone → "no longer needed", smaller/larger → re-sized."""
+    """The pending overdraft offer follows the plan: gone → "no longer needed", smaller/larger → re-sized.
+    Idempotent: re-plans while it stays unneeded never stack another note, and when the need comes back the
+    texts and the decision support are rebuilt from the new numbers."""
+    not_needed: set[str] = plan.setdefault("credit_not_needed", set())  # internal – store.plan never leaves the API
     for a in store.actions.values():
         if a["type"] != "credit_application" or a["status"] != "pending":
             continue
         over = a.setdefault("i18n", {}).setdefault("de", {})
         if need is None:
-            a["why"], a["why_short"] = f"{NOT_NEEDED['en']} Before: {a['why']}", NOT_NEEDED["en"]
-            over["why"], over["why_short"] = f"{NOT_NEEDED['de']} Vorher: {over.get('why', '')}".strip(), NOT_NEEDED["de"]
+            if a["id"] not in not_needed:
+                not_needed.add(a["id"])
+                a["why"], a["why_short"] = f"{NOT_NEEDED['en']} Before: {a['why']}", NOT_NEEDED["en"]
+                over["why"], over["why_short"] = (f"{NOT_NEEDED['de']} Vorher: {over.get('why', '')}".strip(),
+                                                  NOT_NEEDED["de"])
             if a.get("decision"):
                 a["decision"]["recommended"] = "not_now"
             continue
         old = a["payload"]["amount"]
-        if need["amount"] == old:
+        was_not_needed = a["id"] in not_needed
+        not_needed.discard(a["id"])
+        if need["amount"] == old and not was_not_needed:
             continue
         if_acc = analyst.credit_proposal(acc_base)
         en, de_ = _credit_texts(need, if_acc, "en"), _credit_texts(need, if_acc, "de")
-        note = {lg: RESIZED[lg].format(new=texts.eur(need["amount"], lg), old=texts.eur(old, lg)) for lg in ("en", "de")}
-        a.update(title=en["title"], why=f"{note['en']} {en['why']}", why_short=note["en"], payload=need)
-        over.update(title=de_["title"], why=f"{note['de']} {de_['why']}", why_short=note["de"])
+        if need["amount"] == old:  # needed again at the same amount → the plain texts, without any note
+            a.update(title=en["title"], why=en["why"], why_short=en["why_short"], payload=need)
+            over.update(title=de_["title"], why=de_["why"], why_short=de_["why_short"])
+        else:
+            note = {lg: RESIZED[lg].format(new=texts.eur(need["amount"], lg), old=texts.eur(old, lg))
+                    for lg in texts.LANGS}
+            a.update(title=en["title"], why=f"{note['en']} {en['why']}", why_short=note["en"], payload=need)
+            over.update(title=de_["title"], why=f"{note['de']} {de_['why']}", why_short=note["de"])
         ctx = decision.Context(scenarios={"recommended": base}, plan_adj=adj, delays=plan["delays"], credit=need)
         a["decision"] = decision.for_credit(ctx, if_acc)
 

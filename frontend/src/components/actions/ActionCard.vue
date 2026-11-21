@@ -8,7 +8,7 @@ import CollapseTransition from "@/components/ui/CollapseTransition.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
 import type { Action } from "@/types/api";
-import { eur, eurCents, fmtDayMonth } from "@/utils/format";
+import { eur, eurCents, fmtDayMonth, num } from "@/utils/format";
 import RewriteDraft from "./RewriteDraft.vue";
 import type { DraftCheck, RewriteHint, RewrittenDraft } from "./decision";
 
@@ -46,18 +46,25 @@ const emit = defineEmits<{
 }>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
-watch(
-  () => props.action,
-  (a) => {
-    if (a.type === "send_email") body.value = a.payload.body;
-  },
-);
 
 const pending = computed(() => props.action.status === "pending");
 
 /** The text before the last rewrite (for "Undo") and the last rewrite shown under the editor. */
 const beforeRewrite = ref<string | null>(null);
 const lastRewrite = ref<RewrittenDraft | null>(null);
+
+// The store swaps in a new action object on every reload (e.g. a language switch) – that must not wipe what
+// the owner typed. Only another action, or a decision on this one, resets the editor and its undo/rewrite state.
+// Two sources compared one by one (a getter returning a new array would count as "changed" on every reload).
+watch(
+  [() => props.action.id, () => props.action.status],
+  () => {
+    const a = props.action;
+    body.value = a.type === "send_email" ? a.payload.body : "";
+    beforeRewrite.value = null;
+    lastRewrite.value = null;
+  },
+);
 watch(
   () => props.rewritten?.n,
   () => {
@@ -231,7 +238,7 @@ const decline = () => emit("decide", props.action.id, false);
           tone="negative"
           :label="t('Max. interest')"
           :value="eurCents(action.payload.max_interest_cost)"
-          :sub="t('{rate} % a year', { rate: action.payload.indicative_rate_pct })"
+          :sub="t('{rate} % a year', { rate: num(action.payload.indicative_rate_pct) })"
         />
       </div>
       <p class="text-label text-muted">{{ action.payload.calculation }} · {{ action.payload.note }}</p>

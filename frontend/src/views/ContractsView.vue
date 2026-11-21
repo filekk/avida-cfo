@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ApiError, CONTRACT_ACCEPT, contractFileUrl, deleteContract, getContracts, uploadContract } from "@/api";
+import { ApiError, CONTRACT_ACCEPT, contractFileUrl, deleteContract, errorMessage, getContracts, uploadContract } from "@/api";
 import ContractTable from "@/components/contracts/ContractTable.vue";
 import ContractsToolbar from "@/components/contracts/ContractsToolbar.vue";
 import UploadSummary from "@/components/contracts/UploadSummary.vue";
@@ -36,7 +36,7 @@ import type { ContractSummary, UploadResult } from "@/types/api";
  * Filtering and sorting happen here in the browser (the list is small); the backend's filters are not needed.
  * An upload is read live by the model (10–20 s) and counts from the next inbox check.
  */
-const { data: contracts, loading, error, reload } = useAsyncData(getContracts);
+const { data: contracts, loading, error, reload, set: setContracts } = useAsyncData(getContracts);
 const list = computed(() => contracts.value ?? []);
 
 // --- filters + sort --------------------------------------------------------------------------------
@@ -56,8 +56,6 @@ const last = ref<UploadResult | null>(null);
 const newId = ref<string | null>(null);
 /** Screen-reader announcements (one persistent live region, so every change is read out). */
 const announcement = ref("");
-
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : t("Something went wrong."));
 
 function pick() {
   input.value?.click();
@@ -99,7 +97,7 @@ async function upload(file: File) {
     uploadError.value =
       e instanceof ApiError && e.status > 0
         ? { message: t("Avida could not read this file."), detail: e.message }
-        : { message: messageOf(e) };
+        : { message: errorMessage(e) };
     announcement.value = "";
   } finally {
     uploading.value = null;
@@ -107,20 +105,26 @@ async function upload(file: File) {
 }
 
 // --- remove (only after the row's inline "Remove" confirm) ---------------------------------------
-const removing = ref<string | null>(null);
+/** Several removals can be in flight; each row stays disabled until its own request is done. */
+const removing = ref<string[]>([]);
 const removeError = ref<{ id: string; message: string } | null>(null);
+let removeRun = 0;
 async function remove(c: ContractSummary) {
-  removing.value = c.id;
+  if (removing.value.includes(c.id)) return;
+  const mine = ++removeRun;
+  removing.value = [...removing.value, c.id];
   removeError.value = null;
   try {
-    contracts.value = await deleteContract(c.id);
+    const next = await deleteContract(c.id);
+    // only the newest removal's list is complete – an older answer would bring a just-removed row back
+    if (mine === removeRun) setContracts(next);
     if (last.value?.contract.id === c.id) last.value = null;
     if (newId.value === c.id) newId.value = null;
     announcement.value = t("Contract removed: {party}", { party: partyOf(c) });
   } catch (e) {
-    removeError.value = { id: c.id, message: messageOf(e) };
+    removeError.value = { id: c.id, message: errorMessage(e) };
   } finally {
-    removing.value = null;
+    removing.value = removing.value.filter((id) => id !== c.id);
   }
 }
 </script>

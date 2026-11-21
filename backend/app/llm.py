@@ -62,15 +62,25 @@ def _is_endpoint_failure(err: Exception) -> bool:
     return False
 
 
+def _configured_endpoints() -> list[Endpoint]:
+    endpoints = [_endpoint("primary", settings.llm_base_url, settings.llm_model)]
+    if settings.llm_fallback_base_url:
+        endpoints.append(_endpoint("fallback", settings.llm_fallback_base_url,
+                                   settings.llm_fallback_model or settings.llm_model,
+                                   settings.llm_fallback_ca_file))
+    return endpoints
+
+
 class LLM:
     def __init__(self) -> None:
-        self.endpoints = [_endpoint("primary", settings.llm_base_url, settings.llm_model)]
-        if settings.llm_fallback_base_url:
-            self.endpoints.append(_endpoint("fallback", settings.llm_fallback_base_url,
-                                            settings.llm_fallback_model or settings.llm_model,
-                                            settings.llm_fallback_ca_file))
-        self.client = self.endpoints[0].client
         self.model = settings.llm_model
+        self.reconnect()
+
+    def reconnect(self) -> None:
+        """Fresh HTTP clients and a closed breaker. The async clients are bound to the event loop they first ran
+        in – a script that runs each request in its own `asyncio.run()` (the MLflow eval) must call this per run,
+        otherwise every call after the first fails on a closed loop and silently uses the canned answer."""
+        self.endpoints = _configured_endpoints()
         self._primary_down_until = 0.0
         # Circuit breaker: when every endpoint is down / timing out, skip the model for LLM_BREAKER_S seconds
         # and answer from the fallback right away – otherwise each call of a sync waits for its own timeout and

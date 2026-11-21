@@ -46,11 +46,21 @@ def _party(contract: dict) -> str:
     return contract.get("supplier") or contract.get("customer") or ""
 
 
-def find_contract(name: str) -> dict | None:
+# which side of a contract a finding needs: a price change is checked against a SUPPLIER contract, a late payment
+# against a CUSTOMER contract (the other way round no rule applies, and "no rule failed" would read as "allowed")
+_CONTRACT_SIDE = {"price_change": "supplier", "payment_delay": "customer"}
+
+
+def find_contract(name: str, kind: str | None = None) -> dict | None:
+    """The contract with this party (name or alias). With `kind`, only contracts of the matching side count –
+    e.g. an uploaded contract whose role the model misread is not used for a price check."""
     s = name.lower().strip()
     if not s:  # "" is a substring of every name – never match on an empty name
         return None
+    side = _CONTRACT_SIDE.get(kind or "")
     for c in data.contracts():
+        if side and side not in c:
+            continue
         p = _party(c).lower()
         if p in s or s in p or any(a in s for a in c.get("aliases", [])):
             return c
@@ -148,7 +158,7 @@ def _normalise(extraction: dict, contract: dict) -> None:
 async def check(extraction: dict, received: str, lang: str = "en") -> tuple[dict, str]:
     """Entry point for every finding (price change or late payment). The model explains in `lang`; the other
     language gets the rule-based explanation."""
-    contract = find_contract(extraction["party"])
+    contract = find_contract(extraction["party"], extraction["kind"])
     if contract:
         _normalise(extraction, contract)
     if not contract or not extraction["figures_stated"]:
@@ -179,10 +189,9 @@ async def check(extraction: dict, received: str, lang: str = "en") -> tuple[dict
         + (f"Main clause (fixed – cite this clause_id and quote from it): {key_clause['id']} {key_clause['title']}"
            if key_clause else "")
     )
-    fb = fallback.contract_explanation(verdict, _party(contract), failed, key_clause, extraction["kind"])
     rule_text = {lg: texts.explanation(verdict, _party(contract), failed, extraction["kind"], True, lg)
                  for lg in texts.LANGS}
-    fb["explanation_simple"] = rule_text[lang]
+    fb = {"explanation_simple": rule_text[lang], **fallback.key_quote(key_clause)}
     expl, source = await llm.json(SYSTEM.format(language=LANGUAGE[lang]), user, SCHEMA, fb)
 
     # The main clause is decided by the rules (first failed check: price guarantee before notice period), never by

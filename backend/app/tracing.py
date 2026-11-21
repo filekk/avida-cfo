@@ -21,12 +21,6 @@ from typing import Any, Iterator
 
 log = logging.getLogger("avida.tracing")
 
-# Keep MLflow's HTTP client from retrying for minutes when the server is down.
-os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
-os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "5")
-# Traces are sent from a background thread, so the agents never wait for MLflow.
-os.environ.setdefault("MLFLOW_ENABLE_ASYNC_TRACE_LOGGING", "true")
-
 try:  # the app must start even without the package
     import mlflow
 except Exception:  # noqa: BLE001
@@ -58,6 +52,12 @@ def init(blocking: bool = False) -> None:
         _status.update(enabled=False, reason="mlflow-tracing package not installed")
         log.warning("MLFLOW_TRACKING_URI is set but mlflow is not installed – tracing off")
         return
+    # Set here (not at import), so a script that only imports the agents – e.g. the eval – keeps MLflow's defaults.
+    # Keep MLflow's HTTP client from retrying for minutes when the server is down.
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
+    os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "5")
+    # Traces are sent from a background thread, so the agents never wait for MLflow.
+    os.environ.setdefault("MLFLOW_ENABLE_ASYNC_TRACE_LOGGING", "true")
     if blocking:
         _connect(uri, attempts=1)
     else:
@@ -123,6 +123,9 @@ def span(name: str, span_type: str = CHAIN, inputs: Any = None, **attributes) ->
         raw = cm.__enter__()
     except Exception as e:  # noqa: BLE001
         log.debug("start_span %s failed: %s", name, e)
+        cm = None
+    if cm is None:
+        # yielded outside the `except`, so an error in the caller's block is not chained to the MLflow error
         yield _Span()
         return
     s = _Span(raw)

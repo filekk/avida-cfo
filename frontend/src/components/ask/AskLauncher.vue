@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
-import { onBeforeRouteLeave } from "vue-router";
+import { onBeforeRouteLeave, useRouter } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import { t } from "@/i18n";
 import { useAskStore } from "@/stores/ask";
@@ -149,12 +149,23 @@ onMounted(() => {
   // fetch the chips early → instant suggestions when the panel opens
   if (!store.suggestions.length && !store.loadingSuggestions) store.loadSuggestions();
 });
+// Fade out with the page – and come back if that navigation does not happen after all (a guard aborted it, or
+// the next page's code could not be loaded), otherwise the bubble stayed invisible and unclickable for good.
+const router = useRouter();
+const stopAfterEach = router.afterEach((_to, _from, failure) => {
+  if (failure) leaving.value = false;
+});
+const stopOnError = router.onError(() => {
+  leaving.value = false;
+});
 onBeforeUnmount(() => {
   phoneQuery.removeEventListener("change", onPhoneChange);
   io?.disconnect();
   ro?.disconnect();
   follow(false);
   cancelAnimationFrame(raf);
+  stopAfterEach();
+  stopOnError();
 });
 onBeforeRouteLeave(() => {
   leaving.value = true;

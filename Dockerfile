@@ -2,10 +2,11 @@
 # OpenShift builds this automatically: oc new-app <repo-url> --strategy=docker
 
 # --- 1) Frontend build --------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS frontend
+# Node 22 LTS (Node 20 reached end of life on 30 Apr 2026). `npm ci` installs exactly what package-lock.json pins.
+FROM registry.access.redhat.com/ubi9/nodejs-22:latest AS frontend
 WORKDIR /opt/app-root/src
 COPY --chown=1001:0 frontend/package*.json ./
-RUN npm install --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 COPY --chown=1001:0 frontend/ ./
 RUN npm run build
 

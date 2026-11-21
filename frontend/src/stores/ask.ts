@@ -1,11 +1,9 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { ApiError, askCfo, getActionContext, getAskSuggestions, getFindingContext } from "@/api";
-import { locale, t } from "@/i18n";
+import { askCfo, errorMessage, getActionContext, getAskSuggestions, getFindingContext } from "@/api";
+import { locale } from "@/i18n";
 import type { AskAnswer, AskSuggestion, ChatTurn } from "@/types/api";
 import { useDashboardStore } from "./dashboard";
-
-const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
 /** Which problem a question is about (problem chat on the backend). */
 export interface ProblemRef {
@@ -48,35 +46,42 @@ export const useAskStore = defineStore("ask", () => {
   const askingIn = (context: string) => turnsOf(context).some(pending);
   let nextId = 1;
 
+  // Only the newest suggestions request may write: after a quick EN→DE→EN the German answer can arrive last, and
+  // a German chip sent with lang=en would miss its instant prepared answer.
+  let suggestionsRun = 0;
   async function loadSuggestions() {
+    const run = ++suggestionsRun;
     loadingSuggestions.value = true;
     suggestionsError.value = null;
     try {
       const s = await getAskSuggestions();
+      if (run !== suggestionsRun) return;
       suggestions.value = s.suggestions;
       note.value = s.note;
     } catch (e) {
-      suggestionsError.value = message(e);
+      if (run === suggestionsRun) suggestionsError.value = errorMessage(e);
     } finally {
-      loadingSuggestions.value = false;
+      if (run === suggestionsRun) loadingSuggestions.value = false;
     }
   }
 
   // --- problem chat (one decision in the Action center) ---------------------------------------------
   /** Chips per problem, from GET /api/{actions|findings}/{id}/context, keyed by the decision key. */
   const contextSuggestions = ref<Record<string, AskSuggestion[]>>({});
-  const contextLoading = ref<Record<string, boolean>>({});
+  /** The newest request per decision key – an older one (e.g. from before a language switch) is ignored. */
+  const contextRequests: Record<string, object> = {};
 
   async function loadContext(key: string, ref: ProblemRef) {
-    if (contextLoading.value[key]) return;
-    contextLoading.value[key] = true;
+    const mine = {};
+    contextRequests[key] = mine;
+    const lang = locale.value;
     try {
       const c = ref.action_id ? await getActionContext(ref.action_id) : ref.finding_id ? await getFindingContext(ref.finding_id) : null;
-      if (c) contextSuggestions.value[key] = c.suggestions.suggestions;
+      if (c && contextRequests[key] === mine && lang === locale.value) contextSuggestions.value[key] = c.suggestions.suggestions;
     } catch {
       // no chips from the backend → the view falls back to its own case questions (components/ask/contextual.ts)
     } finally {
-      contextLoading.value[key] = false;
+      if (contextRequests[key] === mine) delete contextRequests[key];
     }
   }
 
@@ -104,14 +109,21 @@ export const useAskStore = defineStore("ask", () => {
     const history = opts.context ? historyOf(opts.context) : [];
     const turn: AskTurn = { id: nextId++, question: q, context: opts.context };
     turns.value.push(turn);
-    const i = turns.value.length - 1;
+    // The array may be rebuilt while we wait (the other chat's "Start a new conversation", a demo reset), so
+    // the turn is found again by id – never by its old position. A cleared turn just drops its late answer.
+    const settle = (patch: Partial<AskTurn>) => {
+      const i = turns.value.findIndex((x) => x.id === turn.id);
+      if (i < 0) return false;
+      turns.value[i] = { ...turn, ...patch };
+      return true;
+    };
     try {
       const a = await askCfo(q, {
         action_id: opts.action_id,
         finding_id: opts.finding_id,
         history: history.length ? history : undefined,
       });
-      turns.value[i] = { ...turn, answer: a };
+      if (!settle({ answer: a })) return;
       // a problem chat refreshes that problem's chips; the general chat its own
       if (opts.context) {
         if (a.suggestions?.length) contextSuggestions.value[opts.context] = a.suggestions;
@@ -120,7 +132,7 @@ export const useAskStore = defineStore("ask", () => {
         note.value = a.note;
       }
     } catch (e) {
-      turns.value[i] = { ...turn, error: message(e) };
+      settle({ error: errorMessage(e) });
     }
   }
 
@@ -139,18 +151,17 @@ export const useAskStore = defineStore("ask", () => {
     contextSuggestions.value = {};
     loadSuggestions();
   });
-  watch(
-    () => [dashboard.hasSynced, dashboard.findings.length] as const,
-    ([synced], [wasSynced]) => {
-      if (wasSynced && !synced) clearAll(); // demo reset → old answers talk about numbers that are gone
-      contextSuggestions.value = {};
-      loadSuggestions();
-    },
-  );
+  // Two sources, compared one by one: fires only when "synced" or the number of findings really changes – not on
+  // every reload of the dashboard (a getter returning a new tuple would fire each time, fetching twice per switch).
+  watch([() => dashboard.hasSynced, () => dashboard.findings.length], ([synced], [wasSynced]) => {
+    if (wasSynced && !synced) clearAll(); // demo reset → old answers talk about numbers that are gone
+    contextSuggestions.value = {};
+    loadSuggestions();
+  });
 
   return {
     suggestions, note, loadingSuggestions, suggestionsError, turns, generalTurns, asking, turnsOf, askingIn,
-    contextSuggestions, contextLoading,
+    contextSuggestions,
     loadSuggestions, loadContext, ask, clear, clearAll,
   };
 });

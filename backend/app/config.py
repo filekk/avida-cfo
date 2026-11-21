@@ -41,6 +41,12 @@ class Settings:
     demo_today: str = os.getenv("DEMO_TODAY", "2026-11-20")
     # Small pause between trace events so the audience can follow the agents.
     trace_delay_s: float = float(os.getenv("TRACE_DELAY_S", "0.4"))
+    # Browser origins allowed to call the API cross-origin (comma-separated). Production is same-origin and the
+    # Vite dev server proxies /api, so this only matters for a dev server without the proxy. Empty = no CORS at all.
+    cors_origins: tuple[str, ...] = tuple(
+        o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+        if o.strip()
+    )
 
     def today(self) -> date:
         return date.fromisoformat(self.demo_today) if self.demo_today else date.today()

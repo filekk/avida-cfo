@@ -34,24 +34,9 @@ EXTRACTIONS = {
 NOT_RELEVANT = {**_EMPTY, "summary": "Not related to prices or payments."}
 
 
-def contract_explanation(verdict: str, party: str, failed: list[dict], clause: dict | None, kind: str = "price_change",
-                         figures: bool = True) -> dict:
-    if not figures:
-        simple = (f"{party} announces a change but gives no figures, so I cannot check it. "
-                  "Ask for the exact new price before it takes effect.")
-    elif verdict == "violates":
-        reasons = " ".join(c["detail"] for c in failed)
-        what = "paying later" if kind == "payment_delay" else "this increase"
-        simple = f"Your contract with {party} does not allow {what}. {reasons}"
-    elif verdict == "allowed":
-        simple = f"Your contract with {party} allows this change. It is within the agreed limits."
-    else:
-        simple = f"I could not find a contract with {party}. Please check this one yourself."
-    return {
-        "explanation_simple": simple,
-        "clause_id": clause["id"] if clause else "",
-        "quote": clause["text"] if clause else "",
-    }
+def key_quote(clause: dict | None) -> dict:
+    """The Legal Agent's canned citation: the main clause, quoted in full (its explanation comes from texts.py)."""
+    return {"clause_id": clause["id"] if clause else "", "quote": clause["text"] if clause else ""}
 
 
 def _clause_block(clause: dict | None) -> tuple[str, str]:
@@ -64,11 +49,11 @@ def _sign(company: dict) -> str:
     return f"Kind regards,\n{company['owner']}\n{company['name']}"
 
 
-def _long_date(iso: str) -> str:
+def _long_date(iso: str | None) -> str:
     try:
         return f"{date.fromisoformat(iso):%d %B %Y}"
-    except ValueError:
-        return iso
+    except (TypeError, ValueError):  # empty / missing date → no date rather than a crash
+        return iso or ""
 
 
 def rejection_email(company: dict, supplier: str, extraction: dict, clause: dict | None) -> str:

@@ -34,7 +34,6 @@ os.environ.setdefault("MLFLOW_GENAI_EVAL_MAX_WORKERS", "2")  # an 8B model on on
 import mlflow  # noqa: E402
 from mlflow.entities import Feedback  # noqa: E402
 from mlflow.genai.scorers import scorer  # noqa: E402
-from openai import AsyncOpenAI  # noqa: E402
 
 from app import data  # noqa: E402
 from app.agents import analyst, legal, negotiator  # noqa: E402
@@ -95,9 +94,9 @@ async def _chain(email: dict) -> dict:
 
 @mlflow.trace(name="agent_chain", span_type="AGENT")
 def predict(email_id: str) -> dict:
-    """One evaluation row. A fresh HTTP client per row, because every row runs in its own event loop."""
-    llm.client = AsyncOpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key,
-                             timeout=settings.llm_timeout_s, max_retries=0)
+    """One evaluation row. Fresh HTTP clients (all endpoints, same CA handling as the app) and a closed breaker per
+    row, because every row runs in its own event loop."""
+    llm.reconnect()
     email = next(m for m in data.inbox() if m["id"] == email_id)
     return asyncio.run(_chain(email))
 

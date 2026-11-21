@@ -11,7 +11,6 @@ import type { ContractSummary } from "@/types/api";
 // --- file types ------------------------------------------------------------------------------------
 /** What the backend accepts (POST /api/contracts/upload). Word / Excel are not readable by the Legal Agent. */
 export const FILE_TYPES = ["pdf", "md", "txt"] as const;
-export type FileType = (typeof FILE_TYPES)[number];
 
 export const TYPE_META: Record<string, { label: string; icon: IconName; name: string }> = {
   pdf: { label: "PDF", icon: "document", name: "PDF document" },
@@ -26,7 +25,8 @@ export const MAX_BYTES = 5 * 1024 * 1024;
 
 /** Check type and size before sending, so the owner gets an instant, plain message instead of a 422 later. */
 export function validateFile(f: File): string | null {
-  const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
+  const dot = f.name.lastIndexOf(".");
+  const ext = dot > 0 ? f.name.slice(dot + 1).toLowerCase() : ""; // a file called "pdf" has no type
   if (!(FILE_TYPES as readonly string[]).includes(ext)) return t("Please choose a PDF or a text file (.txt, .md).");
   if (f.size > MAX_BYTES) return t("This file is larger than 5 MB. Please choose a smaller one.");
   return null;

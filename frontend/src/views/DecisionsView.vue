@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
+import { errorMessage } from "@/api";
 import DecisionFocus from "@/components/actions/DecisionFocus.vue";
 import DecisionTile from "@/components/actions/DecisionTile.vue";
 import {
@@ -24,7 +25,7 @@ import EmptyState from "@/components/ui/EmptyState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import StatTile from "@/components/ui/StatTile.vue";
-import { t } from "@/i18n";
+import { locale, t } from "@/i18n";
 import { useAskStore, type ProblemRef } from "@/stores/ask";
 import { useDashboardStore } from "@/stores/dashboard";
 
@@ -142,9 +143,20 @@ let rewriteRun = 0;
 let reviewTimer: ReturnType<typeof setTimeout> | undefined;
 let reviewAbort: AbortController | null = null;
 
+/** Chips for AV Rewrite (only drafts that still wait for the owner), in the current language. */
+async function loadRewriteHints(item: DecisionItem) {
+  const a = item.action;
+  if (a?.type !== "send_email" || a.status !== "pending") return;
+  const run = rewriteRun;
+  const h = await store.redraftHints(a.id);
+  if (h && run === rewriteRun && focusKey.value === item.key) {
+    Object.assign(rewriteState, { hints: h.hints, placeholder: h.placeholder });
+  }
+}
+
 watch(
   [focusKey, () => focused.value?.action?.status],
-  async ([key]) => {
+  ([key]) => {
     rewriteRun++; // a late answer for the previous decision is ignored
     clearTimeout(reviewTimer);
     reviewAbort?.abort();
@@ -153,20 +165,24 @@ watch(
     if (!key || !item) return;
     // chips for "Ask your CFO" (once per problem and language)
     if (!ask.contextSuggestions[item.key]) ask.loadContext(item.key, problemRef(item));
-    // chips for AV Rewrite (only drafts that still wait for the owner)
-    const a = item.action;
-    if (a?.type === "send_email" && a.status === "pending") {
-      const run = rewriteRun;
-      const h = await store.redraftHints(a.id);
-      if (h && run === rewriteRun) Object.assign(rewriteState, { hints: h.hints, placeholder: h.placeholder });
-    }
+    loadRewriteHints(item);
   },
   { immediate: true },
 );
 
+// Language switch: the ask store drops every decision's chips, and the hints are written in one language →
+// fetch both again for the open decision. The draft, a running rewrite and its check stay as they are.
+watch(locale, () => {
+  const item = focused.value;
+  if (!item) return;
+  ask.loadContext(item.key, problemRef(item));
+  loadRewriteHints(item);
+});
+
 async function rewrite(id: string, body: string, instruction: string) {
   const run = ++rewriteRun;
   clearTimeout(reviewTimer);
+  reviewAbort?.abort(); // a typing check of the old text must not overwrite the rewrite's review when it lands late
   Object.assign(rewriteState, { busy: true, error: null });
   try {
     const r = await store.redraft(id, body, instruction);
@@ -181,7 +197,7 @@ async function rewrite(id: string, body: string, instruction: string) {
     };
     if (r.changed) rewriteState.check = { ...r.review, origin: "rewrite" };
   } catch (e) {
-    if (run === rewriteRun) rewriteState.error = e instanceof Error ? e.message : t("Something went wrong.");
+    if (run === rewriteRun) rewriteState.error = errorMessage(e);
   } finally {
     if (run === rewriteRun) rewriteState.busy = false;
   }
@@ -203,10 +219,14 @@ onBeforeUnmount(() => {
   reviewAbort?.abort();
 });
 
-/** Once the owner decides, go straight back to the board (the tile is now under Resolved). Stay on error. */
+/**
+ * Once the owner decides, go straight back to the board (the tile is now under Resolved). Stay on error – and
+ * stay where the owner is if they already moved on to another decision while this one was being saved.
+ */
 async function decide(id: string, approve: boolean, body?: string) {
+  const key = focusKey.value;
   await store.decide(id, approve, body);
-  if (!error.value) router.replace({ query: {} });
+  if (!error.value && focusKey.value === key) router.replace({ query: {} });
 }
 </script>
 
@@ -216,7 +236,10 @@ async function decide(id: string, approve: boolean, body?: string) {
     :description="t('Everything you can act on. Pick an item to see why Avida suggests it – then approve, edit or decline.')"
   />
 
-  <AlertBanner v-if="error" dismissible @dismiss="error = null">{{ error }}</AlertBanner>
+  <AlertBanner v-if="error" dismissible @dismiss="error = null">
+    {{ error }}
+    <button v-if="!dashboard" type="button" class="ml-2 underline" @click="store.load(true)">{{ t("Try again") }}</button>
+  </AlertBanner>
   <SkeletonBlock v-if="!dashboard && loading" height="h-64" />
 
   <template v-else-if="items.length">
@@ -336,8 +359,9 @@ async function decide(id: string, approve: boolean, body?: string) {
     </Transition>
   </template>
 
+  <!-- not while the dashboard failed to load: "nothing here" would be wrong – the banner above offers a retry -->
   <EmptyState
-    v-else
+    v-else-if="dashboard || !error"
     icon="decisions"
     :title="t('Nothing here yet')"
     :description="t('Use “{button}” at the top. Everything Avida finds and suggests shows up here.', { button: t('Check my inbox') })"

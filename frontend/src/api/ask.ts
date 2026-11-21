@@ -1,4 +1,4 @@
-import type { AskAnswer, AskRequest, AskSuggestions, Lang } from "@/types/api";
+import type { AskAnswer, AskRequest, AskSuggestions } from "@/types/api";
 import { locale } from "@/i18n";
 import { http } from "./http";
 
@@ -12,8 +12,6 @@ import { http } from "./http";
  * - Re-fetch suggestions after every sync, reset and language switch.
  */
 
-const lang = (): Lang => (locale.value === "de" ? "de" : "en");
-
 /** GET /api/ask/suggestions – clickable questions for the current situation, in the UI language. */
 export const getAskSuggestions = (signal?: AbortSignal) => http.get<AskSuggestions>("/ask/suggestions", signal);
 
@@ -26,4 +24,4 @@ export const askCfo = (
   question: string,
   ctx: Pick<AskRequest, "action_id" | "finding_id" | "history"> = {},
   signal?: AbortSignal,
-) => http.post<AskAnswer>("/ask", { question, lang: lang(), ...ctx } satisfies AskRequest, signal);
+) => http.post<AskAnswer>("/ask", { question, lang: locale.value, ...ctx } satisfies AskRequest, signal);

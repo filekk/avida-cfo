@@ -6,8 +6,7 @@ import { apiUrl, http } from "./http";
  * Uploads are kept in memory: POST /api/reset removes them. The next /api/sync uses an uploaded contract.
  */
 
-/** Max upload size the backend accepts (5 MB). Check it client-side before sending. */
-export const CONTRACT_MAX_BYTES = 5 * 1024 * 1024;
+/** File-picker filter: the same types as `FILE_TYPES` (components/contracts/files.ts) and the backend accept. */
 export const CONTRACT_ACCEPT = ".pdf,.md,.txt";
 
 /** GET /api/contracts – uploads first, then the notebook-prepared index. */

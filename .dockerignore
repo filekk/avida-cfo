@@ -5,3 +5,14 @@
 **/.pytest_cache
 .git
 notebooks
+# not needed at runtime – and keeps tests / dev tooling out of the production image
+backend/tests
+backend/eval
+backend/static
+docs
+deploy
+.claude
+cluster-info.txt
+# local env files (e.g. frontend/.env.local) must never be baked into the Vite bundle
+**/.env
+**/.env.*

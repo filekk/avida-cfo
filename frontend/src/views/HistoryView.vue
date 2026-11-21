@@ -13,14 +13,15 @@ import type { Tone } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
 import { t, tn } from "@/i18n";
 import type { AuditEntry } from "@/types/api";
-import { fmtDateTime } from "@/utils/format";
+import { eur, fmtDate, fmtDateTime } from "@/utils/format";
 
 /**
  * Audit log (GET /api/audit) – everything that happened, newest first, as a timeline.
- * Event names are translated; the details of approved/declined actions come from the backend as delivered.
+ * Event names are translated; the details (titles, results, questions, replies) come from the backend as delivered.
+ * Every event the backend writes has a label below; anything unknown (a newer backend) is left out rather than
+ * shown as a raw id like "redraft_proposed".
  */
 const { data: audit, loading, error, reload } = useAsyncData(getAudit);
-const entries = computed(() => (audit.value ? [...audit.value].reverse() : []));
 
 /** English labels – translated where shown. */
 const EVENT: Record<string, { label: string; icon: IconName; tone: Tone }> = {
@@ -28,18 +29,47 @@ const EVENT: Record<string, { label: string; icon: IconName; tone: Tone }> = {
   sync_finished: { label: "Check finished", icon: "checkCircle", tone: "info" },
   approved: { label: "Approved", icon: "check", tone: "positive" },
   rejected: { label: "Declined", icon: "xCircle", tone: "neutral" },
+  reply_received: { label: "Reply received (simulated)", icon: "mail", tone: "info" },
+  plan_updated: { label: "Plan updated", icon: "chart", tone: "info" },
+  question: { label: "Question asked", icon: "ask", tone: "neutral" },
+  redraft_proposed: { label: "Draft rewritten", icon: "pencil", tone: "neutral" },
+  redraft_refused: { label: "Rewrite refused", icon: "alert", tone: "neutral" },
+  contract_uploaded: { label: "Contract uploaded", icon: "upload", tone: "neutral" },
 };
-const eventMeta = (e: AuditEntry) => EVENT[e.event] ?? { label: e.event, icon: "history" as const, tone: "neutral" as const };
+const entries = computed(() => (audit.value ? [...audit.value].reverse().filter((e) => e.event in EVENT) : []));
+const eventMeta = (e: AuditEntry) => EVENT[e.event];
+
+const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+/** The parts that exist, joined – never a dangling " – " when one is missing. */
+const join = (...parts: unknown[]) => parts.map(text).filter(Boolean).join(" – ");
 
 function describe(e: AuditEntry): string {
-  if (e.event === "sync_finished") {
-    const f = Number(e.findings ?? 0);
-    const a = Number(e.actions ?? 0);
-    return `${tn(f, "{n} finding", "{n} findings")}, ${tn(a, "{n} proposed action", "{n} proposed actions")}`;
+  switch (e.event) {
+    case "sync_finished": {
+      const f = Number(e.findings ?? 0);
+      const a = Number(e.actions ?? 0);
+      return `${tn(f, "{n} finding", "{n} findings")}, ${tn(a, "{n} proposed action", "{n} proposed actions")}`;
+    }
+    case "approved":
+      return join(e.title, e.result);
+    case "rejected":
+      return join(e.title);
+    case "reply_received":
+      return join(e.partner, e.summary);
+    case "plan_updated":
+      return typeof e.min_balance === "number"
+        ? t("Lowest balance {amount} on {date}", { amount: eur(e.min_balance), date: fmtDate(text(e.min_date)) })
+        : "";
+    case "question":
+      return join(e.question);
+    case "redraft_proposed":
+    case "redraft_refused":
+      return join(e.instruction);
+    case "contract_uploaded":
+      return join(e.party, e.file);
+    default:
+      return "";
   }
-  if (e.event === "approved") return `${e.title ?? ""} – ${e.result ?? ""}`;
-  if (e.event === "rejected") return String(e.title ?? "");
-  return "";
 }
 </script>
 
@@ -55,7 +85,7 @@ function describe(e: AuditEntry): string {
     <ol class="grid">
       <li
         v-for="(e, i) in entries"
-        :key="`${e.time}-${e.event}-${i}`"
+        :key="`${e.time}-${e.event}-${entries.length - i}`"
         class="relative grid grid-cols-[2.5rem_1fr] gap-3 pb-6 last:pb-0"
       >
         <span

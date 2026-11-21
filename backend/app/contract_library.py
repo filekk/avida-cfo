@@ -4,7 +4,6 @@ The extraction itself lives in `extraction.py` and is shared with the Jupyter no
 """
 from __future__ import annotations
 
-import mimetypes
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -17,6 +16,10 @@ from .state import store
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_CHARS = 30_000  # the model runs with max-model-len 16384 tokens
+MAX_UPLOADS = 10  # uploads live in memory (≤ 5 MB each) – a cap keeps the pod far from its memory limit
+# The only file types accepted AND served back. Anything else (e.g. .html / .svg) would be served inline on the
+# app's own origin → stored XSS. Served as these media types only, with `nosniff` (main.py).
+MEDIA_TYPES = {"pdf": "application/pdf", "md": "text/markdown", "markdown": "text/markdown", "txt": "text/plain"}
 
 
 class ExtractionError(ValueError):
@@ -128,9 +131,7 @@ def original_file(contract_id: str) -> tuple[str, bytes, str] | None:
         if not path or not path.is_file():
             return None
         name, content = path.name, path.read_bytes()
-    media = {"md": "text/markdown", "txt": "text/plain", "pdf": "application/pdf"}.get(
-        _file_type(name), mimetypes.guess_type(name)[0] or "application/octet-stream")
-    return name, content, media
+    return name, content, MEDIA_TYPES.get(_file_type(name), "application/octet-stream")
 
 
 def _canned(filename: str) -> dict | None:
@@ -154,6 +155,8 @@ def _next_id() -> str:
 
 @tracing.traced("contract_upload", tracing.CHAIN, skip=("content",))
 async def upload(filename: str, content: bytes) -> dict:
+    if _file_type(filename) not in MEDIA_TYPES:
+        raise ExtractionError("Please upload a PDF or a text file (.txt, .md).")
     if not content:
         raise ExtractionError("The file is empty.")
     if len(content) > MAX_BYTES:
@@ -183,6 +186,8 @@ async def upload(filename: str, content: bytes) -> dict:
 
     # Same party uploaded again -> replace the earlier upload (index entries stay, uploads take precedence).
     prev = next((c for c in data.uploaded if extraction.party_of(c).lower() == ex["counterparty"].lower()), None)
+    if not prev and len(data.uploaded) >= MAX_UPLOADS:
+        raise ExtractionError(f"You can keep up to {MAX_UPLOADS} uploaded contracts – please remove one first.")
     cid = prev["id"] if prev else _next_id()
     entry = extraction.to_index_entry(ex, cid, f"uploads/{Path(filename or 'contract').name}")
     entry.update({

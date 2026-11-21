@@ -22,7 +22,8 @@ const props = defineProps<{
   rows: ContractSummary[];
   sort: SortState;
   newId?: string | null;
-  removing?: string | null;
+  /** ids of the contracts being removed right now (several can be in flight) */
+  removing?: readonly string[];
   removeError?: { id: string; message: string } | null;
   /** name of the file being read right now (10–20 s) – shown as a row on top */
   uploading?: string | null;
@@ -43,6 +44,7 @@ const added = (c: ContractSummary) => (c.uploaded_at ? fmtDate(c.uploaded_at) : 
 
 // --- remove: inline confirm -----------------------------------------------------------------------
 const confirming = ref<string | null>(null);
+const isRemoving = (id: string) => !!props.removing?.includes(id);
 function confirmRemove(c: ContractSummary) {
   confirming.value = null;
   emit("remove", c);
@@ -207,13 +209,13 @@ const ACTION =
               <button
                 v-if="c.origin === 'uploaded'"
                 type="button"
-                :disabled="removing === c.id"
+                :disabled="isRemoving(c.id)"
                 :class="[ACTION, 'hover:text-negative disabled:opacity-50']"
                 :title="t('Remove')"
                 :aria-label="t('Remove {name}', { name: c.file_name })"
                 @click="confirming = c.id"
               >
-                <AppIcon :name="removing === c.id ? 'loader' : 'trash'" :size="18" :class="removing === c.id ? 'animate-spin' : ''" />
+                <AppIcon :name="isRemoving(c.id) ? 'loader' : 'trash'" :size="18" :class="isRemoving(c.id) ? 'animate-spin' : ''" />
               </button>
               <AppTooltip v-else :text="t('Prepared contracts belong to the demo and cannot be removed.')">
                 <span :class="[ACTION, 'cursor-help opacity-40 hover:bg-transparent']" aria-hidden="true">

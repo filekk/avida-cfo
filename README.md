@@ -54,16 +54,23 @@ every LLM output has a fallback so the demo survives a model outage (and the UI 
 ```
 backend/
   app/
-    main.py            FastAPI: /api/dashboard, /api/sync (SSE), /api/actions/{id}/approve|reject, /api/policy, /api/audit
-    orchestrator.py    coordinates the 3 agents and their hand-offs, emits trace events
+    main.py            FastAPI routes (docs/API.md) + serves the built front-end
+    orchestrator.py    coordinates the 3 agents and their hand-offs, emits trace events, re-plans after decisions
     agents/            analyst.py · legal.py · negotiator.py
+    decision.py        decision support per action card + the owner's draft tools (review, AV Rewrite)
+    ask.py             "Ask your CFO" (routing, facts per agent, guarded answers, problem chat)
+    contract_library.py / extraction.py   contract upload → live extraction (shared with the notebook)
     forecast.py        deterministic cash forecast + credit sizing
-    llm.py             OpenAI-compatible client for vLLM (+ fallback)
+    llm.py             OpenAI-compatible client for vLLM (failover, circuit breaker, fallback)
     fallback.py        canned answers for offline demo
+    texts.py           every owner-facing text in EN / DE + localize()
+    tracing.py         optional MLflow tracing of the agents
     state.py           actions, approvals, audit log, autonomy policy
-    config.py          env-based settings
+    data.py            loads the mock data sources
+    config.py          env-based settings (see "Configuration" below)
   data/                mock bank data, inbox, contracts, contract index
-  tests/               end-to-end test of the happy path (offline)
+  eval/                MLflow GenAI evaluation of the agents
+  tests/               offline tests (pipeline, decisions, contracts, failover, tracing, audit fixes)
 frontend/              Vue 3 app (served by FastAPI in production)
 notebooks/             contract_extraction.ipynb – benchmark of backend/app/extraction.py (OpenShift AI workbench)
 deploy/                ConfigMap, Deployment/Service/Route, step-by-step guide
@@ -76,8 +83,8 @@ Dockerfile             one image: builds frontend, runs backend on :8080
 ```bash
 # backend (works without a model: LLM_ENABLED=false uses fallback answers)
 cd backend
-python -m venv .venv && .venv/Scripts/activate      # Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
+python -m venv .venv && source .venv/Scripts/activate   # Linux/macOS: source .venv/bin/activate
+pip install -r requirements-dev.txt                 # runtime deps + pytest (the image installs requirements.txt only)
 LLM_ENABLED=false uvicorn app.main:app --port 8080 --reload
 pytest -q
 
@@ -87,6 +94,25 @@ cd frontend && npm install && npm run dev            # http://localhost:5173
 
 To use the cluster model locally: `oc port-forward -n avida-models deploy/granite-8b-predictor 8001:8080`
 and set `LLM_BASE_URL=http://localhost:8001/v1`.
+
+## Configuration
+
+Everything comes from environment variables (on OpenShift: `deploy/configmap.yaml`). Defaults in brackets.
+
+| Variable | What it does |
+|---|---|
+| `LLM_ENABLED` [`true`] | `false` = never call a model, every answer is the canned one (labelled "cached answer") |
+| `LLM_BASE_URL` [`http://localhost:8000/v1`] · `LLM_MODEL` [`granite-8b`] · `LLM_API_KEY` [`EMPTY`] | primary OpenAI-compatible endpoint |
+| `LLM_FALLBACK_BASE_URL` · `LLM_FALLBACK_MODEL` · `LLM_FALLBACK_CA_FILE` [empty] | optional second endpoint, tried when the primary fails (empty = no failover) |
+| `LLM_TIMEOUT_S` [`60`] · `LLM_FAILOVER_COOLDOWN_S` [`30`] · `LLM_BREAKER_S` [`45`] | per-call timeout · skip the failed primary for · canned answers after all endpoints failed for |
+| `DEMO_FALLBACK` [`true`] | use canned answers instead of failing when the model is down or answers garbage |
+| `FORECAST_DAYS` [`90`] · `DEMO_TODAY` [`2026-11-20`] · `TRACE_DELAY_S` [`0.4`] | forecast horizon · fixed "today" (empty = real date) · pause between trace steps |
+| `CORS_ORIGINS` [`http://localhost:5173,http://127.0.0.1:5173`] | browser origins allowed cross-origin (prod is same-origin; empty = no CORS) |
+| `DATA_DIR` [`backend/data`] · `STATIC_DIR` [`backend/static`] | mock data · built front-end |
+| `MLFLOW_TRACKING_URI` [empty] · `MLFLOW_EXPERIMENT_NAME` [`avida-cfo-agents`] | optional MLflow tracing (empty = off) |
+
+The SSE stream of an inbox check can be silent for one failed-over model call (2 × `LLM_TIMEOUT_S`), so the
+OpenShift route timeout (`haproxy.router.openshift.io/timeout`, 180 s) must stay above that.
 
 ## Deploy to OpenShift AI
 
