@@ -4,11 +4,16 @@ kind: ConfigMap
 metadata:
   name: avida-cfo-config
 data:
-  # Internal URL of the vLLM InferenceService (check: oc get inferenceservice, oc get svc)
-  # Pattern: http://<isvc-name>-predictor.<model-namespace>.svc.cluster.local:8080/v1
-  LLM_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
+  # Primary: Granite served by llm-d (deploy/model/granite-llmd.yaml), through our private inference
+  # Gateway (cluster-internal only). Check: oc get llmisvc granite-llmd -n avida-models -o jsonpath='{.status.url}'
+  LLM_BASE_URL: "http://avida-inference-openshift-ai-inference.openshift-ingress.svc.cluster.local/avida-models/granite-llmd/v1"
   # Must match the served model name (curl $LLM_BASE_URL/models)
   LLM_MODEL: "granite-8b"
+  # Fallback: the plain vLLM InferenceService (deploy/model/granite-8b.yaml). Used automatically when llm-d
+  # is down; only one GPU, so start it with: oc annotate isvc granite-8b -n avida-models serving.kserve.io/stop=false --overwrite
+  # Remove these two lines to switch failover off.
+  LLM_FALLBACK_BASE_URL: "http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1"
+  LLM_FALLBACK_MODEL: "granite-8b"
   LLM_TIMEOUT_S: "60"
   LLM_ENABLED: "true"
   DEMO_FALLBACK: "true"
