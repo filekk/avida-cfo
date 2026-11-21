@@ -9,7 +9,7 @@ import { t, tn } from "@/i18n";
 
 /**
  * Compact "who works on it" strip for the inbox-check pop-up: the agents of the current crew + You.
- * Live: the agent at work is sun-coloured and pulses, agents that already spoke get a green check.
+ * Live: the agent at work is sun-coloured (static, no pulsing), agents that already spoke get a green check.
  * Works for today's sequential crew and for the upcoming crew whose agents take turns (status comes from
  * "has spoken" + "speaks now", not from a fixed order).
  */
@@ -62,7 +62,7 @@ const STATUS_TEXT: Record<StepStatus, string> = { todo: "not started", active: "
         :tone="TONE[s.status]"
         :class="['relative transition-[background-color,color,box-shadow] duration-base', s.status === 'active' ? 'ring-4 ring-sun/25' : '']"
       >
-        <AppIcon :name="s.icon" :size="18" :class="s.status === 'active' && state === 'running' ? 'animate-pulse' : ''" />
+        <AppIcon :name="s.icon" :size="18" />
         <span
           :class="[
             'absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-positive text-surface ring-2 ring-surface transition-[opacity,transform] duration-base',

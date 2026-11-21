@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
       <!-- sliding sun pill behind the chosen option -->
       <span
         :class="[
-          'pointer-events-none absolute left-0 top-0 rounded-lg bg-sun shadow-card',
+          'pointer-events-none absolute left-0 top-0 rounded-lg bg-sun',
           pillReady ? 'transition-[transform,width,height] duration-base' : '',
         ]"
         :style="{ transform: `translate(${pill.x}px, ${pill.y}px)`, width: `${pill.w}px`, height: `${pill.h}px` }"
@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
         v-show="hint"
         :id="`${uid}-hint`"
         role="tooltip"
-        class="absolute right-0 top-full z-20 mt-2 flex w-max max-w-[15rem] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-label text-fg shadow-lift"
+        class="absolute right-0 top-full z-20 mt-2 flex w-max max-w-[15rem] items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-label text-fg shadow-pop"
       >
         <AppIcon name="info" :size="16" class="mt-0.5 shrink-0 text-mist-fg" />
         {{ t("Avida forecasts {max} days for now.", { max }) }}

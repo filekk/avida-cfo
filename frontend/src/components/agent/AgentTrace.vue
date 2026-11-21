@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import ShimmerText from "@/components/sync/ShimmerText.vue";
+import ThinkingSpinner from "@/components/sync/ThinkingSpinner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import IconTile from "@/components/ui/IconTile.vue";
-import type { Tone } from "@/components/ui/tones";
 import { agentIcon, isHandoff } from "@/constants/agents";
 import { t } from "@/i18n";
-import type { Autonomy, TraceEvent } from "@/types/api";
+import type { TraceEvent } from "@/types/api";
 import { prefersReducedMotion } from "@/utils/motion";
 import AutonomyBadge from "./AutonomyBadge.vue";
 import SourceTag from "./SourceTag.vue";
@@ -14,21 +12,17 @@ import SourceTag from "./SourceTag.vue";
 /**
  * The agents' steps streamed from /api/sync, as a chat-like timeline (newest at the bottom, like a conversation).
  * Lives in the inbox-check pop-up: own scroll area that follows new steps (unless you scrolled up to read),
- * the newest step shimmers while the check runs, three dots show that more is coming.
+ * new steps rise in as they arrive (the only list that animates – it is live), a small spinner shows more is coming.
  * Every step shows the agent and its autonomy badge (challenge requirement). Backend messages stay as sent.
  */
 const props = defineProps<{ events: TraceEvent[]; running: boolean }>();
 
-const NODE: Record<Autonomy, Tone> = {
-  analyzed: "info",
-  recommendation: "warn",
-  approval: "accent",
-  simulated: "neutral",
-};
-
 const list = ref<HTMLOListElement | null>(null);
 let follow = true; // stop auto-scrolling when the owner scrolls up to read
-/** Soft fades at the edges that have more steps behind them (top when scrolled, bottom when not at the end). */
+/**
+ * Scroll edges that have more steps behind them fade out (top when scrolled, bottom when not at the end).
+ * Technical alpha mask on the scroll edge, not a colour effect – the one deliberate exception in the design rules.
+ */
 const edges = ref({ top: false, bottom: false });
 
 function measureEdges() {
@@ -95,18 +89,16 @@ const mask = computed(() => {
       :key="i"
       class="relative grid animate-rise grid-cols-[2.5rem_minmax(0,1fr)] gap-3 pb-4 last:pb-0"
     >
-      <!-- timeline line to the next step -->
+      <!-- timeline line to the next step (between this icon and the next one) -->
       <span
         v-if="i < events.length - 1 || running"
-        class="absolute bottom-0 left-5 top-11 w-px -translate-x-1/2 bg-line"
+        class="absolute -bottom-1 left-5 top-9 w-px -translate-x-1/2 bg-line"
         aria-hidden="true"
       />
-      <IconTile
-        :icon="isHandoff(e) ? 'messageSquare' : agentIcon(e.agent)"
-        :tone="NODE[e.autonomy] ?? 'neutral'"
-        size="sm"
-        round
-      />
+      <!-- small muted agent icon on the line; the autonomy level is the badge next to it (no coloured node) -->
+      <span class="grid h-10 w-10 place-items-center text-muted" aria-hidden="true">
+        <AppIcon :name="isHandoff(e) ? 'messageSquare' : agentIcon(e.agent)" :size="18" />
+      </span>
       <div class="grid min-w-0 gap-1 pt-0.5">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span class="flex min-w-0 flex-wrap items-center gap-1 text-label font-semibold text-muted">
@@ -120,7 +112,7 @@ const mask = computed(() => {
           <AutonomyBadge :level="e.autonomy" />
         </div>
         <p class="text-label leading-snug text-fg [overflow-wrap:anywhere]">
-          <ShimmerText :active="running && i === events.length - 1">{{ e.message }}</ShimmerText>
+          {{ e.message }}
           <SourceTag :source="e.source" />
         </p>
       </div>
@@ -128,11 +120,7 @@ const mask = computed(() => {
 
     <!-- more is coming -->
     <li v-if="running" class="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3" aria-hidden="true">
-      <span class="grid h-10 w-10 place-items-center">
-        <span class="flex gap-1">
-          <span v-for="d in 3" :key="d" class="typing-dot h-1.5 w-1.5 rounded-full bg-muted" :style="{ animationDelay: `${(d - 1) * 160}ms` }" />
-        </span>
-      </span>
+      <span class="grid h-10 w-10 place-items-center"><ThinkingSpinner size="sm" /></span>
       <span class="text-caption text-muted">{{ t("Working…") }}</span>
     </li>
   </ol>
@@ -142,20 +130,5 @@ const mask = computed(() => {
 .sync-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--c-line)) transparent;
-}
-.typing-dot {
-  animation: typing 1.2s ease-in-out infinite;
-}
-@keyframes typing {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
 }
 </style>

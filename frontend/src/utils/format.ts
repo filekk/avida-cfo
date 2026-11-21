@@ -11,16 +11,19 @@ const eurFmtCents = new Intl.NumberFormat("de-DE", { style: "currency", currency
 const numFmt = new Intl.NumberFormat("de-DE");
 const pctFmt = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
 
-/** 93000 → "93.000 €" */
+/** de-DE prints a hyphen ("-27.882 €"); typeset numbers use the real minus sign U+2212 ("−27.882 €"). */
+const minus = (s: string) => s.replace("-", "−");
+
+/** 93000 → "93.000 €" · -27882 → "−27.882 €" */
 // `n || 0` turns -0 (e.g. an axis tick computed from a negative range) into 0 → never "-0 €"
-export const eur = (n: number | null | undefined) => (n == null ? "–" : eurFmt.format(n || 0));
+export const eur = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmt.format(n || 0)));
 /** 5.21 → "5,21 €" */
-export const eurCents = (n: number | null | undefined) => (n == null ? "–" : eurFmtCents.format(n || 0));
+export const eurCents = (n: number | null | undefined) => (n == null ? "–" : minus(eurFmtCents.format(n || 0)));
 /** 1470 → "+1.470 €" (sign always shown) */
-export const eurSigned = (n: number) => (n > 0 ? "+" : "") + eurFmt.format(n);
-export const num = (n: number) => numFmt.format(n);
+export const eurSigned = (n: number) => (n > 0 ? "+" : "") + minus(eurFmt.format(n));
+export const num = (n: number) => minus(numFmt.format(n));
 /** 15 → "+15 %" */
-export const pct = (n: number, signed = true) => `${signed && n > 0 ? "+" : ""}${pctFmt.format(n)} %`;
+export const pct = (n: number, signed = true) => `${signed && n > 0 ? "+" : ""}${minus(pctFmt.format(n))} %`;
 
 // ISO "YYYY-MM-DD" must be parsed as a LOCAL date, otherwise it shifts by the timezone offset.
 const parseIso = (iso: string) => {

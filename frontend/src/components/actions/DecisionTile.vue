@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { t } from "@/i18n";
-import { STATUS, decisionState, gist, iconOf, isOpenItem, keyFigure, type DecisionItem } from "./decision";
+import { STATUS, decisionState, gist, isOpenItem, keyFigure, type DecisionItem } from "./decision";
 
 /**
  * Small tile in the Action center: the gist of one decision. Click → the focus view with everything.
- * Pending = sun border; resolved = toned down by background and shadow (never by opacity, so text keeps ≥ 4.5:1).
+ * Open = white tile; resolved = toned down by its background (never by opacity, so text keeps ≥ 4.5:1).
+ * Hover = border + background colour only – the tile never lifts or casts a shadow. The status label says "waiting",
+ * so the sun stays free for the one main button of the screen. No icon tile: the column already says what kind
+ * of item it is, and the title says which one.
  */
 const props = defineProps<{ item: DecisionItem }>();
 defineEmits<{ open: [] }>();
@@ -23,30 +25,25 @@ const fig = computed(() => keyFigure(props.item));
   <button
     type="button"
     :class="[
-      'group grid w-full content-start gap-3 rounded-xl border p-3.5 text-left',
-      'transition-[border-color,box-shadow,transform,background-color] duration-base hover:-translate-y-0.5 hover:shadow-lift',
-      state === 'pending'
-        ? 'border-sun bg-surface shadow-card'
-        : open
-          ? 'border-line bg-surface shadow-card hover:border-fg/30'
-          : 'border-line bg-input/60 hover:border-fg/30 hover:bg-surface',
+      'group grid w-full content-start gap-3 rounded-xl border border-line p-3.5 text-left',
+      'transition-colors duration-fast hover:border-fg/30',
+      open ? 'bg-surface hover:bg-input/40' : 'bg-input/60 hover:bg-surface',
     ]"
     @click="$emit('open')"
   >
     <span class="flex items-start gap-3">
-      <IconTile :icon="iconOf(item)" :tone="state === 'pending' ? 'accent' : 'neutral'" size="sm" class="transition-colors duration-base" />
       <span class="grid min-w-0 flex-1 gap-0.5">
-        <span class="truncate font-bold leading-snug">{{ g.title }}</span>
+        <span class="truncate font-semibold leading-snug">{{ g.title }}</span>
         <span class="truncate text-label text-muted">{{ g.hint }}</span>
       </span>
-      <AppIcon name="arrowRight" :size="18" class="mt-1 shrink-0 text-muted transition-transform duration-base group-hover:translate-x-1" />
+      <AppIcon name="arrowRight" :size="18" class="mt-1 shrink-0 text-muted transition-colors duration-fast group-hover:text-fg" />
     </span>
 
     <span class="flex flex-wrap items-end justify-between gap-2">
       <StatusPill :tone="STATUS[state].tone">{{ t(STATUS[state].label) }}</StatusPill>
       <span v-if="fig" class="grid justify-items-end gap-0.5 leading-tight">
         <span class="text-caption text-muted">{{ fig.label }}</span>
-        <span :class="['font-display text-base font-extrabold tabular-nums', fig.tone]">{{ fig.value }}</span>
+        <span :class="['font-display text-base font-semibold tracking-tight tabular-nums', fig.tone]">{{ fig.value }}</span>
       </span>
     </span>
   </button>

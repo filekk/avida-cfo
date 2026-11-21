@@ -67,10 +67,12 @@ export default {
         body: ["1rem", { lineHeight: "1.6" }],
         kpi: ["1.625rem", { lineHeight: "1.15", letterSpacing: "-0.015em" }],
       },
+      /*
+       * ONE shadow, only for things that really float above the content (top-bar pop-ups, tooltips, the chat
+       * panel + bubble). Cards and buttons have none: depth = white card on the light page + a 1px line.
+       */
       boxShadow: {
-        card: "0 1px 2px 0 rgb(14 42 71 / 0.04)",
-        lift: "0 10px 28px -16px rgb(14 42 71 / 0.30)",
-        float: "0 24px 60px -30px rgb(14 42 71 / 0.35)",
+        pop: "0 12px 32px -12px rgb(14 42 71 / 0.22)",
       },
       letterSpacing: { eyebrow: ".1em" },
       /* Motion tokens – same curve & speeds everywhere (mirrored as CSS vars in main.css). */

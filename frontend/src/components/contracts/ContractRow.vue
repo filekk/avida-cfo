@@ -50,12 +50,13 @@ async function cancel() {
 
 <template>
   <li class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4 sm:px-5">
-    <IconTile tone="info" size="sm">{{ initialOf(contract) }}</IconTile>
+    <!-- the counterparty's initial = an avatar: neutral and round, not a coloured icon tile -->
+    <IconTile tone="neutral" size="sm" round class="!text-fg">{{ initialOf(contract) }}</IconTile>
 
     <div class="grid min-w-0 gap-1">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <h3 class="min-w-0 break-words text-base font-bold leading-snug">{{ party }}</h3>
-        <StatusPill v-if="isNew" tone="accent">{{ t("Just added") }}</StatusPill>
+        <h3 class="min-w-0 break-words text-base font-semibold leading-snug">{{ party }}</h3>
+        <StatusPill v-if="isNew" tone="positive">{{ t("Just added") }}</StatusPill>
       </div>
       <p class="break-words text-label leading-snug text-muted">{{ contract.title }}</p>
 

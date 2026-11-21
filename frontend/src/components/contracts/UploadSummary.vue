@@ -3,7 +3,6 @@ import { computed, useId } from "vue";
 import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import SourceTag from "@/components/agent/SourceTag.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import { t, tn } from "@/i18n";
 import type { UploadResult } from "@/types/api";
 import ContractWarnings from "./ContractWarnings.vue";
@@ -26,9 +25,9 @@ const headingId = useId();
 <template>
   <section class="grid gap-4 rounded-xl border border-line bg-surface p-4" :aria-labelledby="headingId">
     <header class="flex items-start gap-3">
-      <IconTile icon="checkCircle" tone="positive" size="sm" />
+      <AppIcon name="checkCircle" :size="20" class="mt-0.5 shrink-0 text-positive" />
       <div class="grid min-w-0 flex-1 gap-0.5">
-        <h3 :id="headingId" class="flex flex-wrap items-baseline gap-x-2 text-base font-bold leading-snug">
+        <h3 :id="headingId" class="flex flex-wrap items-baseline gap-x-2 text-base font-semibold leading-snug">
           {{ t("Contract added") }}
           <SourceTag :source="result.source" />
         </h3>

@@ -11,7 +11,6 @@ import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import StatTile from "@/components/ui/StatTile.vue";
@@ -51,14 +50,12 @@ const partOpen = reactive<Record<DecisionCategory, Record<PartKey, boolean>>>({
 const COLUMNS = [
   {
     key: "emails" as const,
-    icon: "mail" as const,
     title: "Based on your emails",
     hint: "Price changes and late payments, checked against your contracts.",
     emptyPending: "No email needs your decision right now.",
   },
   {
     key: "forecast" as const,
-    icon: "chart" as const,
     title: "Based on your forecast",
     hint: "Steps that keep your balance above your safety cushion.",
     emptyPending: "Your forecast needs no action right now.",
@@ -109,7 +106,6 @@ async function decide(id: string, approve: boolean, body?: string) {
 
 <template>
   <PageHeader
-    :eyebrow="t('Needs your approval')"
     :title="t('Action center')"
     :description="t('Everything you can act on. Pick an item to see why Avida suggests it – then approve, edit or decline.')"
   />
@@ -150,15 +146,12 @@ async function decide(id: string, approve: boolean, body?: string) {
         <section
           v-for="col in columns"
           :key="col.key"
-          class="grid content-start gap-4 rounded-xl border border-line bg-surface p-4 shadow-card sm:p-5 lg:row-span-3 lg:grid-rows-subgrid"
+          class="grid content-start gap-4 rounded-xl border border-line bg-surface p-4 sm:p-5 lg:row-span-3 lg:grid-rows-subgrid"
           :aria-labelledby="`col-${col.key}`"
         >
-          <header class="flex items-start gap-3">
-            <IconTile :icon="col.icon" tone="info" size="sm" />
-            <div class="grid gap-0.5">
-              <h2 :id="`col-${col.key}`" class="text-lg font-bold">{{ t(col.title) }}</h2>
-              <p class="text-label text-muted">{{ t(col.hint) }}</p>
-            </div>
+          <header class="grid gap-0.5">
+            <h2 :id="`col-${col.key}`" class="text-lg font-semibold">{{ t(col.title) }}</h2>
+            <p class="text-label text-muted">{{ t(col.hint) }}</p>
           </header>
 
           <div v-for="part in col.parts" :key="part.key" class="grid content-start gap-2">
@@ -178,7 +171,7 @@ async function decide(id: string, approve: boolean, body?: string) {
                 <span class="eyebrow !text-fg">{{ t(part.title) }}</span>
                 <span
                   :class="[
-                    'min-w-[1.75rem] rounded-full px-2 py-0.5 text-center text-caption font-bold leading-tight transition-colors duration-base',
+                    'min-w-[1.75rem] rounded-md px-2 py-0.5 text-center text-caption font-semibold leading-tight transition-colors duration-base',
                     part.key === 'pending' && part.items.length ? 'bg-sun text-sun-on' : 'bg-input text-muted',
                   ]"
                 >{{ part.items.length }}</span>
@@ -226,12 +219,9 @@ async function decide(id: string, approve: boolean, body?: string) {
   <!-- "Ask your CFO": below the board / focus view / empty state, once the content above is final (#ask target) -->
   <BaseCard v-if="dashboard || !loading" id="ask" :padded="false" aria-labelledby="ask-title">
     <div class="grid gap-5 p-4 sm:p-5">
-      <header class="flex items-start gap-3">
-        <IconTile icon="ask" tone="info" size="sm" />
-        <div class="grid gap-0.5">
-          <h2 id="ask-title" class="text-lg font-bold">{{ t("Ask your CFO") }}</h2>
-          <p class="text-label text-muted">{{ t("Not sure about a decision? Ask in your own words.") }}</p>
-        </div>
+      <header class="grid gap-0.5">
+        <h2 id="ask-title" class="text-lg font-semibold">{{ t("Ask your CFO") }}</h2>
+        <p class="text-label text-muted">{{ t("Not sure about a decision? Ask in your own words.") }}</p>
       </header>
       <AskChat />
     </div>

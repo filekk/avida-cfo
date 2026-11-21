@@ -8,7 +8,6 @@ import IconTile from "@/components/ui/IconTile.vue";
 import { agentInfo } from "@/constants/agents";
 import { t, tn } from "@/i18n";
 import type { TraceEvent } from "@/types/api";
-import ShimmerText from "./ShimmerText.vue";
 import ThinkingSpinner from "./ThinkingSpinner.vue";
 import { errorText, type SyncState } from "./sync";
 
@@ -59,9 +58,9 @@ const title = computed(
         </Transition>
       </div>
       <div class="grid min-w-0 flex-1 gap-0.5 pt-0.5">
-        <h2 class="text-base font-bold leading-snug">{{ title }}</h2>
+        <h2 class="text-base font-semibold leading-snug">{{ title }}</h2>
         <p v-if="state === 'running'" class="text-label font-medium" aria-live="polite">
-          <ShimmerText>{{ working }}</ShimmerText>
+          {{ working }}
           <span class="whitespace-nowrap text-muted"> · {{ t("Step {n}", { n: Math.max(1, events.length) }) }}</span>
         </p>
         <p v-else-if="state === 'done'" class="text-label text-muted">
@@ -90,7 +89,7 @@ const title = computed(
 
     <!-- every step -->
     <section v-if="events.length" class="grid gap-2" :aria-label="t('What your assistant did')">
-      <h3 class="eyebrow">{{ t("What your assistant did") }}</h3>
+      <h3 class="text-label font-semibold">{{ t("What your assistant did") }}</h3>
       <AgentTrace :events="events" :running="state === 'running'" />
     </section>
     <p v-else-if="state === 'done'" class="rounded-lg bg-input px-3 py-2.5 text-label text-muted">
@@ -103,16 +102,16 @@ const title = computed(
         <!-- auto-fit with a rem minimum: side by side normally, stacked at large text sizes -->
         <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9.5rem),1fr))] gap-2">
           <div class="flex min-w-0 items-center gap-2.5 rounded-xl bg-input px-3 py-2.5">
-            <IconTile icon="inbox" tone="info" size="sm" />
+            <AppIcon name="inbox" :size="18" class="shrink-0 text-muted" />
             <span class="grid min-w-0 leading-tight">
-              <b class="font-display text-lg tabular-nums">{{ findingsCount }}</b>
+              <b class="font-display text-lg font-semibold tracking-tight tabular-nums">{{ findingsCount }}</b>
               <span class="text-caption text-muted hyphens-auto">{{ tn(findingsCount, "thing found", "things found") }}</span>
             </span>
           </div>
           <div class="flex min-w-0 items-center gap-2.5 rounded-xl bg-input px-3 py-2.5">
-            <IconTile icon="approval" :tone="pending ? 'accent' : 'positive'" size="sm" />
+            <AppIcon name="approval" :size="18" :class="['shrink-0', pending ? 'text-warn' : 'text-positive']" />
             <span class="grid min-w-0 leading-tight">
-              <b class="font-display text-lg tabular-nums">{{ pending }}</b>
+              <b class="font-display text-lg font-semibold tracking-tight tabular-nums">{{ pending }}</b>
               <span class="text-caption text-muted hyphens-auto">{{ tn(pending, "waits for you", "wait for you") }}</span>
             </span>
           </div>

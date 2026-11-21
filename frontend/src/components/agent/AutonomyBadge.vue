@@ -6,17 +6,24 @@ import type { Autonomy } from "@/types/api";
 
 /**
  * Challenge requirement: the autonomy level is ALWAYS visible next to agent steps and action cards.
- * Same size/shape as StatusPill (1px border on every level so the dashed "simulated" one is not bigger).
+ * Default: same size/shape as StatusPill – a flat 6px-radius rectangle (1px border on every level so the dashed
+ * "simulated" one is not bigger).
+ * `plain`: the same icon + label as muted text, no box – for the second level in a row that already has two badges
+ * (e.g. "Simulated execution" next to status + "Needs your approval"). Max. 2 badges per row.
  */
-defineProps<{ level: Autonomy }>();
+withDefaults(defineProps<{ level: Autonomy; plain?: boolean }>(), { plain: false });
 </script>
 
 <template>
   <span
-    :class="[
-      'inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-caption font-semibold leading-tight',
-      AUTONOMY[level].classes,
-    ]"
+    :class="
+      plain
+        ? 'inline-flex w-fit items-center gap-1.5 whitespace-nowrap text-label text-muted'
+        : [
+            'inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-caption font-medium leading-snug',
+            AUTONOMY[level].classes,
+          ]
+    "
     :title="t(AUTONOMY[level].description)"
   >
     <AppIcon :name="AUTONOMY[level].icon" :size="14" />

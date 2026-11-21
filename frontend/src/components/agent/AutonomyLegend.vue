@@ -16,7 +16,7 @@ withDefaults(defineProps<{ detailed?: boolean }>(), { detailed: false });
         <!-- step number: readable (muted on surface ≈ 6.5:1), not decorative grey; left of the tile so the
              arrow to the next level on the right edge has room -->
         <span
-          class="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-surface font-display text-label font-bold text-muted"
+          class="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-surface font-display text-label font-semibold text-muted"
           aria-hidden="true"
         >{{ i + 1 }}</span>
         <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" :class="AUTONOMY[l].tile" />

@@ -4,10 +4,8 @@ import AutonomyLegend from "@/components/agent/AutonomyLegend.vue";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
-import { TONE_SOFT } from "@/components/ui/tones";
 import { useAsyncData } from "@/composables/useAsyncData";
 import { agentIcon } from "@/constants/agents";
 import { AUTONOMY, AUTONOMY_ORDER } from "@/constants/autonomy";
@@ -26,7 +24,6 @@ const applies = (row: PolicyRule, level: Autonomy) =>
 
 <template>
   <PageHeader
-    :eyebrow="t('You stay in control')"
     :title="t('What your agents may do')"
     :description="t('Reading and calculating: on their own. Anything that leaves your company: only after your click.')"
   />
@@ -40,18 +37,18 @@ const applies = (row: PolicyRule, level: Autonomy) =>
   </AlertBanner>
   <SkeletonBlock v-else-if="loading && !policy" height="h-64" />
 
-  <BaseCard v-else-if="policy" :title="t('Who may do what')" :padded="false" class="animate-rise">
+  <BaseCard v-else-if="policy" :title="t('Who may do what')" :padded="false">
     <!-- relative: keeps the absolutely-positioned sr-only labels inside the scroll box (else they widen the page) -->
     <div class="relative overflow-x-auto">
       <table class="w-full min-w-[680px] border-collapse">
         <thead>
           <tr>
-            <th class="border-b border-line px-5 py-3 text-left align-bottom text-caption font-semibold uppercase tracking-eyebrow text-muted">
+            <th class="border-b border-line px-5 py-3 text-left align-bottom text-caption font-semibold text-muted">
               {{ t("Action") }}
             </th>
             <th v-for="l in AUTONOMY_ORDER" :key="l" class="w-[8rem] border-b border-line px-2 py-3 align-top font-semibold">
-              <span class="grid justify-items-center gap-2">
-                <IconTile :icon="AUTONOMY[l].icon" :tone="AUTONOMY[l].tone" size="sm" :class="AUTONOMY[l].tile" />
+              <span class="grid justify-items-center gap-1.5">
+                <AppIcon :name="AUTONOMY[l].icon" :size="18" class="text-muted" />
                 <span class="text-caption leading-tight text-muted">{{ t(AUTONOMY[l].label) }}</span>
               </span>
             </th>
@@ -65,7 +62,7 @@ const applies = (row: PolicyRule, level: Autonomy) =>
           >
             <td class="px-5 py-3.5">
               <span class="flex items-center gap-3">
-                <IconTile :icon="agentIcon(row.agent)" tone="neutral" size="sm" />
+                <AppIcon :name="agentIcon(row.agent)" :size="18" class="shrink-0 text-muted" />
                 <span class="grid gap-0.5 leading-tight">
                   <b class="font-semibold">{{ row.action }}</b>
                   <span class="text-label text-muted">{{ t(row.agent) }}</span>
@@ -73,11 +70,9 @@ const applies = (row: PolicyRule, level: Autonomy) =>
               </span>
             </td>
             <td v-for="l in AUTONOMY_ORDER" :key="l" class="px-2 py-3.5 text-center">
-              <span
-                v-if="applies(row, l)"
-                :class="['inline-grid h-8 w-8 place-items-center rounded-full', TONE_SOFT[AUTONOMY[l].tone], AUTONOMY[l].tile]"
-              >
-                <AppIcon name="check" :size="16" /><span class="sr-only">{{ t(AUTONOMY[l].label) }}</span>
+              <!-- plain check = "applies" (the column header names the level); a faint dot = "does not apply" -->
+              <span v-if="applies(row, l)" class="inline-grid h-8 w-8 place-items-center text-fg">
+                <AppIcon name="check" :size="18" /><span class="sr-only">{{ t(AUTONOMY[l].label) }}</span>
               </span>
               <span v-else class="inline-block h-2 w-2 rounded-full bg-muted/40" aria-hidden="true" />
             </td>

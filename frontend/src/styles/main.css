@@ -30,6 +30,10 @@
     @apply font-display tracking-tight;
     text-wrap: balance;
   }
+  /* Weights: 400 text · 500 labels/numbers · 600 headings/buttons. 800 nowhere; <b> is 600, not a synthetic 700. */
+  b, strong {
+    @apply font-semibold;
+  }
   /* Smooth by default: anything clickable/focusable eases its colours, shadow and transform.
      Tailwind `transition-*` utilities still win (utilities layer comes later). */
   a, button, input, select, textarea, summary, label, [role="button"], [tabindex] {

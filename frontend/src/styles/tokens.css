@@ -156,13 +156,10 @@ html:root[data-contrast="high"] {
   color-scheme: dark;
 }
 
-/* No grey haze: shadows off (rings stay – they live in --tw-ring-shadow), decorative glows hidden. */
+/* No grey haze: shadows off (rings stay – they live in --tw-ring-shadow). */
 html:root[data-contrast="high"] * {
   --tw-shadow: 0 0 #0000 !important;
   --tw-shadow-colored: 0 0 #0000 !important;
-}
-html:root[data-contrast="high"] [class~="blur-3xl"] {
-  opacity: 0 !important;
 }
 
 /* Soft tints are black now → a 1px outline in their own colour keeps every pill/tile/field visible.
@@ -221,11 +218,6 @@ html:root[data-contrast="high"] :is([class~="text-gold"], p a, li > a:not([class
   text-decoration-line: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
-}
-
-/* Chart area gradient: a thinner yellow veil so axis/labels stay crisp on black. */
-html:root[data-contrast="high"] linearGradient stop:first-child {
-  stop-opacity: 0.16 !important;
 }
 
 /* Focus: thick WHITE ring – clearly different from the yellow UI. */

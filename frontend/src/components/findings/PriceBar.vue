@@ -23,7 +23,7 @@ const oldShare = computed(() => {
 <template>
   <div class="grid gap-2">
     <div
-      class="flex h-3 overflow-hidden rounded-full bg-input"
+      class="flex h-3 overflow-hidden rounded bg-input"
       role="img"
       :aria-label="t('Monthly price goes from {from} to {to}', { from: eur(from), to: eur(to) })"
     >

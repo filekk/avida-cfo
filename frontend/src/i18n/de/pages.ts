@@ -8,7 +8,6 @@ const de: Record<string, string> = {
     "Das KI-Modell war nicht erreichbar – dies ist eine vorbereitete Antwort.",
 
   // policy
-  "You stay in control": "Sie behalten die Kontrolle",
   "Reading and calculating: on their own. Anything that leaves your company: only after your click.":
     "Lesen und Rechnen: selbstständig. Alles, was Ihr Unternehmen verlässt: nur nach Ihrem Klick.",
   "The four levels": "Die vier Stufen",
@@ -16,7 +15,6 @@ const de: Record<string, string> = {
   Action: "Aktion",
 
   // history
-  "Audit log": "Protokoll",
   "What happened": "Was passiert ist",
   "Every check and decision, newest first.": "Jede Prüfung und Entscheidung, die neueste zuerst.",
   "Check started": "Prüfung gestartet",

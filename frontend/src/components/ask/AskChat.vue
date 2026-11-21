@@ -4,7 +4,6 @@ import { storeToRefs } from "pinia";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import { t } from "@/i18n";
 import { useAskStore } from "@/stores/ask";
@@ -89,12 +88,9 @@ defineExpose({ focus: () => input.value?.focus(), scrollToLatest });
       <AlertBanner v-if="note" tone="info">{{ note }}</AlertBanner>
 
       <!-- greeting while the conversation is empty: looks like the agent's first message -->
-      <div v-if="!turns.length" class="grid max-w-[92%] grid-cols-[auto_minmax(0,1fr)] gap-3 animate-rise">
-        <IconTile icon="ask" tone="info" size="sm" />
-        <div class="grid gap-1 rounded-2xl rounded-tl-md border border-line bg-surface px-4 py-3">
-          <p class="font-semibold">{{ t("What would you like to know?") }}</p>
-          <p class="text-label text-muted">{{ t("Pick a question below or type your own.") }}</p>
-        </div>
+      <div v-if="!turns.length" class="grid max-w-[92%] gap-1 rounded-lg border border-line bg-surface px-4 py-3">
+        <p class="font-semibold">{{ t("What would you like to know?") }}</p>
+        <p class="text-label text-muted">{{ t("Pick a question below or type your own.") }}</p>
       </div>
 
       <template v-else>

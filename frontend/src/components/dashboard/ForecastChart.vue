@@ -2,8 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import CollapseTransition from "@/components/ui/CollapseTransition.vue";
-import IconTile from "@/components/ui/IconTile.vue";
-import type { IconName } from "@/components/ui/icons";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { TONE_TEXT } from "@/components/ui/tones";
 import { t, tn } from "@/i18n";
@@ -24,7 +22,6 @@ import { categoryIcon, monotonePath, niceTicks, windowMin, type ChartLine } from
 const props = defineProps<{ lines: ChartLine[]; days?: number }>();
 
 const uid = useId();
-const gradId = `fc-grad-${uid}`;
 const clipId = `fc-clip-${uid}`;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -356,16 +353,15 @@ const rangeDays = computed(() => selHi.value - selLo.value + 1);
 const inDays = (i: number) => (i === 0 ? t("Today") : tn(i, "in {n} day", "in {n} days"));
 const startsIn = (i: number) => (i === 0 ? t("from today") : tn(i, "starts in {n} day", "starts in {n} days"));
 
-const head = computed<{ icon: IconName; main: string; sub: string }>(() => {
+const head = computed<{ main: string; sub: string }>(() => {
   if (mode.value === "range") {
     return {
-      icon: "moveHorizontal",
       main: `${fmtDayMonth(dateAt(selLo.value))} – ${fmtDayMonth(dateAt(selHi.value))}`,
       sub: `${tn(rangeDays.value, "{n} day", "{n} days")} · ${startsIn(selLo.value)}`,
     };
   }
-  if (mode.value === "day") return { icon: "crosshair", main: fmtDate(dateAt(dayIndex.value)), sub: inDays(dayIndex.value) };
-  return { icon: "calendar", main: t("Today"), sub: fmtDate(dateAt(0)) };
+  if (mode.value === "day") return { main: fmtDate(dateAt(dayIndex.value)), sub: inDays(dayIndex.value) };
+  return { main: t("Today"), sub: fmtDate(dateAt(0)) };
 });
 
 // copy = the read-out as one plain sentence (translated)
@@ -519,10 +515,6 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
         @pointerleave="onLeave"
       >
         <defs>
-          <linearGradient :id="gradId" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" style="stop-color: rgb(var(--c-chart-line)); stop-opacity: 0.28" />
-            <stop offset="100%" style="stop-color: rgb(var(--c-chart-line)); stop-opacity: 0" />
-          </linearGradient>
           <clipPath :id="clipId">
             <rect :x="plot.x0 - 2" :y="0" :width="Math.max(0, revealX - plot.x0 + 4)" :height="H" />
           </clipPath>
@@ -574,31 +566,31 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           v-for="(i, k) in xTicks" :key="k"
           :x="sx(i)" :y="H - 10"
           :text-anchor="k === 0 ? 'start' : k === xTicks.length - 1 ? 'end' : 'middle'"
-          class="fill-muted text-caption"
+          class="fill-muted text-caption tabular-nums"
         >{{ i === 0 ? t("Today") : fmtDayMonth(dateAt(i)) }}</text>
 
-        <!-- lines + area (clipped to the plot; draw in from the left on first paint) -->
+        <!-- lines + area (clipped to the plot; draw in from the left on first paint).
+             Area = one flat, faint fill under the main line only (never fading); scenarios differ by colour + dash. -->
         <g :clip-path="`url(#${clipId})`">
           <TransitionGroup name="fade" tag="g">
             <path
               v-for="p in drawn.filter((p) => p.line.tone === 'primary')" :key="`a-${p.line.label}`"
-              :d="p.area" :fill="`url(#${gradId})`"
+              :d="p.area" class="fill-chart-line" fill-opacity="0.06"
             />
             <path
               v-for="p in drawn" :key="p.line.label"
               :d="p.d"
-              fill="none" :class="STROKE[p.line.tone]" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round"
-              :stroke-dasharray="p.line.tone === 'risk' ? '7 6' : undefined"
+              fill="none" :class="STROKE[p.line.tone]" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+              :stroke-dasharray="p.line.tone === 'risk' ? '6 5' : undefined"
             />
           </TransitionGroup>
         </g>
 
-        <!-- today + lowest point markers -->
-        <circle :cx="plot.x0" :cy="sy(bal(main, 0))" r="5" class="fill-chart-line stroke-surface" stroke-width="2.5" />
+        <!-- points only where they carry meaning: the lowest point of each line (the rest appear on hover) -->
         <circle
           v-for="p in drawn" :key="`min-${p.line.label}`"
           :cx="sx(p.min.index)" :cy="sy(p.min.value)"
-          r="5.5" :class="[FILL[p.line.tone], 'stroke-surface transition-opacity duration-base']" stroke-width="2.5"
+          r="4.5" :class="[FILL[p.line.tone], 'stroke-surface transition-opacity duration-base']" stroke-width="2"
           :opacity="shownAt(p.min.index) ? 1 : 0"
         />
 
@@ -611,7 +603,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
         >
           <rect :x="callout.x" :y="callout.y" :width="callout.w" :height="callout.h" rx="8" class="fill-surface stroke-line" stroke-width="1" />
           <text :x="callout.x + 12" :y="callout.y + callout.f + 5" class="fill-muted text-caption">{{ callout.label }}</text>
-          <text :x="callout.x + 12" :y="callout.y + callout.h - 9" class="fill-fg font-display text-base font-bold tabular-nums">{{ callout.value }}</text>
+          <text :x="callout.x + 12" :y="callout.y + callout.h - 9" class="fill-fg font-display text-base font-semibold tracking-tight tabular-nums">{{ callout.value }}</text>
         </g>
 
         <!-- selection: solid edge line(s), dots on every line, date tag on top -->
@@ -625,12 +617,12 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           <template v-for="(i, k) in [selLo, selHi]" :key="`sel-dots-${k}`">
             <circle
               v-for="l in lines" :key="`sd-${k}-${l.label}`"
-              cx="0" cy="0" r="6" :class="[FILL[l.tone], 'stroke-surface transition-transform duration-fast']" stroke-width="3"
+              cx="0" cy="0" r="4.5" :class="[FILL[l.tone], 'stroke-surface transition-transform duration-fast']" stroke-width="2"
               :style="{ transform: `translate(${sx(i)}px, ${sy(bal(l, i))}px)` }"
             />
           </template>
           <g class="transition-transform duration-fast" :style="{ transform: `translate(${tag.x}px, 3px)` }">
-            <rect x="0" y="0" :width="tag.w" :height="tagH" :rx="tagH / 2" class="fill-fg" />
+            <rect x="0" y="0" :width="tag.w" :height="tagH" rx="6" class="fill-fg" />
             <text :x="tag.w / 2" :y="tagH / 2 + fontPx * 0.36" text-anchor="middle" class="fill-surface text-caption font-semibold tabular-nums">
               {{ tag.text }}
             </text>
@@ -650,7 +642,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           />
           <circle
             v-for="l in lines" :key="`h-${l.label}`"
-            cx="0" cy="0" r="4.5" :class="[FILL[l.tone], 'stroke-surface transition-transform duration-fast']" stroke-width="2"
+            cx="0" cy="0" r="4" :class="[FILL[l.tone], 'stroke-surface transition-transform duration-fast']" stroke-width="2"
             :style="{ transform: `translate(${hoverX}px, ${sy(bal(l, hoverIndex))}px)` }"
           />
         </g>
@@ -659,7 +651,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
       <!-- floating bubble (preview) -->
       <div
         ref="tipEl"
-        class="pointer-events-none absolute left-0 top-0 z-10 grid min-w-[9.5rem] gap-1 rounded-lg border border-line bg-surface px-3 py-2 shadow-lift transition-[transform,opacity] duration-fast"
+        class="pointer-events-none absolute left-0 top-0 z-10 grid min-w-[9.5rem] gap-1 rounded-lg border border-line bg-surface px-3 py-2 shadow-pop transition-[transform,opacity] duration-fast"
         :style="{ transform: `translate(${tip.left}px, ${tip.top}px)`, opacity: hover !== null && !dragging ? 1 : 0 }"
         aria-hidden="true"
       >
@@ -688,7 +680,6 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
       <!-- buttons wrap under the title only when the title would get too narrow (phones at big text sizes) -->
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="flex min-w-[9rem] flex-1 items-center gap-3" aria-live="polite">
-          <IconTile :icon="head.icon" size="sm" :tone="sel ? 'accent' : 'info'" class="hidden transition-colors duration-base sm:grid" />
           <span class="grid min-w-0 leading-tight">
             <b class="font-semibold tabular-nums">{{ head.main }}</b>
             <span class="text-label text-muted">{{ head.sub }}</span>
@@ -699,7 +690,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           <button
             type="button"
             :class="[
-              'inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-label font-semibold text-fg transition-[opacity,border-color,box-shadow] duration-base hover:border-fg/40 hover:shadow-lift sm:min-h-9',
+              'inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-label font-semibold text-fg transition-[opacity,border-color,color] duration-base hover:border-fg/40 sm:min-h-9',
               sel ? 'opacity-100' : 'pointer-events-none opacity-0',
             ]"
             :tabindex="sel ? 0 : -1"
@@ -721,7 +712,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
           </button>
           <button
             type="button"
-            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-line bg-surface px-2.5 text-label font-semibold text-fg hover:border-fg/40 hover:shadow-lift sm:min-h-9"
+            class="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-line bg-surface px-2.5 text-label font-semibold text-fg hover:border-fg/40 sm:min-h-9"
             :title="t('Copy')"
             :aria-label="copied ? t('Copied') : t('Copy')"
             @click="copy"
@@ -750,13 +741,13 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 <li v-for="r in rangeRows" :key="r.line.label" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1">
                   <svg width="28" height="8" class="mt-2" aria-hidden="true">
                     <line
-                      x1="1" x2="27" y1="4" y2="4" :class="STROKE[r.line.tone]" stroke-width="3" stroke-linecap="round"
+                      x1="1" x2="27" y1="4" y2="4" :class="STROKE[r.line.tone]" stroke-width="2" stroke-linecap="round"
                       :stroke-dasharray="r.line.tone === 'risk' ? '6 5' : undefined"
                     />
                   </svg>
                   <span class="text-label font-medium leading-snug">{{ t(r.line.label) }}</span>
                   <!-- separate flex items → wraps cleanly on phones and at big text sizes -->
-                  <div class="col-start-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-display text-base font-bold tabular-nums sm:text-lg">
+                  <div class="col-start-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-display text-base font-semibold tracking-tight tabular-nums sm:text-lg">
                     <span>{{ eur(r.start) }}</span>
                     <span class="font-sans font-normal text-muted" aria-hidden="true">→</span>
                     <span class="sr-only">–</span>
@@ -772,7 +763,7 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
                 </li>
               </ul>
               <div class="grid gap-2 border-t border-line pt-3">
-                <span class="eyebrow">{{ t("Big payments in this range") }}</span>
+                <span class="text-label font-semibold">{{ t("Big payments in this range") }}</span>
                 <ul v-if="rangePayments.length" class="grid gap-1.5">
                   <!-- name (may truncate) with its date underneath (never cut off), amount on the right -->
                   <li
@@ -796,14 +787,14 @@ const DOT = { primary: "bg-chart-line", risk: "bg-chart-alt" };
               <li v-for="r in dayRows" :key="r.line.label" class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1">
                 <svg width="28" height="8" class="mt-2" aria-hidden="true">
                   <line
-                    x1="1" x2="27" y1="4" y2="4" :class="STROKE[r.line.tone]" stroke-width="3" stroke-linecap="round"
+                    x1="1" x2="27" y1="4" y2="4" :class="STROKE[r.line.tone]" stroke-width="2" stroke-linecap="round"
                     :stroke-dasharray="r.line.tone === 'risk' ? '6 5' : undefined"
                   />
                 </svg>
                 <span class="text-label font-medium leading-snug">{{ t(r.line.label) }}</span>
                 <!-- line 1: the balance (+ cushion warning, always reserved → no height change while moving) -->
                 <div class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <b :class="['font-display text-lg font-bold tabular-nums', r.below ? 'text-negative' : 'text-fg']">{{ eur(r.value) }}</b>
+                  <b :class="['font-display text-lg font-semibold tracking-tight tabular-nums', r.below ? 'text-negative' : 'text-fg']">{{ eur(r.value) }}</b>
                   <StatusPill tone="negative" :class="['transition-opacity duration-base', r.below ? 'opacity-100' : 'invisible opacity-0']">
                     <AppIcon name="alert" :size="13" />{{ t("below cushion") }}
                   </StatusPill>

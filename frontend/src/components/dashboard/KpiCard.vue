@@ -25,14 +25,14 @@ withDefaults(
 </script>
 
 <template>
-  <div class="rounded-xl border border-line bg-surface p-4 shadow-card [container-type:inline-size] lg:p-5">
+  <div class="rounded-xl border border-line bg-surface p-4 [container-type:inline-size] lg:p-5">
     <!-- container query: the CARD decides (icon beside the text only when the card itself is wide enough),
          so the layout works for any grid width and any accessibility text size -->
     <div class="flex flex-col gap-3 [@container(min-width:13rem)]:flex-row [@container(min-width:13rem)]:items-start">
       <IconTile v-if="icon" :icon="icon" :tone="tone === 'neutral' ? 'info' : tone" />
       <div class="grid min-w-0 content-start gap-1">
         <span class="text-label font-medium text-muted">{{ label }}</span>
-        <AnimatedNumber :value="amount" :class="['font-display text-kpi font-bold', TONE_TEXT[tone]]" />
+        <AnimatedNumber :value="amount" :class="['font-display text-kpi font-semibold', TONE_TEXT[tone]]" />
         <span v-if="sub" class="text-label text-muted">{{ sub }}</span>
         <StatusPill v-if="delta" :tone="delta.tone" class="mt-1">
           <AppIcon :name="TONE_TREND[delta.tone]" :size="14" />{{ delta.text }}

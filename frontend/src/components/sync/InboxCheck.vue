@@ -6,7 +6,6 @@ import { usePopover } from "@/composables/usePopover";
 import { agentInfo, crewOf } from "@/constants/agents";
 import { t, tn } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
-import ShimmerText from "./ShimmerText.vue";
 import SyncPanel from "./SyncPanel.vue";
 import ThinkingSpinner from "./ThinkingSpinner.vue";
 import type { SyncState } from "./sync";
@@ -14,7 +13,7 @@ import type { SyncState } from "./sync";
 /**
  * "Check my inbox" – the main action, in the top bar on every page (layout widget → may read the store).
  *   idle    sun box "Check my inbox" → click starts the check (explicit click only) and opens the progress pop-up
- *   running the box itself shows what is happening (turning spinner + the current job) – also when the pop-up is
+ *   running the box itself shows what is happening (a plain spinner + the current job) – also when the pop-up is
  *           hidden; clicking the box shows / hides the live progress
  *   done    "Inbox checked" + how many decisions wait; click → the result with the next useful step
  *   error   "Check failed"; click → what went wrong + Try again
@@ -76,7 +75,7 @@ watch(open, (o) => {
   window[o ? "addEventListener" : "removeEventListener"]("resize", place);
 });
 
-// --- finished while the pop-up was hidden → the box glows once ----------------------------------------
+// --- finished while the pop-up was hidden → the box border turns green for a moment (no halo) ---------
 const flash = ref(false);
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
 watch(syncing, (now, was) => {
@@ -117,11 +116,11 @@ const BOX: Record<SyncState, string> = {
       type="button"
       :class="[
         'relative flex h-10 items-center overflow-hidden rounded-lg border text-label font-semibold',
-        'transition-[width,background-color,border-color,color,box-shadow] duration-base active:scale-[0.98]',
+        'transition-[width,background-color,border-color,color] duration-base active:scale-[0.98]',
         BOX[state],
         open && (state === 'running' || state === 'done') ? '!border-fg/40 !bg-mist' : '',
         open && state === 'error' ? '!border-negative' : '',
-        flash ? 'shadow-[0_0_0_4px_rgb(var(--c-positive)/0.3)]' : 'shadow-none',
+        flash ? '!border-positive' : '',
       ]"
       :style="width ? { width: `${width}px` } : undefined"
       :aria-label="ariaLabel"
@@ -133,22 +132,20 @@ const BOX: Record<SyncState, string> = {
       <span ref="inner" class="flex shrink-0 items-center gap-2 whitespace-nowrap px-[7px] sm:px-3">
         <!-- icon: one cell, states cross-fade -->
         <TransitionGroup name="fade" tag="span" class="grid h-6 w-6 shrink-0 place-items-center [&>*]:col-start-1 [&>*]:row-start-1">
-          <ThinkingSpinner v-if="state === 'running'" key="running" size="sm" :icon="agentInfo(activeAgent).icon" />
+          <ThinkingSpinner v-if="state === 'running'" key="running" size="sm" />
           <AppIcon v-else-if="state === 'done'" key="done" name="checkCircle" :size="18" class="text-positive" />
           <AppIcon v-else-if="state === 'error'" key="error" name="alert" :size="18" />
           <AppIcon v-else key="idle" name="inbox" :size="18" />
         </TransitionGroup>
         <!-- label (sm+): one cell, old and new text cross-fade while the box width glides -->
         <TransitionGroup name="fade" tag="span" class="hidden sm:grid [&>*]:col-start-1 [&>*]:row-start-1" aria-hidden="true">
-          <span :key="label" :class="state === 'idle' ? 'font-bold' : ''">
-            <ShimmerText :active="state === 'running'">{{ label }}</ShimmerText>
-          </span>
+          <span :key="label" :class="state === 'idle' ? 'font-semibold' : ''">{{ label }}</span>
         </TransitionGroup>
         <!-- decisions waiting (sm+) -->
         <Transition name="fade">
           <span
             v-if="state === 'done' && pending"
-            class="hidden items-center rounded-full bg-sun px-2 py-0.5 text-caption font-bold text-sun-on sm:inline-flex"
+            class="hidden items-center rounded-md bg-sun px-2 py-0.5 text-caption font-semibold text-sun-on sm:inline-flex"
             aria-hidden="true"
           >
             <span class="md:hidden">{{ pending }}</span>
@@ -156,20 +153,13 @@ const BOX: Record<SyncState, string> = {
           </span>
         </Transition>
       </span>
-      <!-- running: a thin bar travels along the bottom edge (honest "in progress", no fake percentage) -->
-      <span
-        :class="['absolute inset-x-0 bottom-0 h-0.5 overflow-hidden transition-opacity duration-base', state === 'running' ? 'opacity-100' : 'opacity-0']"
-        aria-hidden="true"
-      >
-        <span class="inbox-progress block h-full w-1/3 rounded-full bg-sun" />
-      </span>
     </button>
 
     <!-- phones: count badge on the icon button -->
     <Transition name="fade">
       <span
         v-if="state === 'done' && pending"
-        class="pointer-events-none absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-sun px-1 text-caption font-bold leading-none text-sun-on ring-2 ring-bg sm:hidden"
+        class="pointer-events-none absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-md bg-sun px-1 text-caption font-semibold leading-none text-sun-on ring-2 ring-bg sm:hidden"
         aria-hidden="true"
       >{{ pending }}</span>
     </Transition>
@@ -185,7 +175,7 @@ const BOX: Record<SyncState, string> = {
         :id="panelId"
         role="dialog"
         :aria-label="t('Inbox check')"
-        class="absolute right-0 top-full z-30 mt-2 max-h-[calc(100dvh-6rem)] w-[26rem] max-w-[calc(100vw-2rem)] origin-top-right overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-4 text-fg shadow-float"
+        class="absolute right-0 top-full z-30 mt-2 max-h-[calc(100dvh-6rem)] w-[26rem] max-w-[calc(100vw-2rem)] origin-top-right overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface p-4 text-fg shadow-pop"
         :style="panelStyle"
       >
         <SyncPanel
@@ -207,17 +197,3 @@ const BOX: Record<SyncState, string> = {
     </Transition>
   </div>
 </template>
-
-<style scoped>
-.inbox-progress {
-  animation: inbox-progress 1.4s var(--ease-in-out) infinite;
-}
-@keyframes inbox-progress {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
-  }
-}
-</style>

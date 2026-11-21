@@ -30,7 +30,8 @@ export const AUTONOMY: Record<
     label: "Needs your approval",
     icon: "approval",
     description: "Waits for your click.",
-    classes: "border-transparent bg-sun text-sun-on",
+    // outlined, not filled: the sun fill stays reserved for the one main button of a screen
+    classes: "border-sun bg-surface text-fg",
     tone: "accent",
   },
   simulated: {

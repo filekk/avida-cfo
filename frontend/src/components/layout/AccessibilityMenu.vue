@@ -95,7 +95,7 @@ const indicator = (index: number, count: number) => ({
 const SEGMENT =
   "relative z-10 flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-center text-label font-semibold leading-tight " +
   "has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-offset-1 has-[:focus-visible]:outline-sun";
-const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card transition-transform duration-base ease-out";
+const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun transition-transform duration-base ease-out";
 </script>
 
 <template>
@@ -131,12 +131,12 @@ const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card trans
         ref="panel"
         role="dialog"
         :aria-label="t('Accessibility settings')"
-        class="absolute right-0 top-full z-30 mt-2 grid max-h-[calc(100dvh-5.5rem)] w-[22rem] max-w-[calc(100vw-2rem)] origin-top-right gap-4 overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-4 text-fg shadow-float"
+        class="absolute right-0 top-full z-30 mt-2 grid max-h-[calc(100dvh-5.5rem)] w-[22rem] max-w-[calc(100vw-2rem)] origin-top-right gap-4 overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface p-4 text-fg shadow-pop"
       >
         <!-- header -->
         <div class="flex items-start justify-between gap-3">
           <div class="grid gap-0.5">
-            <h2 class="text-base font-bold">{{ t("Make Avida easier to use") }}</h2>
+            <h2 class="text-base font-semibold">{{ t("Make Avida easier to use") }}</h2>
             <p class="text-label text-muted">{{ t("Saved on this device.") }}</p>
           </div>
           <button
@@ -155,7 +155,7 @@ const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card trans
             <span :id="`${panelId}-text`" class="flex items-center gap-2 text-label font-semibold">
               <AppIcon name="textSize" :size="18" class="text-muted" /> {{ t("Text size") }}
             </span>
-            <span class="rounded-full bg-input px-2.5 py-0.5 text-caption font-semibold tabular-nums text-muted">{{ pct(textPct, false) }}</span>
+            <span class="rounded-md bg-input px-2 py-0.5 text-caption font-medium tabular-nums text-muted">{{ pct(textPct, false) }}</span>
           </div>
           <div role="radiogroup" :aria-labelledby="`${panelId}-text`" class="relative grid grid-cols-4 rounded-xl bg-input p-1">
             <span :class="INDICATOR" :style="indicator(textIndex, TEXT_SIZES.length)" aria-hidden="true" />
@@ -165,7 +165,7 @@ const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card trans
               :class="[SEGMENT, prefs.text === s.value ? 'text-sun-on' : 'text-muted hover:text-fg']"
             >
               <input v-model="prefs.text" type="radio" class="sr-only" :name="`${panelId}-text`" :value="s.value" :aria-label="t(s.label)" />
-              <span class="font-display font-extrabold leading-none" :style="{ fontSize: A_SIZE[i] }" aria-hidden="true">A</span>
+              <span class="font-display font-semibold leading-none" :style="{ fontSize: A_SIZE[i] }" aria-hidden="true">A</span>
             </label>
           </div>
         </div>
@@ -184,7 +184,7 @@ const INDICATOR = "absolute inset-y-1 left-1 rounded-lg bg-sun shadow-card trans
             >
               <input v-model="prefs.contrast" type="radio" class="sr-only" :name="`${panelId}-contrast`" :value="c.value" />
               <!-- fixed preview colours on purpose: it shows what the scheme looks like -->
-              <span :class="['grid h-6 w-7 shrink-0 place-items-center rounded font-display text-caption font-extrabold', c.swatch]" aria-hidden="true">Aa</span>
+              <span :class="['grid h-6 w-7 shrink-0 place-items-center rounded font-display text-caption font-semibold', c.swatch]" aria-hidden="true">Aa</span>
               {{ t(c.label) }}
             </label>
           </div>

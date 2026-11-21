@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import { t } from "@/i18n";
 import { useAskStore } from "@/stores/ask";
 import AskChat from "./AskChat.vue";
@@ -176,13 +175,12 @@ onBeforeRouteLeave(() => {
             :aria-labelledby="titleId"
             :aria-modal="phone ? 'true' : undefined"
             tabindex="-1"
-            class="ask-panel flex flex-col overflow-hidden border border-line bg-surface text-fg shadow-float focus:outline-none"
+            class="ask-panel flex flex-col overflow-hidden border border-line bg-surface text-fg shadow-pop focus:outline-none"
             @keydown="onPanelKeydown"
           >
             <header class="flex shrink-0 items-center gap-3 border-b border-line py-2.5 pl-4 pr-2">
-              <IconTile icon="ask" tone="info" size="sm" />
               <div class="min-w-0 flex-1">
-                <h2 :id="titleId" class="text-base font-bold leading-tight">{{ t("Ask your CFO") }}</h2>
+                <h2 :id="titleId" class="text-base font-semibold leading-tight">{{ t("Ask your CFO") }}</h2>
                 <p class="text-caption text-muted">{{ t("Answers only from your own numbers") }}</p>
               </div>
               <button
@@ -199,16 +197,14 @@ onBeforeRouteLeave(() => {
           </section>
         </Transition>
 
-        <!-- the bubble: the dock rides up above the footer (--ask-lift); the entrance animation sits on an inner
-             wrapper, because animation fill (transform: none) would override the dock's lift transform -->
+        <!-- the bubble: the dock rides up above the footer (--ask-lift); no entrance animation (it is there on load) -->
         <div class="ask-dock">
-          <div class="animate-rise">
             <button
               ref="bubble"
               type="button"
               :class="[
-                'ask-bubble relative grid h-14 w-14 place-items-center rounded-full bg-side text-white shadow-float ring-1 ring-white/20',
-                'transition-[transform,box-shadow,background-color] duration-base hover:-translate-y-0.5 hover:shadow-lift active:scale-95',
+                'ask-bubble relative grid h-14 w-14 place-items-center rounded-full bg-side text-white shadow-pop ring-1 ring-white/20',
+                'transition-[transform,background-color] duration-fast hover:bg-side/90 active:scale-[0.98]',
                 open ? 'is-open' : '',
               ]"
               :aria-label="bubbleLabel"
@@ -240,13 +236,12 @@ onBeforeRouteLeave(() => {
               />
               <!-- hover / keyboard-focus label (the accessible name is aria-label) -->
               <span
-                class="ask-tip pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-side px-3 py-1.5 text-label font-semibold text-white opacity-0 shadow-lift transition-opacity duration-fast"
+                class="ask-tip pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-side px-3 py-1.5 text-label font-semibold text-white opacity-0 shadow-pop transition-opacity duration-fast"
                 aria-hidden="true"
               >
                 {{ t("Ask your CFO") }}
               </span>
             </button>
-          </div>
         </div>
       </div>
     </Teleport>
@@ -278,7 +273,7 @@ onBeforeRouteLeave(() => {
   height: calc(100dvh - 2.5rem);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   border-bottom-width: 0;
-  border-radius: 1rem 1rem 0 0;
+  border-radius: 0.75rem 0.75rem 0 0;
 }
 
 @media (min-width: 640px) {
@@ -296,7 +291,7 @@ onBeforeRouteLeave(() => {
     height: min(70vh, 40rem, calc(100dvh - var(--ask-panel-bottom) - 8.5rem));
     padding-bottom: 0;
     border-bottom-width: 1px;
-    border-radius: 1rem;
+    border-radius: 0.75rem;
     transform-origin: bottom right;
   }
 }

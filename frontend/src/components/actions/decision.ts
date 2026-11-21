@@ -1,4 +1,3 @@
-import type { IconName } from "@/components/ui/icons";
 import type { Tone } from "@/components/ui/tones";
 import { describeFinding } from "@/components/findings/describe";
 import { t } from "@/i18n";
@@ -40,17 +39,12 @@ export const CATEGORY_LABEL: Record<DecisionCategory, string> = {
 };
 
 export const STATUS: Record<DecisionState, { label: string; tone: Tone }> = {
-  pending: { label: "Waiting for you", tone: "accent" },
+  pending: { label: "Waiting for you", tone: "warn" }, // warn = "pending, needs attention" in the palette
   review: { label: "Check it yourself", tone: "warn" },
   executed: { label: "Approved", tone: "positive" },
   rejected: { label: "Declined", tone: "neutral" },
   "no-action": { label: "No action needed", tone: "info" },
 };
-
-export function iconOf(item: DecisionItem): IconName {
-  if (!item.action) return "inbox";
-  return item.action.type === "send_email" ? "send" : "landmark";
-}
 
 /** A two-word gist for the small tile: "CloudHost +15 %" / "Reject the increase" (translated). */
 export function gist(item: DecisionItem): { title: string; hint: string } {

@@ -93,7 +93,7 @@ defineExpose({ open: () => input.value?.click() });
       >
         <IconTile icon="upload" tone="info" size="lg" />
         <span
-          class="inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg bg-sun px-5 py-2 font-semibold text-sun-on transition-[background-color,box-shadow] duration-fast group-hover:bg-sun-hover group-hover:shadow-lift"
+          class="inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg bg-sun px-5 py-2 font-semibold text-sun-on transition-colors duration-fast group-hover:bg-sun-hover"
         >
           <AppIcon name="plus" :size="18" />
           {{ t("Choose a file") }}

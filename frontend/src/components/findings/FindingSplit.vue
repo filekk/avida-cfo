@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import CollapseTransition from "@/components/ui/CollapseTransition.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { VERDICT } from "@/constants/autonomy";
@@ -33,12 +32,11 @@ const TOGGLE =
 </script>
 
 <template>
-  <article :class="bare ? '' : 'overflow-hidden rounded-xl border border-line bg-surface shadow-card'">
+  <article :class="bare ? '' : 'overflow-hidden rounded-xl border border-line bg-surface'">
     <header v-if="!bare" class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
       <div class="flex min-w-0 items-center gap-3">
-        <IconTile tone="neutral" class="!text-fg">{{ d.party.charAt(0) }}</IconTile>
         <div class="grid min-w-0 gap-0.5">
-          <h2 class="text-xl font-bold leading-tight">
+          <h2 class="text-xl font-semibold leading-tight">
             {{ d.party }}: <span :class="tone.text">{{ d.figure }}</span>
           </h2>
           <span class="text-label text-muted">{{ d.sub }}</span>
@@ -51,13 +49,13 @@ const TOGGLE =
       <!-- 1 · the email -->
       <section class="grid content-start gap-3 rounded-xl bg-input p-4" :aria-label="t('What the email says')">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span class="flex items-center gap-2.5 text-base font-bold">
-            <IconTile icon="mail" tone="neutral" size="sm" class="!bg-surface" />
+          <span class="flex items-center gap-2 text-base font-semibold">
+            <AppIcon name="mail" :size="18" class="shrink-0 text-muted" />
             {{ t("The email says") }}
           </span>
           <AutonomyBadge level="analyzed" />
         </div>
-        <p :class="['font-display text-3xl font-extrabold tabular-nums', tone.text]">{{ d.figure }}</p>
+        <p :class="['font-display text-2xl font-semibold tracking-tight tabular-nums', tone.text]">{{ d.figure }}</p>
         <PriceBar v-if="d.priceBar" :from="d.priceBar.from" :to="d.priceBar.to" :tone="tone.bar" />
         <p v-else class="text-sm leading-relaxed text-muted">{{ d.sub }}</p>
         <button type="button" :class="TOGGLE" :aria-expanded="showEmail" @click="showEmail = !showEmail">
@@ -75,7 +73,7 @@ const TOGGLE =
       </section>
 
       <span class="grid place-items-center" aria-hidden="true">
-        <span class="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-muted">
+        <span class="grid h-9 w-9 place-items-center text-muted">
           <AppIcon name="arrowDown" :size="18" :class="stacked ? '' : 'lg:hidden'" /><AppIcon v-if="!stacked" name="arrowRight" :size="18" class="hidden lg:block" />
         </span>
       </span>
@@ -83,8 +81,8 @@ const TOGGLE =
       <!-- 2 · the contract -->
       <section class="grid content-start gap-3 rounded-xl bg-input p-4" :aria-label="t('What your contract says')">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span class="flex items-center gap-2.5 text-base font-bold">
-            <IconTile icon="document" tone="neutral" size="sm" class="!bg-surface" />
+          <span class="flex items-center gap-2 text-base font-semibold">
+            <AppIcon name="document" :size="18" class="shrink-0 text-muted" />
             {{ t("Your contract says") }}
           </span>
           <AutonomyBadge level="analyzed" />
@@ -94,7 +92,7 @@ const TOGGLE =
           <AppIcon name="sparkles" :size="14" />
           {{ c.contract.extracted_by === "cached answer" ? t("Uploaded by you · cached answer") : t("Uploaded by you · terms read by the AI model") }}
         </StatusPill>
-        <blockquote v-if="c.quote" class="rounded-r-lg border-l-4 border-sun bg-surface p-3">
+        <blockquote v-if="c.quote" class="rounded-r-lg border-l-2 border-fg/25 bg-surface p-3">
           <p class="italic leading-relaxed">“{{ c.quote }}”</p>
           <footer class="mt-2 flex flex-wrap gap-x-2 text-label font-semibold text-muted">
             <span>{{ c.clause_id }}</span>
@@ -105,7 +103,7 @@ const TOGGLE =
       </section>
 
       <span class="grid place-items-center" aria-hidden="true">
-        <span class="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-muted">
+        <span class="grid h-9 w-9 place-items-center text-muted">
           <AppIcon name="arrowDown" :size="18" :class="stacked ? '' : 'lg:hidden'" /><AppIcon v-if="!stacked" name="arrowRight" :size="18" class="hidden lg:block" />
         </span>
       </span>
@@ -113,14 +111,14 @@ const TOGGLE =
       <!-- 3 · the verdict -->
       <section :class="['grid content-start gap-3 rounded-xl p-4', tone.panel]" :aria-label="t('Verdict')">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <span class="flex items-center gap-2.5 text-base font-bold">
-            <IconTile icon="scale" tone="neutral" size="sm" class="!bg-surface" />
+          <span class="flex items-center gap-2 text-base font-semibold">
+            <AppIcon name="scale" :size="18" class="shrink-0 text-muted" />
             {{ t("Verdict") }}
           </span>
           <AutonomyBadge level="recommendation" />
         </div>
-        <p class="flex items-center gap-2.5 font-display text-xl font-bold leading-tight">
-          <AppIcon :name="v.icon" :size="30" :class="tone.text === 'text-fg' ? 'text-positive' : tone.text" />
+        <p class="flex items-center gap-2.5 font-display text-xl font-semibold leading-tight">
+          <AppIcon :name="v.icon" :size="24" :class="tone.text === 'text-fg' ? 'text-positive' : tone.text" />
           {{ t(v.label) }}
         </p>
         <p class="leading-relaxed">{{ c.explanation_simple }}</p>

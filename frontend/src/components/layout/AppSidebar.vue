@@ -27,7 +27,7 @@ const { kpis } = storeToRefs(useDashboardStore());
           <span class="text-caption text-white/75">{{ t("next 12 months") }}</span>
         </span>
       </div>
-      <AnimatedNumber :value="kpis?.saved_liquidity ?? 0" class="font-display text-2xl font-bold text-mint" />
+      <AnimatedNumber :value="kpis?.saved_liquidity ?? 0" class="font-display text-2xl font-semibold tracking-tight tabular-nums text-mint" />
     </div>
   </aside>
 </template>

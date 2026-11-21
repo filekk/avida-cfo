@@ -4,7 +4,6 @@ import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import SourceTag from "@/components/agent/SourceTag.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
 import type { Action } from "@/types/api";
@@ -41,32 +40,27 @@ const decline = () => emit("decide", props.action.id, false);
       embedded
         ? 'grid gap-5'
         : [
-            'grid gap-5 rounded-xl border bg-surface p-5 transition-[border-color,box-shadow] duration-slow',
-            pending ? 'border-sun shadow-float' : 'border-line shadow-card',
+            'grid gap-5 rounded-xl border bg-surface p-5 transition-colors duration-slow',
+            pending ? 'border-sun' : 'border-line',
           ]
     "
   >
-    <!-- mobile: tile + badges side by side, title full width below · sm+: tile | badges+title | savings -->
-    <div v-if="!embedded" class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:flex sm:items-start">
-      <IconTile
-        :icon="action.type === 'send_email' ? 'send' : 'landmark'"
-        :tone="pending ? 'accent' : 'neutral'"
-        size="lg"
-        class="transition-colors duration-slow"
-      />
-      <div class="contents sm:grid sm:min-w-0 sm:flex-1 sm:gap-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <AutonomyBadge :level="action.autonomy" />
-          <AutonomyBadge level="simulated" />
-          <span class="text-label text-muted">{{ t("by {agent}", { agent: t(action.agent) }) }}</span>
+    <!-- one badge (autonomy) over the title, simulated / author / source as muted text · sm+: savings on the right -->
+    <div v-if="!embedded" class="grid gap-3 sm:flex sm:items-start sm:gap-4">
+      <div class="grid min-w-0 gap-2 sm:flex-1">
+        <AutonomyBadge :level="action.autonomy" />
+        <h3 class="text-xl font-semibold leading-snug">{{ action.title }}</h3>
+        <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
+          <AutonomyBadge level="simulated" plain />
+          <span aria-hidden="true">·</span>
+          <span>{{ t("by {agent}", { agent: t(action.agent) }) }}</span>
           <SourceTag :source="action.source" />
-        </div>
-        <h3 class="col-span-2 text-xl font-bold leading-snug sm:col-span-1">{{ action.title }}</h3>
+        </p>
       </div>
       <!-- money you keep = green -->
       <div v-if="action.savings_12m > 0" class="hidden shrink-0 justify-items-end gap-1 leading-tight sm:grid">
         <span class="text-label text-muted">{{ t("You save") }}</span>
-        <span class="font-display text-kpi font-extrabold tabular-nums text-positive">{{ eur(action.savings_12m) }}</span>
+        <span class="font-display text-kpi font-semibold tracking-tight tabular-nums text-positive">{{ eur(action.savings_12m) }}</span>
         <span class="text-caption text-muted">{{ t("next 12 months") }}</span>
       </div>
     </div>

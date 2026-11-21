@@ -107,7 +107,6 @@ async function remove(c: ContractSummary) {
 <template>
   <div class="grid grid-cols-[minmax(0,1fr)] gap-5 [container-type:inline-size]">
     <PageHeader
-      :eyebrow="t('Legal Agent')"
       :title="t('Your contracts')"
       :description="
         t(
@@ -141,7 +140,7 @@ async function remove(c: ContractSummary) {
           </ul>
         </BaseCard>
 
-        <BaseCard v-else-if="list.length" :title="t('Contracts Avida knows')" :padded="false" class="animate-rise">
+        <BaseCard v-else-if="list.length" :title="t('Contracts Avida knows')" :padded="false">
           <template #actions>
             <StatusPill v-if="counts.supplier" tone="neutral">
               <AppIcon :name="ROLE.supplier.icon" :size="14" />{{ tn(counts.supplier, "{n} supplier", "{n} suppliers") }}

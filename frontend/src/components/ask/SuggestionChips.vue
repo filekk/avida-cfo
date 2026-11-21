@@ -14,11 +14,11 @@ const emit = defineEmits<{ pick: [question: string] }>();
 
 <template>
   <ul class="flex flex-wrap gap-2" :aria-label="t('Suggested questions')">
-    <li v-for="s in suggestions" :key="s.id" class="animate-rise">
+    <li v-for="s in suggestions" :key="s.id">
       <button
         type="button"
         :disabled="disabled"
-        class="flex min-h-10 items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-left text-sm font-semibold hover:border-fg/40 hover:shadow-lift disabled:opacity-60"
+        class="flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-left text-sm font-medium hover:border-fg/40 hover:bg-input/60 disabled:opacity-60"
         @click="emit('pick', s.question)"
       >
         <AppIcon :name="agentIcon(s.agent)" :size="16" class="text-muted" />

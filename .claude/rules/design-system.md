@@ -29,52 +29,108 @@ colours in `tailwind.config.js`. **The default Tailwind palette is disabled.** U
 | `warn(-soft)` | #7A5600 / #FFF4D6 | pending, needs attention |
 | `chart-line` / `chart-alt` | navy (mint in dark) / coral | forecast lines |
 
+## Look & feel: a calm finance product, not a generated demo
+
+Benchmarks: Agicap (cash-flow charts), Mercury (restraint), Qonto (depth without shadows), Stripe/lexoffice
+(dense number tables). Common denominator: **no gradients, glows, blur, pulsing or floating cards.**
+Before adding anything visual, ask: "does this carry information?" If not, leave it out.
+
 ## Rules
 
 - **60 / 30 / 10:** ~60 % background and white cards, ~30 % navy and mist (text, navigation, sections),
   7–10 % sun (buttons, highlights), ~3 % mint/coral (numbers and statuses only).
 - **Sun is never text on white** (1.6:1). Use it as a fill with navy text (9:1), or use `text-gold` for links.
-- Only **one** `BaseButton variant="primary"` (sun) per screen region. Everything else is `secondary`/`ghost`.
+- **At most ONE large sun element per screen:** its main button (`BaseButton variant="primary"`). Small count badges
+  (decisions waiting) may be sun. No sun borders on cards/tiles, no sun icon tiles, no sun status labels.
 - Positive/negative colours mean money and status. Don't use them for decoration.
 - Dark mode = variable swap via `[data-theme="dark"]` or the OS preference (`useTheme()`), so no `dark:` colour variants.
   Check every new screen in both themes.
 
+## Surfaces & depth
+
+- Three levels, all in the palette: `bg` (page) → `surface` (card) → `input` (inside a card: fields, read-outs, code).
+- Card = `rounded-xl border border-line bg-surface` (`BaseCard`). **No shadow** – the 1px line carries the depth.
+- **One shadow token, `shadow-pop`**, only for things that really float above the content: top-bar pop-ups
+  (inbox check, language, accessibility), tooltips, the chat panel and its bubble. Never on cards or buttons.
+- Hover on a card / row / button = background or border colour (`hover:bg-input/60`, `hover:border-fg/30`).
+  **Never a shadow, never a lift or translate** (no `hover:-translate-*`, no moving arrows).
+- No `blur`, `backdrop-blur`, glows, decorative `isolate`/`-z-10` layers. The sticky top bar is a solid `bg-bg` + `border-b`.
+- **No gradients in the UI.** One technical exception: the scroll-edge alpha mask in `AgentTrace` (an edge, not a colour).
+
+## Shapes
+
+- Two radii + the full circle:
+  `rounded-lg` (8px) – buttons, fields, chips, small inner panels · `rounded-md` (6px) – status labels, count badges ·
+  `rounded-xl` (12px) – cards, panels, pop-ups.
+- `rounded-full` only for: status dots, avatars/initials, the spinner ring, toggle switches, the floating chat button,
+  legend/step markers. **No pills** for statuses, chips or badges. No `rounded-2xl`/`3xl`, no chat-bubble "tails".
+
 ## Typography
 
-- `font-display` (Plus Jakarta Sans 500–800): headings, KPI values, logo.
-- `font-sans` (Inter 400–600): body, **16px** base (`text-body`), line-height 1.6.
-- `font-mono` (JetBrains Mono 500): calculations, email drafts, codes.
-- Numbers in tables/KPIs: `tabular-nums`. Small uppercase labels: `.eyebrow` utility.
+- `font-display` (Plus Jakarta Sans): headings, KPI values, logo. `font-sans` (Inter 400–600): body, **16px** base
+  (`text-body`), line-height 1.6. `font-mono` (JetBrains Mono 500): calculations, email drafts, codes.
+- **Weights: 400 text · 500 labels, statuses · 600 headings, buttons, numbers. 800 nowhere, `font-bold` nowhere**
+  (`<b>`/`<strong>` are 600 via main.css). Hierarchy comes from size and colour (`fg` / `muted`), not weight.
+  At most two semibold elements per card.
+- **Financial numbers:** `font-display font-semibold tracking-tight tabular-nums`; in lists and tables right-aligned.
+  The minus is the real `−` (U+2212) – `utils/format.ts` (`eur`, `eurSigned`, `pct`…) does it, never format by hand.
+- **Eyebrow (`.eyebrow`) is the exception:** only where it tells apart sections of the same type (the two chart cards
+  on the overview, Pending/Resolved groups, sub-sections of a summary). Never above a page title, never just to
+  repeat the title. Table headers are sentence case, not uppercase.
 - **Type scale (tailwind.config.js) – the only sizes to use, no `text-[0.7rem]` one-offs:**
-  `text-caption` 13px = the floor (pills, badges, axis labels, eyebrows) · `text-label` 14px (secondary text,
+  `text-caption` 13px = the floor (statuses, badges, axis labels, eyebrows) · `text-label` 14px (secondary text,
   sub lines) · `text-sm`/`text-base`/`text-lg`/`text-xl`… · `text-kpi` 26px (KPI values). Everything is rem-based,
   so the accessibility menu's text size (font-size on `<html>`) scales the whole UI. Never put text below 13px,
   never glue a label to a number (keep a gap).
 
 ## Shared building blocks (use these, don't re-type the classes)
 
-- **Tones** – `components/ui/tones.ts`: `TONE_SOFT` (pill/tile background + text), `TONE_TEXT` (value colour),
+- **Tones** – `components/ui/tones.ts`: `TONE_SOFT` (status background + text), `TONE_TEXT` (value colour),
   `TONE_TREND` (trend icon). Green = good for the owner's money, red = bad. Same red/green everywhere.
-- **`IconTile`** – every icon square/circle: `sm` 40px (dense rows, timelines) · `md` 48px (KPIs, stat tiles) ·
-  `lg` 56px (pipeline, empty states); `tone`, `round`, default slot for a letter.
-- **`StatusPill`** – every pill (trend, verdict, status). `AutonomyBadge` has the same size/shape.
-- **`StatTile`** – icon + label + value; `KpiCard` – dashboard KPIs (`tone` colours value + tile, amount glides
-  via `AnimatedNumber`).
+- **`StatusPill`** – every status label (trend, verdict, status): flat `rounded-md` rectangle, 13px, weight 500,
+  `*-soft` background + text in its tone. Add an icon only when it tells states apart without colour (check / x / alert).
+  "Waiting for you" = `warn` (pending), never sun.
+- **`AutonomyBadge`** – same size/shape as `StatusPill`. "Needs your approval" is **outlined** sun (navy text), not filled.
+  `plain` = the same icon + label as muted text, for the second level in a row.
+- **Max. 2 badges per row.** Action headers: status + autonomy as badges; "Simulated execution" (`AutonomyBadge plain`),
+  the author ("by Negotiator Agent") and `SourceTag` as muted text on their own line.
+- **`SourceTag`** – discreet italic muted "(cached answer)". Keep it that way.
+- **`IconTile`** (coloured square/circle) – **an exception, not the default.** Only: the four dashboard KPIs (`KpiCard`),
+  empty states (`EmptyState`, empty donut, the upload drop zone), the agent pipeline + autonomy legend, the inbox-check
+  status. A counterparty's initial is an avatar (`tone="neutral" round`).
+  Everywhere else (lists, rows, card headers, chat, timelines, tables): a plain 16–18px `text-muted` `<AppIcon>` –
+  or no icon at all when the text says enough. One icon size per component.
+- **`StatTile`** – label (with a small muted icon) + value. No tile. `tone` colours only the value.
+- **`KpiCard`** – dashboard KPIs (`tone` colours value + tile, amount glides via `AnimatedNumber`).
 
-## Motion (no jumps, ever)
+## Motion — only as a response, nothing moves at rest
 
 - Tokens: `duration-fast` 150ms · `duration-base` 250ms · `duration-slow` 400ms, default easing
-  `cubic-bezier(.22,1,.36,1)` (CSS vars `--dur-*`, `--ease-out` in main.css). Interactive elements ease
-  colours/shadow/transform by default (base layer rule).
-- Vue transitions: `fade`, `rise` (blocks appearing), `page` (route change, App.vue), `<CollapseTransition>` for
-  anything that opens/closes (measured height – no max-height hacks), `animate-rise` for list items.
-- Values that change animate (`AnimatedNumber`, ring arcs). Reserve space for hover read-outs → no layout shift.
+  `cubic-bezier(.22,1,.36,1)` (CSS vars `--dur-*`, `--ease-out` in main.css).
+- **Nothing moves on its own:** no `animate-pulse`, no infinite glows/halos, no shimmering text, no breathing icons,
+  no bouncing "typing" dots. Waiting decisions = a static sun count badge.
+- Allowed reactions: hover/focus colour (150ms), `<CollapseTransition>` for anything that opens/closes (measured
+  height – no max-height hacks), `fade` for swaps, `page` for route changes (App.vue), `rise` for blocks that appear.
+- `animate-rise` **only for items that arrive live** (agent trace steps, a new chat answer, an alert). Never for lists
+  loaded at once (tables, legends, chips, timelines, cards).
+- Loading: `ThinkingSpinner` (a plain 2px ring, one turning arc; `md` keeps the agent icon) or a **static**
+  `SkeletonBlock`. One loading indicator per place.
+- Values that change animate (`AnimatedNumber` – e.g. "Saved by Avida" after an approval, ring arcs). Reserve space for
+  hover read-outs → no layout shift.
 - Reduced motion: the OS setting and the accessibility menu (`html[data-motion="reduce"]`) cut every
-  transition to 1ms. JS animations must check it too (see `useTweenedNumber`).
+  transition to 1ms. JS animations must check it too (see `useTweenedNumber`). Keep `data-motion` support intact.
 
-## Shapes & layout (from the prototype mock)
+## Charts (plain SVG)
 
-- Cards: `rounded-xl border border-line bg-surface` (`BaseCard`). Pills: `rounded-full` (`StatusPill`).
+- Lines 2px, no shadow/glow. Points only on hover and at the lowest point.
+- Area under the main line: one **flat** fill at 6 % opacity (or none) – never a fading gradient. Scenarios differ by
+  palette colour + line style (solid / dashed), no fill under each series. The zone below the safety cushion stays
+  a flat `negative-soft` band (it is information).
+- Grid: horizontal 1px `stroke-grid`, no verticals. Axis labels 13px `fill-muted tabular-nums`.
+- Donut: flat segments with a 2px gap, no shadows; legend = rows with amounts right-aligned.
+
+## Layout (from the prototype mock)
+
 - App shell: 232px navy sidebar (≥ lg), sticky topbar, content `max-w-6xl`, gaps 12–20px.
 - KPI row: `auto-fit` grid with a rem minimum (4 columns on desktop, 2 on phones, 1 on phones at large text);
   `KpiCard` switches icon-beside/icon-above via a container query. Good/bad numbers use `tone` (green/red), not the sun.
@@ -84,3 +140,11 @@ colours in `tailwind.config.js`. **The default Tailwind palette is disabled.** U
 - **No emoji in the UI, ever** (not in badges, buttons, copy or status messages), and no ✓/✕ text symbols either:
   use `checkCircle` / `xCircle`. No icon fonts or paid icon sets. Any new asset needs a free licence and an
   entry in `frontend/THIRD_PARTY_LICENSES.md`.
+
+## Check before handing over
+
+`frontend/src` must give 0 hits except the `AgentTrace` scroll mask:
+
+```
+grep -rn "gradient\|blur-\|backdrop-blur\|glow\|shimmer\|animate-pulse\|font-extrabold\|font-bold\|rounded-2xl\|rounded-3xl\|hover:-translate\|shadow-card\|shadow-float\|shadow-lift" frontend/src
+```

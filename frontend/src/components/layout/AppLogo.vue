@@ -16,7 +16,7 @@ withDefaults(defineProps<{ onDark?: boolean; showText?: boolean; size?: number }
 <template>
   <RouterLink
     :to="{ name: 'dashboard' }"
-    :class="['flex w-fit items-center gap-2.5 font-display text-lg font-extrabold', onDark ? 'text-white' : 'text-fg']"
+    :class="['flex w-fit items-center gap-2.5 font-display text-lg font-semibold', onDark ? 'text-white' : 'text-fg']"
     :aria-label="t('Avida CFO, go to overview')"
   >
     <img
@@ -28,7 +28,7 @@ withDefaults(defineProps<{ onDark?: boolean; showText?: boolean; size?: number }
       :class="['shrink-0 rounded-[13%] ring-1', onDark ? 'ring-white/15' : 'ring-fg/10']"
     />
     <span v-if="showText" aria-hidden="true">
-      Avida <span :class="['font-semibold', onDark ? 'text-side-fg' : 'text-muted']">CFO</span>
+      Avida <span :class="['font-medium', onDark ? 'text-side-fg' : 'text-muted']">CFO</span>
     </span>
   </RouterLink>
 </template>

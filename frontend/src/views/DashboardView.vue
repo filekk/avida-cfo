@@ -18,7 +18,7 @@ import { fmtDate } from "@/utils/format";
 /**
  * Start screen – deliberately short, one question per row:
  *   how am I doing (4 KPIs) → where is my money going (forecast + biggest payments).
- * Decisions and findings live in the Action center (the nav tab pulses while something waits);
+ * Decisions and findings live in the Action center (the nav tab shows a count while something waits);
  * the inbox check lives in the top bar; "Ask your CFO" is the floating chat bubble (AskLauncher).
  */
 const store = useDashboardStore();

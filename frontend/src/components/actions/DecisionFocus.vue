@@ -5,11 +5,10 @@ import SourceTag from "@/components/agent/SourceTag.vue";
 import FindingSplit from "@/components/findings/FindingSplit.vue";
 import { describeFinding } from "@/components/findings/describe";
 import AppIcon from "@/components/ui/AppIcon.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { t } from "@/i18n";
 import ActionCard from "./ActionCard.vue";
-import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, iconOf, type DecisionItem } from "./decision";
+import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, type DecisionItem } from "./decision";
 
 /**
  * Focus view: one decision fills the Action center. Everything about it – the email → contract → verdict flow,
@@ -40,15 +39,15 @@ const STEP =
 </script>
 
 <template>
-  <section class="overflow-hidden rounded-xl border border-line bg-surface shadow-card" aria-labelledby="focus-title">
+  <section class="overflow-hidden rounded-xl border border-line bg-surface" aria-labelledby="focus-title">
     <!-- toolbar: back · category · prev / next -->
     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-input/40 px-3 py-2 sm:px-4">
       <button
         type="button"
-        class="group flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-gold hover:bg-mist"
+        class="flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-gold hover:bg-mist"
         @click="emit('back')"
       >
-        <AppIcon name="arrowLeft" :size="18" class="transition-transform duration-base group-hover:-translate-x-1" />
+        <AppIcon name="arrowLeft" :size="18" />
         {{ t("All actions") }}
       </button>
       <span class="hidden text-label text-muted sm:block">{{ t(CATEGORY_LABEL[categoryOf(item)]) }}</span>
@@ -64,19 +63,19 @@ const STEP =
     </div>
 
     <div class="grid gap-5 p-4 sm:p-5">
-      <!-- title · phones: tile + badges side by side, title full width below · sm+: tile | badges over title -->
-      <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3 sm:items-start">
-        <IconTile :icon="iconOf(item)" :tone="state === 'pending' ? 'accent' : 'neutral'" class="sm:row-span-2" />
+      <!-- title: max. two badges (status + autonomy) over the title; simulated / author / source as plain muted text -->
+      <div class="grid gap-2">
         <div class="flex flex-wrap items-center gap-2">
           <StatusPill :tone="STATUS[state].tone">{{ t(STATUS[state].label) }}</StatusPill>
-          <template v-if="a">
-            <AutonomyBadge :level="a.autonomy" />
-            <AutonomyBadge level="simulated" />
-            <span class="text-label text-muted">{{ t("by {agent}", { agent: t(a.agent) }) }}</span>
-            <SourceTag :source="a.source" />
-          </template>
+          <AutonomyBadge v-if="a" :level="a.autonomy" />
         </div>
-        <h2 id="focus-title" class="col-span-2 text-xl font-bold leading-snug sm:col-span-1 sm:col-start-2">{{ title }}</h2>
+        <h2 id="focus-title" class="text-xl font-semibold leading-snug">{{ title }}</h2>
+        <p v-if="a" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
+          <AutonomyBadge level="simulated" plain />
+          <span aria-hidden="true">·</span>
+          <span>{{ t("by {agent}", { agent: t(a.agent) }) }}</span>
+          <SourceTag :source="a.source" />
+        </p>
       </div>
 
       <FindingSplit v-if="f" :finding="f" bare />

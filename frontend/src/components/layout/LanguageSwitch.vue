@@ -28,7 +28,7 @@ function choose(code: Locale) {
       ref="trigger"
       type="button"
       :class="[
-        'flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border px-2 text-label font-bold text-fg sm:px-2.5',
+        'flex h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border px-2 text-label font-semibold text-fg sm:px-2.5',
         open ? 'border-fg/40 bg-mist' : 'border-line bg-surface hover:bg-mist',
       ]"
       :aria-label="t('Language: {lang}', { lang: current.label })"
@@ -60,9 +60,9 @@ function choose(code: Locale) {
         ref="panel"
         role="dialog"
         :aria-label="t('Language')"
-        class="absolute right-0 top-full z-30 mt-2 grid w-56 max-w-[calc(100vw-2rem)] origin-top-right gap-1 rounded-2xl border border-line bg-surface p-2 text-fg shadow-float"
+        class="absolute right-0 top-full z-30 mt-2 grid w-56 max-w-[calc(100vw-2rem)] origin-top-right gap-1 rounded-xl border border-line bg-surface p-2 text-fg shadow-pop"
       >
-        <p class="px-2 pb-1 pt-1 text-caption font-semibold uppercase tracking-eyebrow text-muted">{{ t("Language") }}</p>
+        <p class="px-2 pb-1 pt-1 text-caption font-medium text-muted">{{ t("Language") }}</p>
         <div role="radiogroup" :aria-label="t('Language')" class="grid gap-1">
           <label
             v-for="l in LOCALES"
@@ -84,7 +84,7 @@ function choose(code: Locale) {
             />
             <span
               :class="[
-                'grid h-7 w-9 place-items-center rounded-md text-caption font-bold',
+                'grid h-7 w-9 place-items-center rounded-md text-caption font-semibold',
                 l.code === locale ? 'bg-sun-on/10' : 'bg-input text-muted',
               ]"
               aria-hidden="true"

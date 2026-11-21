@@ -29,7 +29,7 @@ const R = 84;
 const W = 20;
 const W_ACTIVE = 27;
 const CIRC = 2 * Math.PI * R;
-const GAP = 3; // surface-coloured gap between slices
+const GAP = 2; // surface-coloured gap between slices (flat segments, no shadows)
 const PUSH = 5; // active slice moves outward
 
 interface Arc {
@@ -106,7 +106,7 @@ function enter(key: string) {
   hovered.value = key;
 }
 function leave() {
-  // short grace period: crossing the 3px gap between slices must not flash the overview
+  // short grace period: crossing the gap between slices must not flash the overview
   window.clearTimeout(leaveTimer);
   leaveTimer = window.setTimeout(() => (hovered.value = null), 90);
 }
@@ -138,7 +138,7 @@ const summary = computed(
 </script>
 
 <template>
-  <div v-if="!groups.length" class="grid min-h-[16rem] place-content-center justify-items-center gap-3 text-center animate-rise">
+  <div v-if="!groups.length" class="grid min-h-[16rem] place-content-center justify-items-center gap-3 text-center">
     <!-- empty: nothing big due in this window (comment inside the root → the component stays ONE element,
          a leading comment would make it a fragment that never finishes leaving an out-in Transition) -->
     <IconTile icon="pieChart" tone="info" size="lg" />
@@ -191,7 +191,7 @@ const summary = computed(
             ]"
           >
             <span class="text-caption font-semibold text-muted">{{ t("Total") }}</span>
-            <b class="font-display text-2xl font-bold leading-tight tabular-nums">{{ eur(total) }}</b>
+            <b class="font-display text-2xl font-semibold leading-tight tracking-tight tabular-nums">{{ eur(total) }}</b>
             <span class="text-caption text-muted">{{ tn(count, "in {n} payment", "in {n} payments") }}</span>
           </div>
           <!-- one layer per payment, crossfaded -->
@@ -204,7 +204,7 @@ const summary = computed(
             ]"
           >
             <span class="line-clamp-2 text-caption font-semibold leading-tight">{{ g.short }}</span>
-            <b class="font-display text-xl font-bold leading-tight tabular-nums">{{ eur(g.total) }}</b>
+            <b class="font-display text-xl font-semibold leading-tight tracking-tight tabular-nums">{{ eur(g.total) }}</b>
             <span class="text-caption text-muted">{{ share(g.share) }} · {{ paymentsText(g.dates.length) }}</span>
           </div>
         </div>
@@ -213,7 +213,7 @@ const summary = computed(
 
     <!-- legend: always label + amount + share; on hover/focus the second line swaps count → dates -->
     <ul class="grid gap-1" :aria-label="t('Payments')">
-      <li v-for="g in groups" :key="g.key" class="animate-rise">
+      <li v-for="g in groups" :key="g.key">
         <button
           type="button"
           :class="[
@@ -254,7 +254,7 @@ const summary = computed(
             </span>
           </span>
           <span class="grid justify-items-end gap-0.5" aria-hidden="true">
-            <b class="font-display text-label font-bold leading-snug tabular-nums">{{ eur(g.total) }}</b>
+            <b class="font-display text-label font-semibold leading-snug tracking-tight tabular-nums">{{ eur(g.total) }}</b>
             <span class="text-caption tabular-nums text-muted">{{ share(g.share) }}</span>
           </span>
         </button>

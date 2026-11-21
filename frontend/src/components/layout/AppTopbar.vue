@@ -65,7 +65,7 @@ watch(openPopovers, (n) => n > 0 && show());
   <header
     ref="bar"
     :class="[
-      'sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur transition-transform duration-base',
+      'sticky top-0 z-20 border-b border-line bg-bg transition-transform duration-base',
       hidden ? '-translate-y-full' : 'translate-y-0',
     ]"
     @focusin="show"
@@ -78,7 +78,7 @@ watch(openPopovers, (n) => n > 0 && show());
         <AppLogo class="lg:hidden" :on-dark="false" :show-text="false" :size="36" />
         <div class="min-w-0">
           <!-- 2 lines on phones (large text sizes stay readable), 1 line from sm up -->
-          <h1 class="line-clamp-2 break-words text-lg font-bold leading-tight sm:line-clamp-1 sm:text-xl">{{ title }}</h1>
+          <h1 class="line-clamp-2 break-words text-lg font-semibold leading-tight sm:line-clamp-1 sm:text-xl">{{ title }}</h1>
           <p v-if="dashboard" class="truncate text-label text-muted">
             {{ dashboard.company.name }} · {{ fmtDate(dashboard.today) }}
           </p>

@@ -6,7 +6,6 @@ import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
-import IconTile from "@/components/ui/IconTile.vue";
 import type { IconName } from "@/components/ui/icons";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
@@ -45,7 +44,7 @@ function describe(e: AuditEntry): string {
 </script>
 
 <template>
-  <PageHeader :eyebrow="t('Audit log')" :title="t('What happened')" :description="t('Every check and decision, newest first.')">
+  <PageHeader :title="t('What happened')" :description="t('Every check and decision, newest first.')">
     <BaseButton variant="secondary" icon="refresh" :loading="loading" @click="reload">{{ t("Refresh") }}</BaseButton>
   </PageHeader>
 
@@ -57,14 +56,20 @@ function describe(e: AuditEntry): string {
       <li
         v-for="(e, i) in entries"
         :key="`${e.time}-${e.event}-${i}`"
-        class="relative grid grid-cols-[2.5rem_1fr] gap-3 pb-6 animate-rise last:pb-0"
+        class="relative grid grid-cols-[2.5rem_1fr] gap-3 pb-6 last:pb-0"
       >
         <span
           v-if="i < entries.length - 1"
-          class="absolute bottom-0 left-5 top-11 w-px -translate-x-1/2 bg-line"
+          class="absolute -bottom-1 left-5 top-9 w-px -translate-x-1/2 bg-line"
           aria-hidden="true"
         />
-        <IconTile :icon="eventMeta(e).icon" :tone="eventMeta(e).tone" size="sm" round />
+        <!-- small icon on the line, no coloured node; only "approved" is green (the check tells it apart without colour too) -->
+        <span
+          :class="['grid h-10 w-10 place-items-center', eventMeta(e).tone === 'positive' ? 'text-positive' : 'text-muted']"
+          aria-hidden="true"
+        >
+          <AppIcon :name="eventMeta(e).icon" :size="18" />
+        </span>
         <div class="grid gap-1 pt-1.5">
           <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <b class="font-semibold">{{ t(eventMeta(e).label) }}</b>

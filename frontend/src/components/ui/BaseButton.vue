@@ -8,7 +8,7 @@ import type { IconName } from "./icons";
  * primary = sun (only ONE per screen – the most important action)
  * secondary = navy outline · ghost = text-like · danger = destructive/negative
  * Pass `to` to render a RouterLink styled as a button (never nest <button> inside <a>).
- * Every variant eases colour, shadow and a tiny press-down – no instant swaps.
+ * Hover = colour only (no shadow, no lift); a tiny press-down answers the click.
  */
 const props = withDefaults(
   defineProps<{
@@ -24,10 +24,10 @@ const props = withDefaults(
 );
 
 const VARIANTS = {
-  primary: "bg-sun text-sun-on hover:bg-sun-hover hover:shadow-lift",
-  secondary: "border border-line bg-surface text-fg hover:border-fg/40 hover:shadow-lift",
+  primary: "bg-sun text-sun-on hover:bg-sun-hover",
+  secondary: "border border-line bg-surface text-fg hover:border-fg/40 hover:bg-input/60",
   ghost: "text-fg hover:bg-mist",
-  danger: "bg-negative text-white hover:bg-negative/90 hover:shadow-lift",
+  danger: "bg-negative text-white hover:bg-negative/90",
 };
 const SIZES = {
   sm: "min-h-[2.25rem] px-3 py-1.5 text-label gap-1.5",
@@ -48,8 +48,8 @@ const classes = computed(() => [VARIANTS[props.variant], SIZES[props.size]]);
     :aria-busy="loading || undefined"
     :class="[
       'inline-flex items-center justify-center whitespace-nowrap rounded-lg font-semibold',
-      'transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-fast active:scale-[0.98]',
-      'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:active:scale-100',
+      'transition-[color,background-color,border-color,transform,opacity] duration-fast active:scale-[0.98]',
+      'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
       classes,
     ]"
   >
