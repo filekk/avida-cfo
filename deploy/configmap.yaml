@@ -15,3 +15,7 @@ data:
   FORECAST_DAYS: "90"
   DEMO_TODAY: "2026-11-20"
   TRACE_DELAY_S: "0.4"
+  # MLflow tracing of the agents (deploy/mlflow.yaml). Remove the line to switch tracing off;
+  # if MLflow is down the app keeps working, it just stops sending traces.
+  MLFLOW_TRACKING_URI: "http://mlflow.avida-cfo.svc.cluster.local:5000"
+  MLFLOW_EXPERIMENT_NAME: "avida-cfo-agents"

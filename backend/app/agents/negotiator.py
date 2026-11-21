@@ -12,7 +12,7 @@ Tasks:
 """
 from __future__ import annotations
 
-from .. import data, fallback
+from .. import data, fallback, tracing
 from ..llm import llm
 
 NAME = "Negotiator Agent"
@@ -88,11 +88,13 @@ def _template(task: str, extraction: dict, legal_result: dict) -> str:
     return fallback.ask_details_email(co, extraction["party"], extraction)
 
 
+@tracing.traced("negotiator.draft")
 async def draft(task: str, extraction: dict, legal_result: dict, impact: dict) -> tuple[str, str]:
     fb = _template(task, extraction, legal_result)
     return await llm.text(DRAFT_SYSTEM[task], _brief(task, extraction, legal_result, impact), fb, max_tokens=450)
 
 
+@tracing.traced("negotiator.revise")
 async def revise(task: str, previous: str, issues: list[str], extraction: dict, legal_result: dict, impact: dict) -> tuple[str, str]:
     user = (
         _brief(task, extraction, legal_result, impact)

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import texts
+from . import texts, tracing
 from .agents import analyst, legal, negotiator
 from .llm import llm
 from .state import store
@@ -217,6 +217,7 @@ def _attempts(action_id: str) -> int:
     return sum(1 for e in store.audit if e.get("event") == "redraft_proposed" and e.get("action") == action_id)
 
 
+@tracing.traced("negotiator.redraft", tracing.AGENT)
 async def redraft(action_id: str, instruction: str, body: str | None, lang: str) -> dict:
     """The owner asks for a change in plain words → Negotiator rewrites → Legal reviews. Returns a PROPOSAL:
     the action is not changed; the UI puts the text into the editor and the owner approves as usual.

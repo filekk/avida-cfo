@@ -20,6 +20,7 @@ from datetime import date
 
 from .agents import analyst, legal, negotiator
 from .agents.analyst import NUM_TOKEN, amounts_in, readings
+from . import tracing
 from .llm import llm
 from .state import store
 from .texts import localize
@@ -441,6 +442,7 @@ def _history_block(history: list[dict] | None) -> str:
     return "EARLIER IN THIS CONVERSATION:\n" + "\n".join(lines) + "\n\n"
 
 
+@tracing.traced("ask_cfo", tracing.AGENT)
 async def ask(question: str, lang: str, action_id: str | None = None, finding_id: str | None = None,
               history: list[dict] | None = None) -> dict:
     d = current_dashboard()

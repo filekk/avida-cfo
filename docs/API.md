@@ -27,6 +27,7 @@ Every endpoint marked **`?lang`** takes `lang=en|de` (default `en`, `422` otherw
 | GET | `/api/health` | `{"status":"ok"}` |
 | GET | `/api/llm/health` | `{"ok":true,"models":["granite-8b"],...}` – show a small "AI online" indicator |
 | GET | `/api/config` | model name, forecast days, demo "today" |
+| GET | `/api/tracing/health` | diagnostics only (not for the UI): is MLflow tracing of the agents on? `{"enabled":true,"experiment":"avida-cfo-agents",...}` |
 | GET | `/api/dashboard` **`?lang`** | `Dashboard` (below) |
 | GET | `/api/sync` **`?lang`** | **Server-Sent Events** stream, ~20–40 s: `phase` → `trace` … → `result` |
 | GET | `/api/sync/trace` | `{lang, events: [...]}` – replay of the last sync's `phase` / `trace` events (empty after reset) |
