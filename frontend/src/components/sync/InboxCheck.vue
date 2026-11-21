@@ -6,6 +6,7 @@ import { usePopover } from "@/composables/usePopover";
 import { agentInfo, crewOf } from "@/constants/agents";
 import { t, tn } from "@/i18n";
 import { useDashboardStore } from "@/stores/dashboard";
+import { fmtAgo, fmtDateTime } from "@/utils/format";
 import SyncPanel from "./SyncPanel.vue";
 import ThinkingSpinner from "./ThinkingSpinner.vue";
 import type { SyncState } from "./sync";
@@ -21,7 +22,14 @@ import type { SyncState } from "./sync";
  * Below sm the box is a 40px icon button (the pop-up becomes a full-width sheet under the bar).
  */
 const store = useDashboardStore();
-const { trace, syncing, syncError, hasSynced, pendingActions, findings } = storeToRefs(store);
+const { trace, syncing, syncError, hasSynced, pendingActions, findings, checkedAt } = storeToRefs(store);
+
+// --- "checked 5 minutes ago": a clock that ticks while the page is open (text gets coarser with age) ---------
+const now = ref(Date.now());
+let clock: ReturnType<typeof setInterval> | undefined;
+const tick = () => (now.value = Date.now());
+const ago = computed(() => (checkedAt.value ? fmtAgo(checkedAt.value, now.value) : ""));
+watch(checkedAt, tick); // a fresh check says "just now" at once, not after the next tick
 
 const state = computed<SyncState>(() =>
   syncing.value ? "running" : syncError.value ? "error" : hasSynced.value || trace.value.length ? "done" : "idle",
@@ -43,8 +51,9 @@ const label = computed(
 );
 const ariaLabel = computed(() => {
   if (state.value === "running") return `${working.value} ${t("Step {n}", { n: Math.max(1, trace.value.length) })}`;
-  if (state.value === "done" && pending.value) return `${label.value}, ${tn(pending.value, "{n} to approve", "{n} to approve")}`;
-  return label.value;
+  const when = state.value === "done" && checkedAt.value ? ` (${t("last checked {when}", { when: fmtDateTime(checkedAt.value) })})` : "";
+  if (state.value === "done" && pending.value) return `${label.value}${when}, ${tn(pending.value, "{n} to approve", "{n} to approve")}`;
+  return label.value + when;
 });
 
 // --- pop-up ------------------------------------------------------------------------------------------
@@ -90,12 +99,16 @@ const inner = ref<HTMLElement | null>(null);
 const width = ref<number | null>(null);
 let ro: ResizeObserver | null = null;
 onMounted(() => {
+  clock = setInterval(tick, 15_000);
+  document.addEventListener("visibilitychange", tick);
   ro = new ResizeObserver(() => {
     if (inner.value) width.value = inner.value.offsetWidth + 2; // + 1px border on each side
   });
   if (inner.value) ro.observe(inner.value);
 });
 onBeforeUnmount(() => {
+  clearInterval(clock);
+  document.removeEventListener("visibilitychange", tick);
   ro?.disconnect();
   clearTimeout(flashTimer);
   window.removeEventListener("resize", place);
@@ -138,8 +151,16 @@ const BOX: Record<SyncState, string> = {
           <AppIcon v-else key="idle" name="inbox" :size="18" />
         </TransitionGroup>
         <!-- label (sm+): one cell, old and new text cross-fade while the box width glides -->
+        <!-- done: a quiet second line "5 minutes ago" under the label (ticks while the page is open) -->
         <TransitionGroup name="fade" tag="span" class="hidden sm:grid [&>*]:col-start-1 [&>*]:row-start-1" aria-hidden="true">
-          <span :key="label" :class="state === 'idle' ? 'font-semibold' : ''">{{ label }}</span>
+          <span :key="label" class="grid text-left leading-[1.15]">
+            <span :class="state === 'idle' ? 'font-semibold' : ''">{{ label }}</span>
+            <!-- reserved in "done" (no jump when the time arrives from the history a moment later) -->
+            <span
+              v-if="state === 'done'"
+              :class="['text-caption font-normal text-muted transition-opacity duration-base', ago ? 'opacity-100' : 'opacity-0']"
+            >{{ ago || " " }}</span>
+          </span>
         </TransitionGroup>
         <!-- decisions waiting (sm+) -->
         <Transition name="fade">
