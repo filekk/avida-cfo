@@ -275,6 +275,11 @@ confirms paying RE-2026-1187 on the original due date), the backend drops that d
 `kpis`, `headline`, `analysis` (rule-based, `source: "rules"`), `scenarios.recommended` and `scenarios.if_accepted`
 change, and a pending overdraft gets `decision.recommended: "not_now"` + a "No longer needed" `why_short`.
 → After `approve`, **re-fetch `GET /api/dashboard`** and take those parts. Audit events: `reply_received`, `plan_updated`.
+**`Action.savings_events`** `[{date, amount}]` = dated savings inside the 90-day horizon; "Saved by Avida" for a period
+= sum of the **approved** actions' events before the period end (pending ones = "waiting for your OK"). Every approval
+adds its own: CloudHost rejection 1,470 € on 15 Jan + 15 Feb (set at sync); after the replies arrive, Bauer on time =
+the overdraft interest no longer needed (54.66 € one-off), IT-Service Kraus keeps its price = 130 € on 10 Jan + 10 Feb
+(`savings_12m` 1,560). `kpis.saved_liquidity` stays the 12-month total and grows the same way.
 Demo arc: start 26,000 € (safe) → after sync −12,882 € (below the 15,000 € cushion) → after the Bauer reminder 25,118 € (safe).
 
 `Decision` – decision support for an action card. Deterministic: the forecast is re-run with / without the change.

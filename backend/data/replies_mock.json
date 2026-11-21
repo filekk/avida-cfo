@@ -1,5 +1,5 @@
 {
-  "_about": "Simulated partner replies, keyed by the inbox email the owner answered. They 'arrive' when the owner approves the reply (execution is simulated), so the demo shows what the decision changed. effect: pays_on_time = the customer's delayed payment arrives on the original due date; price_kept = the supplier keeps the old price (the plan already assumes it).",
+  "_about": "Simulated partner replies, keyed by the inbox email the owner answered. They 'arrive' when the owner approves the reply (execution is simulated), so the demo shows what the decision changed. effect: pays_on_time = the customer's delayed payment arrives on the original due date (saves the overdraft interest the plan needed); price_kept = the supplier keeps the old price (the plan already assumes it); price_kept_after_asking = a supplier that gave no figures names them and keeps the old price – saves monthly_saved EUR on pay_day from `from`.",
   "mail-001": {
     "from": "billing@cloudhost.example",
     "from_name": "CloudHost GmbH – Billing",
@@ -17,5 +17,17 @@
     "body": "Dear Ms Müller,\n\nthank you for your message and for pointing out §7.2 of our framework agreement. We have released a manual payment for invoice RE-2026-1187 over EUR 38,000.00. The amount will be paid on the original due date, 5 January 2027.\n\nKind regards,\nAndreas Keller\nAccounts Payable, Bauer Maschinenbau AG",
     "summary": "Bauer confirms: 38,000 EUR arrive on time, on 5 Jan 2027.",
     "summary_de": "Bauer bestätigt: 38.000 EUR kommen pünktlich am 05.01.2027."
+  },
+  "mail-006": {
+    "from": "info@it-kraus.example",
+    "from_name": "IT-Service Kraus e.K.",
+    "subject": "Re: Information about our prices for 2027",
+    "effect": "price_kept_after_asking",
+    "monthly_saved": 130.0,
+    "from_date": "2027-01-01",
+    "pay_day": 10,
+    "body": "Dear Ms Müller,\n\nthank you for your question. Our support fee for your contract would have risen from EUR 1,300.00 to EUR 1,430.00 per month (+10%) from 1 January 2027. As a long-standing customer you keep your current price of EUR 1,300.00 for the whole of 2027.\n\nBest regards,\nTobias Kraus\nIT-Service Kraus e.K.",
+    "summary": "IT-Service Kraus keeps your price at 1,300 EUR per month for 2027 (instead of 1,430 EUR).",
+    "summary_de": "IT-Service Kraus behält Ihren Preis von 1.300 EUR pro Monat für 2027 bei (statt 1.430 EUR)."
   }
 }

@@ -215,6 +215,23 @@ def delay_impact(extraction: dict, adjustments: list[Adjustment], delays: list[D
     }
 
 
+def saving_events(monthly: float, effective: date, pay_day: int) -> list[dict]:
+    """Dated savings inside the forecast horizon: `monthly` EUR on every pay day from `effective`
+    (e.g. a rejected increase = the difference not paid each month). The UI sums them per period."""
+    today = settings.today()
+    out = []
+    for i in range(settings.forecast_days):
+        d = today + timedelta(days=i)
+        if d >= effective and d == pay_date(d.year, d.month, pay_day):
+            out.append({"date": d.isoformat(), "amount": round(monthly, 2)})
+    return out
+
+
+def price_saving_events(extraction: dict) -> list[dict]:
+    return saving_events(extraction["monthly_delta"], date.fromisoformat(extraction["effective_date"]),
+                         _payment_day(extraction["supplier"]))
+
+
 def _payment_day(counterparty: str) -> int:
     for r in data.cashflows()["recurring_monthly"]:
         if r["counterparty"] == counterparty:
