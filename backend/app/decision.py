@@ -265,13 +265,14 @@ async def redraft(action_id: str, instruction: str, body: str | None, lang: str)
     Safety net (demo): a rewrite that breaks a hard rule the current text kept (clause, amount, placeholder,
     internal finance) gets one fix round; if it is still broken, the current text is returned unchanged with a note,
     so the editor never receives a worse email than it had."""
+    instruction = instruction.strip() or DEFAULT_REWRITE
+    # first: an illegal request gets the clear refusal whatever state the action is in
+    if _UNSAFE_REQUEST.search(instruction):
+        store.log("redraft_refused", action=action_id, instruction=instruction, source="rules")
+        raise UnsafeInstruction(_refusal(lang))
     a, f = _context(action_id)
     if a["status"] != "pending":
         raise NotEditable("This action has already been decided.")
-    instruction = instruction.strip() or DEFAULT_REWRITE
-    if _UNSAFE_REQUEST.search(instruction):
-        store.log("redraft_refused", action=a["id"], instruction=instruction, source="rules")
-        raise UnsafeInstruction(_refusal(lang))
     current = body if body and body.strip() else a["payload"]["body"]
     user = f"OWNER'S REQUEST: {instruction}\n\nCURRENT DRAFT:\n{current}"
     new, source = await llm.text(REDRAFT_SYSTEM, user, current, max_tokens=500)

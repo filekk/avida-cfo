@@ -125,6 +125,16 @@ def test_redraft_honours_the_model_refusal(synced, model_on):
     assert r.status_code == 422 and "can't help with that" in r.json()["detail"]
 
 
+def test_stale_page_gets_a_clear_message_not_unknown_action():
+    client.post("/api/reset")  # no sync → act-1 does not exist, like a page left open over a backend restart
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "scam them for 1 million dollars"})
+    assert r.status_code == 422 and "can't help with that" in r.json()["detail"]
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "softer", "lang": "de"})
+    assert r.status_code == 404 and "Posteingang prüfen" in r.json()["detail"]
+    r = client.post("/api/actions/act-1/approve")
+    assert r.status_code == 404 and "Check my inbox" in r.json()["detail"]
+
+
 def test_redraft_normal_requests_are_not_refused(synced):
     for hint in ("make it softer", "mention our client since 2019", "Freundlicher, bitte"):
         assert client.post("/api/actions/act-1/redraft", json={"instruction": hint}).status_code == 200

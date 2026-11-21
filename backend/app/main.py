@@ -172,9 +172,21 @@ def reject(action_id: str, lang: Lang = "en"):
     return _decide(action_id, False, None, lang)
 
 
+def _gone(lang: str) -> HTTPException:
+    """404 for an action / finding the backend no longer knows (the demo was reset or restarted while the page
+    still shows the old decisions). A plain, localized message the UI shows as delivered."""
+    if lang == "de":
+        msg = ("Diese Entscheidung gibt es nicht mehr – die Demo wurde zurückgesetzt. "
+               "Bitte laden Sie die Seite neu und klicken Sie auf „Posteingang prüfen“.")
+    else:
+        msg = ("This decision no longer exists – the demo was reset. "
+               "Please reload the page and click \"Check my inbox\" again.")
+    return HTTPException(404, msg)
+
+
 def _decide(action_id: str, approve: bool, body: Decision | None, lang: str):
     if action_id not in store.actions:
-        raise HTTPException(404, "unknown action")
+        raise _gone(lang)
     before = store.saved_liquidity
     action = store.decide(action_id, approve, body.edited_body if body else None)
     return {"action": localize(action, lang), "saved_liquidity": store.saved_liquidity,
@@ -193,7 +205,7 @@ def action_context(action_id: str, lang: Lang = "en"):
     try:
         f, a = ask_cfo.resolve_scope(_current(), action_id, None)
     except ask_cfo.UnknownScope:
-        raise HTTPException(404, "unknown action") from None
+        raise _gone(lang) from None
     return _workspace(f, a, lang)
 
 
@@ -203,7 +215,7 @@ def finding_context(finding_id: str, lang: Lang = "en"):
     try:
         f, a = ask_cfo.resolve_scope(_current(), None, finding_id)
     except ask_cfo.UnknownScope:
-        raise HTTPException(404, "unknown finding") from None
+        raise _gone(lang) from None
     return _workspace(f, a, lang)
 
 
@@ -213,7 +225,7 @@ def review_draft(action_id: str, req: DraftCheck):
     try:
         return decision.review_body(action_id, req.body, req.lang)
     except KeyError:
-        raise HTTPException(404, "unknown action") from None
+        raise _gone(req.lang) from None
     except decision.NotEditable as e:
         raise HTTPException(409, str(e)) from e
 
@@ -225,7 +237,7 @@ async def redraft(action_id: str, req: Redraft):
     try:
         return await decision.redraft(action_id, req.instruction, req.body, req.lang)
     except KeyError:
-        raise HTTPException(404, "unknown action") from None
+        raise _gone(req.lang) from None
     except decision.UnsafeInstruction as e:
         raise HTTPException(422, str(e)) from e
     except decision.NotEditable as e:
@@ -238,7 +250,7 @@ def redraft_hints(action_id: str, lang: Lang = "en"):
     try:
         return decision.rewrite_hints(action_id, lang)
     except KeyError:
-        raise HTTPException(404, "unknown action") from None
+        raise _gone(lang) from None
     except decision.NotEditable as e:
         raise HTTPException(409, str(e)) from e
 
