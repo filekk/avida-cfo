@@ -14,7 +14,7 @@ from datetime import date, timedelta
 
 from .. import data, fallback, texts, tracing
 from ..config import settings
-from ..forecast import Adjustment, Delay, expand_items, pay_date, run_forecast, size_credit_line
+from ..forecast import Adjustment, CashItem, Delay, expand_items, pay_date, run_forecast, size_credit_line
 from ..llm import llm
 
 log = logging.getLogger("avida.analyst")
@@ -143,10 +143,14 @@ def _iso(v) -> str | None:
 # --- 2) Numbers (deterministic) -----------------------------------------------------
 
 
-def forecast(adjustments: list[Adjustment], delays: list[Delay] | None = None) -> dict:
+def forecast(adjustments: list[Adjustment], delays: list[Delay] | None = None,
+             extra: list[CashItem] | None = None) -> dict:
+    """`extra` = dated one-off items from the owner's decisions (e.g. an approved overdraft drawn and repaid)."""
     today = settings.today()
     co = data.company()
     items = expand_items(data.cashflows(), today, settings.forecast_days, adjustments, delays)
+    if extra:
+        items = sorted(items + extra, key=lambda i: (i.date, -i.amount))
     f = run_forecast(data.start_balance(), items, today, settings.forecast_days, co["safety_buffer"])
     f["largest_outflows"] = [i.to_dict() for i in sorted(items, key=lambda i: i.amount)[:5]]
     return f

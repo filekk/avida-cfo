@@ -55,7 +55,7 @@ def test_clicked_suggestion_gets_prepared_answer(after_sync):
     q = next(x for x in client.get("/api/ask/suggestions?lang=de").json()["suggestions"] if x["id"] == "on_time")
     r = client.post("/api/ask", json={"question": q["question"], "lang": "de"}).json()
     assert r["agent"] == "Analyst Agent" and r["source"] == "rules"  # prepared answer, no LLM
-    assert "25.118 EUR" in r["answer"] and "-12.882 EUR" in r["answer"]  # German number format
+    assert "8.118 EUR" in r["answer"] and "-29.882 EUR" in r["answer"]  # German number format
 
 
 def test_free_text_falls_back_honestly(after_sync):
@@ -79,7 +79,7 @@ def test_invented_number_from_model_is_replaced(after_sync, monkeypatch):
 
     monkeypatch.setattr(ask_mod.llm, "json", fake_json)
     r = client.post("/api/ask", json={"question": "How big is the overdraft you propose?"}).json()
-    assert r["source"] == "fallback" and r["answer"].startswith("I'm not completely sure") and "30,000 EUR" in r["answer"]
+    assert r["source"] == "fallback" and r["answer"].startswith("I'm not completely sure") and "45,000 EUR" in r["answer"]
 
 
 def test_answer_guard_accepts_german_formats():

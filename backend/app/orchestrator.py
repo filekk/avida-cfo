@@ -22,12 +22,13 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import AsyncIterator, Awaitable, Callable
 
 from . import data, decision, texts, tracing
 from .agents import analyst, legal, negotiator
 from .config import settings
+from .forecast import CashItem
 from .state import ANALYZED, APPROVAL, RECOMMENDATION, store
 
 AGENTS = [
@@ -424,25 +425,45 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
         _running = False
 
 
-# --- after the owner approves: the partner's (simulated) reply and its effect on the plan -------------------
+# --- after the owner decides: the partner's (simulated) reply and the re-run plan ---------------------------
 
 NOT_NEEDED = {
-    "en": "No longer needed: {party} confirmed paying on time, so your balance stays above your safety cushion.",
-    "de": "Nicht mehr nötig: {party} hat pünktliche Zahlung bestätigt – Ihr Kontostand bleibt über dem Sicherheitspolster.",
+    "en": "No longer needed after your decisions: your balance stays above your safety cushion.",
+    "de": "Nach Ihren Entscheidungen nicht mehr nötig: Ihr Kontostand bleibt über dem Sicherheitspolster.",
+}
+RESIZED = {
+    "en": "Updated after your decisions: you now need {new} instead of {old}.",
+    "de": "Nach Ihren Entscheidungen aktualisiert: Sie brauchen jetzt {new} statt {old}.",
 }
 
 
-def after_approval(action: dict) -> None:
-    """An approved email gets the partner's simulated reply (data/replies_mock.json), shown in the action result.
-    If the reply changes the facts – a customer confirms paying on the original due date – the plan drops that
-    delay and the forecast, KPIs, headline and briefing are re-run (deterministic), so the overview shows what
-    the decision achieved. Execution stays simulated: nothing left the system, the reply is demo data."""
+def after_decision(action: dict, approved: bool) -> None:
+    """Re-plan after the owner's click (deterministic; every execution stays simulated):
+      - approved email → the partner's simulated reply (data/replies_mock.json) shows in the result; a customer
+        confirming the original due date drops the delay, a supplier keeping its price adds dated savings,
+      - "Not now" on a price rejection → nobody objects, so the increase goes into the plan,
+      - approved overdraft → the plan draws it while the balance would be below the cushion and repays it after.
+    Then forecast, KPIs, headline, briefing and the pending overdraft offer are re-run, so the overview shows what
+    each decision did – including the ones the owner declined."""
     d, plan = store.dashboard, store.plan
-    if not d or not plan or action["type"] != "send_email" or action["status"] != "executed":
+    if not d or not plan:
         return
-    reply = data.replies().get(action.get("finding_id"))
+    if action["type"] == "credit_application":
+        if approved:
+            plan["credit_line"] = action["payload"]["amount"]
+            _replan(d, plan)
+        return
     f = next((x for x in d["findings"] if x["id"] == action.get("finding_id")), None)
-    if not reply or not f:
+    if not f:
+        return
+    if not approved:
+        if f["task"] == "reject_price" and f["extraction"]["figures_stated"]:
+            plan["accepted"].append(analyst.to_adjustment(f["extraction"]))
+            _replan(d, plan)
+        return
+
+    reply = data.replies().get(action.get("finding_id"))
+    if not reply:
         return
     action["reply"] = {"from": reply["from"], "from_name": reply["from_name"], "subject": reply["subject"],
                        "received": settings.today().isoformat(), "body": reply["body"], "simulated": True}
@@ -458,44 +479,77 @@ def after_approval(action: dict) -> None:
         this = analyst.to_delay(ex)
         plan["delays"] = [x for x in plan["delays"] if x != this]
         f["confirmed_on_time"] = True
-        credit_before = plan.get("credit")
-        _replan(d, plan, party=ex["party"])
-        # the overdraft the plan needed is no longer needed → its interest is saved (only if it really went away)
-        if credit_before and plan.get("credit") is None:
-            events = [{"date": credit_before["from"], "amount": credit_before["max_interest_cost"]}]
+        before = plan.get("credit")
+        _replan(d, plan)
+        after = plan.get("credit")
+        # a smaller (or no) overdraft is needed → the interest difference is saved
+        saved = round((before or {}).get("max_interest_cost", 0.0) - (after or {}).get("max_interest_cost", 0.0), 2)
+        if before and saved > 0:
+            events = [{"date": before["from"], "amount": saved}]
+            action["savings_12m"] = saved  # one-off
     elif reply["effect"] == "price_kept_after_asking":
         events = analyst.saving_events(reply["monthly_saved"], date.fromisoformat(reply["from_date"]), reply["pay_day"])
         action["savings_12m"] = round(reply["monthly_saved"] * 12, 2)
     if events:
         action["savings_events"] = events
-        if reply["effect"] == "pays_on_time":
-            action["savings_12m"] = round(sum(e["amount"] for e in events), 2)  # one-off
         store.saved_liquidity += action["savings_12m"]
 
 
-def _replan(d: dict, plan: dict, party: str) -> None:
+def _bridge(need: dict | None, line: float) -> list[CashItem]:
+    """An approved overdraft in the plan: drawn on the first day below the cushion, repaid the day after the last
+    one (when the customer payments are in). Never more than the approved line."""
+    if not need or not line:
+        return []
+    amount = min(line, need["amount"])
+    bank = data.company()["credit_offer"]["bank"]
+    back = date.fromisoformat(need["until"]) + timedelta(days=1)
+    return [CashItem(date.fromisoformat(need["from"]), amount, "Overdraft drawn (simulated)", "loan", bank),
+            CashItem(back, -amount, "Overdraft repaid (simulated)", "loan", bank)]
+
+
+def _replan(d: dict, plan: dict) -> None:
     sc = d["scenarios"]
-    sc["recommended"] = rec = analyst.forecast(plan["plan_adj"], plan["delays"])
-    # "accept every price increase" uses the same (now confirmed) payment dates – it differs only by the prices
-    accepted = [analyst.to_adjustment(f["extraction"]) for f in d["findings"]
-                if f["kind"] == "price_change" and f["extraction"]["figures_stated"]]
-    sc["if_accepted"] = analyst.forecast(accepted, plan["delays"])
-    credit = plan["credit"] = analyst.credit_proposal(rec)
+    adj = plan["plan_adj"] + plan["accepted"]
+    base = analyst.forecast(adj, plan["delays"])           # without any overdraft
+    need = plan["credit"] = analyst.credit_proposal(base)  # what the gap needs now
+    bridge = _bridge(need, plan["credit_line"])
+    sc["recommended"] = rec = analyst.forecast(adj, plan["delays"], bridge) if bridge else base
+    # "accept every price increase": same payment dates and overdraft – it differs only by the prices
+    all_adj = [analyst.to_adjustment(f["extraction"]) for f in d["findings"]
+               if f["kind"] == "price_change" and f["extraction"]["figures_stated"]]
+    acc_base = analyst.forecast(all_adj, plan["delays"])
+    sc["if_accepted"] = analyst.forecast(all_adj, plan["delays"], bridge) if bridge else acc_base
     d["kpis"] = _kpis(rec)
     d["headline"] = analyst.headline(rec, "en")
     d.setdefault("i18n", {}).setdefault("de", {})["headline"] = analyst.headline(rec, "de")
-    d["analysis"] = analyst.briefing_rules(sc, d["findings"], credit)
-    store.log("plan_updated", min_balance=rec["min_balance"], min_date=rec["min_date"], safe=not rec["first_breach_date"])
-    if credit is None:  # the overdraft is no longer needed – say so on its card (the owner still decides)
-        for a in store.actions.values():
-            if a["type"] == "credit_application" and a["status"] == "pending":
-                en, de_ = NOT_NEEDED["en"].format(party=party), NOT_NEEDED["de"].format(party=party)
-                over = a.setdefault("i18n", {}).setdefault("de", {})
-                # the long `why` keeps the original reasoning after the note ("it was needed because …")
-                a["why"], a["why_short"] = f"{en} Before: {a['why']}", en
-                over["why"], over["why_short"] = f"{de_} Vorher: {over.get('why', '')}".strip(), de_
-                if a.get("decision"):
-                    a["decision"]["recommended"] = "not_now"
+    d["analysis"] = analyst.briefing_rules(sc, d["findings"], need)
+    store.log("plan_updated", min_balance=rec["min_balance"], min_date=rec["min_date"],
+              safe=not rec["first_breach_date"], overdraft_drawn=bridge[0].amount if bridge else 0.0)
+    _update_credit_offer(base, acc_base, need, adj, plan)
+
+
+def _update_credit_offer(base: dict, acc_base: dict, need: dict | None, adj: list, plan: dict) -> None:
+    """The pending overdraft offer follows the plan: gone → "no longer needed", smaller/larger → re-sized."""
+    for a in store.actions.values():
+        if a["type"] != "credit_application" or a["status"] != "pending":
+            continue
+        over = a.setdefault("i18n", {}).setdefault("de", {})
+        if need is None:
+            a["why"], a["why_short"] = f"{NOT_NEEDED['en']} Before: {a['why']}", NOT_NEEDED["en"]
+            over["why"], over["why_short"] = f"{NOT_NEEDED['de']} Vorher: {over.get('why', '')}".strip(), NOT_NEEDED["de"]
+            if a.get("decision"):
+                a["decision"]["recommended"] = "not_now"
+            continue
+        old = a["payload"]["amount"]
+        if need["amount"] == old:
+            continue
+        if_acc = analyst.credit_proposal(acc_base)
+        en, de_ = _credit_texts(need, if_acc, "en"), _credit_texts(need, if_acc, "de")
+        note = {lg: RESIZED[lg].format(new=texts.eur(need["amount"], lg), old=texts.eur(old, lg)) for lg in ("en", "de")}
+        a.update(title=en["title"], why=f"{note['en']} {en['why']}", why_short=note["en"], payload=need)
+        over.update(title=de_["title"], why=f"{note['de']} {de_['why']}", why_short=note["de"])
+        ctx = decision.Context(scenarios={"recommended": base}, plan_adj=adj, delays=plan["delays"], credit=need)
+        a["decision"] = decision.for_credit(ctx, if_acc)
 
 
 def _trace_summary(dash: dict, sources: dict) -> dict:
@@ -637,6 +691,6 @@ async def _pipeline(background: list[asyncio.Task], lang: str) -> AsyncIterator[
 
     dash = _dashboard(scenarios, rec, findings, analysis)
     store.dashboard = dash
-    store.plan = {"plan_adj": plan_adj, "delays": delays, "credit": credit}
+    store.plan = {"plan_adj": plan_adj, "accepted": [], "delays": delays, "credit": credit, "credit_line": 0.0}
     store.log("sync_finished", findings=len(findings), actions=len(store.actions))
     yield {"type": "result", "dashboard": dash}

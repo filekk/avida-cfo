@@ -18,7 +18,7 @@ from . import ask as ask_cfo
 from . import contract_library, decision, tracing
 from .config import settings
 from .llm import llm
-from .orchestrator import SyncAlreadyRunning, after_approval, initial_dashboard, run_pipeline
+from .orchestrator import SyncAlreadyRunning, after_decision, initial_dashboard, run_pipeline
 from .state import POLICY, store
 from .texts import localize
 
@@ -190,8 +190,8 @@ def _decide(action_id: str, approve: bool, body: Decision | None, lang: str):
     before = store.saved_liquidity
     was_pending = store.actions[action_id]["status"] == "pending"
     action = store.decide(action_id, approve, body.edited_body if body else None)
-    if approve and was_pending:
-        after_approval(action)  # simulated partner reply; may re-run the plan (GET /api/dashboard shows it)
+    if was_pending:
+        after_decision(action, approve)  # simulated partner reply / re-run plan (GET /api/dashboard shows it)
     return {"action": localize(action, lang), "saved_liquidity": store.saved_liquidity,
             "saved_liquidity_previous": before}
 

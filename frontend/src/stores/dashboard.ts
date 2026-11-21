@@ -114,7 +114,7 @@ export const useDashboardStore = defineStore("dashboard", () => {
       const r = approve ? await approveAction(id, editedBody) : await rejectAction(id);
       replaceAction(r.action);
       if (dashboard.value) dashboard.value.kpis.saved_liquidity = r.saved_liquidity;
-      if (approve) await refreshPlan();
+      await refreshPlan(); // approve AND "Not now" can change the plan (a declined rejection = the increase is in)
     } catch (e) {
       error.value = message(e);
     } finally {
@@ -123,8 +123,8 @@ export const useDashboardStore = defineStore("dashboard", () => {
   }
 
   /**
-   * An approval can change the plan (e.g. the customer's simulated reply confirms paying on time → the backend
-   * re-runs the forecast). Pull the live parts – KPIs, headline, briefing, scenarios, actions – so the overview
+   * A decision can change the plan (the customer's simulated reply confirms paying on time, an approved overdraft
+   * bridges the gap, a declined price rejection lets the increase in → the backend re-runs the forecast). Pull the live parts – KPIs, headline, briefing, scenarios, actions – so the overview
    * shows what the decision achieved (numbers glide via AnimatedNumber). Best effort: on failure the old view stays.
    */
   async function refreshPlan() {
