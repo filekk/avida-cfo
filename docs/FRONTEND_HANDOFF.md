@@ -65,9 +65,13 @@ GET /api/findings/{id}/context?lang=de    → also for findings without an actio
 - **Draft editing helpers** (send_email actions):
   - `POST /api/actions/{id}/review {body, lang}`: **instant** check of the edited text (clause cited, amounts, no
     placeholder, no internal finance). Call it debounced while typing and show the issues next to the editor.
-  - `POST /api/actions/{id}/redraft {instruction, body?, lang}`: "make it softer" / "shorter" / "in German" →
-    the Negotiator rewrites and the Legal Agent reviews (3–8 s). Returns a **proposal**. Put it into the editor; the
-    owner still clicks Approve (`edited_body`). Show `note` when the model was unavailable.
+  - **Rewrite button** = `POST /api/actions/{id}/redraft {instruction?, body?, lang}`: "make it softer" /
+    "mention we are customers since 2019" / "in German" → the Negotiator rewrites and the Legal Agent reviews (3–8 s).
+    - `instruction` empty or omitted = plain "write it again".
+    - chips + input placeholder: `GET /api/actions/{id}/redraft/hints?lang=` (send the chip's `instruction` unchanged).
+    - send the editor's current text as `body` to iterate; `attempt` (1, 2, 3 …) lets you show "Version 2".
+    - returns a **proposal**: put it into the editor (keep the previous text for an "undo" if you like); the owner
+      still clicks Approve (`edited_body`). Show `note` when the model was unavailable (`changed: false`).
 - Rule 1 still holds: none of these endpoints executes anything.
 
 ## 4. Imported files page: filters, sorting, upload date

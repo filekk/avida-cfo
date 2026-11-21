@@ -391,8 +391,33 @@ export interface DraftReview {
   source: "rules";
 }
 /** POST /api/actions/{id}/redraft – a PROPOSAL; nothing changes until the owner approves with edited_body */
+export interface RedraftRequest {
+  /** the owner's hint; "" or omitted = "write it again" (fresh version, same facts) */
+  instruction?: string;
+  /** text currently in the editor (default: the agent's draft) – send it to rewrite iteratively */
+  body?: string;
+  lang?: Lang;
+}
+/** GET /api/actions/{id}/redraft/hints – chips for the Rewrite button */
+export interface RedraftHint {
+  id: "softer" | "firmer" | "shorter" | "formal" | "german" | "english";
+  /** in the UI language */
+  label: string;
+  /** send unchanged as RedraftRequest.instruction */
+  instruction: string;
+}
+export interface RedraftHints {
+  action_id: string;
+  /** example text for the hint input */
+  placeholder: string;
+  hints: RedraftHint[];
+}
 export interface RedraftProposal {
   action_id: string;
+  /** 1, 2, 3 … per action – for "Version 2" */
+  attempt: number;
+  /** what the Negotiator was asked (the default text when no hint was given) */
+  instruction: string;
   body: string;
   changed: boolean;
   source: AnswerSource;

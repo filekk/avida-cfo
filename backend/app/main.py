@@ -57,7 +57,8 @@ class DraftCheck(BaseModel):
 
 
 class Redraft(BaseModel):
-    instruction: str = Field(min_length=1, max_length=300)
+    # the owner's hint; empty = "write it again" (a fresh version with the same facts)
+    instruction: str = Field(default="", max_length=300)
     body: str | None = Field(default=None, max_length=5000)  # the text currently in the editor (default: the draft)
     lang: Lang = "en"
 
@@ -195,7 +196,18 @@ async def redraft(action_id: str, req: Redraft):
     """Owner asks for a change in plain words → Negotiator rewrites, Legal reviews → a PROPOSAL (nothing is sent,
     the action is not changed; the owner approves with `edited_body` as usual). 3–8 s with the model."""
     try:
-        return await decision.redraft(action_id, req.instruction.strip(), req.body, req.lang)
+        return await decision.redraft(action_id, req.instruction, req.body, req.lang)
+    except KeyError:
+        raise HTTPException(404, "unknown action") from None
+    except decision.NotEditable as e:
+        raise HTTPException(409, str(e)) from e
+
+
+@app.get("/api/actions/{action_id}/redraft/hints")
+def redraft_hints(action_id: str, lang: Lang = "en"):
+    """Quick hints (chips) and a placeholder for the Rewrite button's hint field."""
+    try:
+        return decision.rewrite_hints(action_id, lang)
     except KeyError:
         raise HTTPException(404, "unknown action") from None
     except decision.NotEditable as e:

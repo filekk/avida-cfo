@@ -197,6 +197,32 @@ def test_redraft_is_only_a_proposal(synced, monkeypatch):
     assert client.post(f"/api/actions/{credit['id']}/redraft", json={"instruction": "x"}).status_code == 409
 
 
+def test_rewrite_button_hint_optional_attempts_and_chips(synced, monkeypatch):
+    from app import decision
+
+    seen = []
+
+    async def fake_text(system, user, fallback, max_tokens=400):
+        seen.append(user)
+        return fallback, "fallback"  # model down → draft unchanged + note
+
+    monkeypatch.setattr(decision.llm, "text", fake_text)
+    r1 = client.post("/api/actions/act-1/redraft", json={}).json()  # no hint = "write it again"
+    assert decision.DEFAULT_REWRITE in seen[0] and r1["instruction"] == decision.DEFAULT_REWRITE
+    assert r1["attempt"] == 1 and r1["changed"] is False and r1["note"]
+    r2 = client.post("/api/actions/act-1/redraft",
+                     json={"instruction": "Mention we are customers since 2019", "body": r1["body"], "lang": "de"}).json()
+    assert r2["attempt"] == 2 and "since 2019" in seen[1] and "nicht erreichbar" in r2["note"]
+
+    h = client.get("/api/actions/act-1/redraft/hints?lang=de").json()
+    assert h["action_id"] == "act-1" and h["placeholder"]
+    assert {x["id"] for x in h["hints"]} >= {"softer", "shorter", "german"}
+    assert next(x for x in h["hints"] if x["id"] == "shorter")["label"] == "Kürzer"
+    assert client.get("/api/actions/nope/redraft/hints").status_code == 404
+    credit = next(a for a in client.get("/api/dashboard").json()["actions"] if a["type"] == "credit_application")
+    assert client.get(f"/api/actions/{credit['id']}/redraft/hints").status_code == 409
+
+
 def test_edited_body_is_flagged(synced):
     client.post("/api/actions/act-3/approve", json={"edited_body": "Subject: Hi\n\nPlease send prices."})
     a = next(a for a in client.get("/api/dashboard").json()["actions"] if a["id"] == "act-3")

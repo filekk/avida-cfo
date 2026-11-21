@@ -182,12 +182,49 @@ REDRAFT_SYSTEM = (
 )
 
 
+# Quick hints for the "Rewrite" button (chips next to the hint field). `instruction` goes to the model unchanged.
+REWRITE_HINTS = [
+    ("softer", "Friendlier", "Freundlicher",
+     "Make the tone friendlier and warmer; we want to keep a good relationship."),
+    ("firmer", "Firmer", "Bestimmter",
+     "Make the tone firmer and more direct, still polite."),
+    ("shorter", "Shorter", "Kürzer",
+     "Make the email noticeably shorter: three to five sentences."),
+    ("formal", "More formal", "Förmlicher",
+     "Use a more formal business tone."),
+    ("german", "In German", "Auf Deutsch",
+     "Write the email in German (formal 'Sie')."),
+    ("english", "In English", "Auf Englisch",
+     "Write the email in English."),
+]
+DEFAULT_REWRITE = "Write a different version of this email with the same content and the same facts."
+
+
+def rewrite_hints(action_id: str, lang: str) -> dict:
+    """Chips for the Rewrite button. 404/409 like the other draft tools."""
+    a, f = _context(action_id)
+    de = lang == "de"
+    return {
+        "action_id": a["id"],
+        "placeholder": ("z. B. „Erwähne, dass wir seit 5 Jahren Kunde sind“" if de
+                        else "e.g. \"Mention that we have been customers for 5 years\""),
+        "hints": [{"id": i, "label": l_de if de else l_en, "instruction": instr}
+                  for i, l_en, l_de, instr in REWRITE_HINTS],
+    }
+
+
+def _attempts(action_id: str) -> int:
+    return sum(1 for e in store.audit if e.get("event") == "redraft_proposed" and e.get("action") == action_id)
+
+
 async def redraft(action_id: str, instruction: str, body: str | None, lang: str) -> dict:
     """The owner asks for a change in plain words → Negotiator rewrites → Legal reviews. Returns a PROPOSAL:
-    the action is not changed; the UI puts the text into the editor and the owner approves as usual."""
+    the action is not changed; the UI puts the text into the editor and the owner approves as usual.
+    Empty `instruction` = "write it again" (a fresh version with the same facts)."""
     a, f = _context(action_id)
     if a["status"] != "pending":
         raise NotEditable("This action has already been decided.")
+    instruction = instruction.strip() or DEFAULT_REWRITE
     current = body or a["payload"]["body"]
     user = f"OWNER'S REQUEST: {instruction}\n\nCURRENT DRAFT:\n{current}"
     new, source = await llm.text(REDRAFT_SYSTEM, user, current, max_tokens=500)
@@ -200,6 +237,8 @@ async def redraft(action_id: str, instruction: str, body: str | None, lang: str)
                 else "The model is not available right now – the draft is unchanged.")
     return {
         "action_id": a["id"],
+        "attempt": _attempts(a["id"]),  # 1, 2, 3 … – "Version 2" in the UI
+        "instruction": instruction,
         "body": new,
         "changed": new.strip() != current.strip(),
         "source": source,

@@ -37,7 +37,8 @@ Point out the mismatch rather than papering over it.
 ### Added by the back-end on 2026-11-21 (no `@/api` function yet)
 
 `GET /api/sync/trace` (replay) · `GET /api/actions/{id}/context` and `GET /api/findings/{id}/context` (`ProblemContext`) ·
-`POST /api/actions/{id}/review` (`DraftReview`, instant) · `POST /api/actions/{id}/redraft` (`RedraftProposal`, proposal only) ·
+`POST /api/actions/{id}/review` (`DraftReview`, instant) · `POST /api/actions/{id}/redraft` (Rewrite button, `RedraftProposal`, proposal only, instruction optional) ·
+`GET /api/actions/{id}/redraft/hints` (`RedraftHints`) ·
 `GET /api/contracts/{id}` (`ContractDetail`) · `GET /api/contracts/{id}/file`. Extended: `?lang=` on dashboard/sync/
 decisions/policy/reset, SSE `phase` events, `Action.decision` + `why_short`, `Dashboard.kpis_previous`, chart data in
 `Forecast`, problem chat in `/api/ask`, contract metadata + filters. Task-by-task guide: `docs/FRONTEND_HANDOFF.md`.

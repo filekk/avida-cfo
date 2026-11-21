@@ -35,7 +35,8 @@ Every endpoint marked **`?lang`** takes `lang=en|de` (default `en`, `422` otherw
 | GET | `/api/actions/{id}/context` **`?lang`** | `ProblemContext` – one problem view: action (with `decision`), its finding, chat suggestions |
 | GET | `/api/findings/{id}/context` **`?lang`** | `ProblemContext` for a finding (also findings without an action, e.g. an allowed increase) |
 | POST | `/api/actions/{id}/review` | body `{"body": "…", "lang"}` → `DraftReview` – **instant** rule check of the owner's edited draft (no model) |
-| POST | `/api/actions/{id}/redraft` | body `{"instruction": "make it softer", "body"?: "…", "lang"}` → `RedraftProposal`, 3–8 s. **Proposal only** – nothing changes until approve |
+| POST | `/api/actions/{id}/redraft` | Rewrite button: body `{"instruction"?: "make it softer", "body"?: "…", "lang"}` → `RedraftProposal`, 3–8 s. Empty instruction = "write it again". **Proposal only** – nothing changes until approve |
+| GET | `/api/actions/{id}/redraft/hints` | `?lang` → `RedraftHints` (chips + placeholder for the Rewrite button) |
 | GET | `/api/ask/suggestions?lang=en\|de[&action_id=\|&finding_id=]` | clickable questions; with an id: decision helpers for that one problem |
 | POST | `/api/ask` | body `{"question", "lang", "action_id"?, "finding_id"?, "history"?}` → answer from the right agent (chip: instant, typed: 3–7 s) |
 | GET | `/api/contracts?q=&origin=&party_type=&sort=` | `[ContractSummary]` – files page: filter + sort on the server (see Contracts) |
@@ -435,14 +436,35 @@ issues next to the editor – approving is still allowed, it is the owner's deci
 POST /api/actions/act-1/redraft   {"instruction": "Make it softer", "body": "<optional: text in the editor>", "lang": "en"}
 ```
 ```jsonc
-{ "action_id": "act-1", "body": "Subject: …", "changed": true, "source": "llm",
+{ "action_id": "act-1", "attempt": 1,          // 1, 2, 3 … per action ("Version 2")
+  "instruction": "Make it softer",             // what the Negotiator was asked (default text when no hint)
+  "body": "Subject: …", "changed": true, "source": "llm",
   "note": null,                                // model down → "…the draft is unchanged.", source "fallback", changed false
   "review": { "approved": true, "issues": [], "source": "llm" } }   // Legal Agent's review of the proposal
 ```
+- This is the back-end of the **Rewrite button** ("write the email again, with a hint from the owner").
+- `instruction` is **optional**: empty / omitted = "write it again" (a fresh version with the same facts).
+  Max 300 characters. The email keeps its language unless the owner asks for another one.
+- Iterate: send the text currently in the editor as `body`, so the next rewrite builds on the last proposal.
 - **A proposal only**: the action is not changed and nothing is sent. Put `body` into the editor; the owner approves
-  with `edited_body` as usual (`Action.edited_by_owner` becomes `true`).
+  with `edited_body` as usual (`Action.edited_by_owner` becomes `true`). Every proposal is logged in `/api/audit`
+  (`redraft_proposed`).
 - 3–8 s with the model. `409` for an action that is already decided or is not an email (overdraft). `404` unknown id.
-- `instruction` max 300 characters. The email keeps its language unless the owner asks for another one.
+
+```
+GET /api/actions/act-1/redraft/hints?lang=de     → chips for the Rewrite button
+```
+```jsonc
+{ "action_id": "act-1", "placeholder": "z. B. „Erwähne, dass wir seit 5 Jahren Kunde sind“",
+  "hints": [ { "id": "softer",  "label": "Freundlicher", "instruction": "Make the tone friendlier and warmer; …" },
+             { "id": "firmer",  "label": "Bestimmter",   "instruction": "…" },
+             { "id": "shorter", "label": "Kürzer",       "instruction": "…" },
+             { "id": "formal",  "label": "Förmlicher",   "instruction": "…" },
+             { "id": "german",  "label": "Auf Deutsch",  "instruction": "…" },
+             { "id": "english", "label": "Auf Englisch", "instruction": "…" } ] }
+```
+Send a chip's `instruction` unchanged as the redraft `instruction` (or let the owner type their own hint). Same
+`404` / `409` as redraft.
 
 ## Rules for the UI
 
