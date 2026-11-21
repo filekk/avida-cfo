@@ -31,7 +31,7 @@ from .config import settings
 from .forecast import CashItem
 from .state import ANALYZED, APPROVAL, RECOMMENDATION, store
 
-# `icon` is a Lucide icon name (the UI's icon set – no emoji anywhere, see CLAUDE.md).
+# `icon` is a Lucide icon name (the UI's icon set – no emoji anywhere).
 AGENTS = [
     {"name": analyst.NAME, "role": "Analyst", "icon": "chart",
      "does": "Reads the inbox, forecasts your cash and explains the numbers."},

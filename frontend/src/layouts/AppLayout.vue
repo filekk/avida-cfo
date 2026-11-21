@@ -10,8 +10,8 @@ import { useDashboardStore } from "@/stores/dashboard";
 const store = useDashboardStore();
 onMounted(() => store.load());
 
-// Language switch → fetch the dashboard again with the new `lang` (backend texts follow once the backend
-// supports it – see frontend/CONTRACT_PROPOSALS.md). Not while a check is streaming its own result.
+// Language switch → fetch the dashboard again with the new `lang`, so the backend texts follow too
+// (docs/API.md → Languages). Not while a check is streaming its own result.
 watch(locale, () => {
   if (!store.syncing) store.load(true);
 });
