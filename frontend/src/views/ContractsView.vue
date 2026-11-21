@@ -1,68 +1,88 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from "vue";
-import { ApiError, CONTRACT_ACCEPT, CONTRACT_MAX_BYTES, deleteContract, getContracts, uploadContract } from "@/api";
-import ContractRow from "@/components/contracts/ContractRow.vue";
-import ContractUpload from "@/components/contracts/ContractUpload.vue";
+import { computed, ref } from "vue";
+import { ApiError, CONTRACT_ACCEPT, contractFileUrl, deleteContract, getContracts, uploadContract } from "@/api";
+import ContractTable from "@/components/contracts/ContractTable.vue";
+import ContractsToolbar from "@/components/contracts/ContractsToolbar.vue";
 import UploadSummary from "@/components/contracts/UploadSummary.vue";
-import { ROLE, partyOf, roleOf, rowCleanup, rowEnter, rowLeave } from "@/components/contracts/contracts";
+import { partyOf } from "@/components/contracts/contracts";
+import {
+  DEFAULT_SORT,
+  FILE_TYPES,
+  NO_FILTERS,
+  applyFilters,
+  applySort,
+  isFiltered,
+  nextSort,
+  validateFile,
+  type FileFilters,
+  type SortKey,
+  type SortState,
+} from "@/components/contracts/files";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import BaseCard from "@/components/ui/BaseCard.vue";
-import EmptyState from "@/components/ui/EmptyState.vue";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
-import StatusPill from "@/components/ui/StatusPill.vue";
 import { useAsyncData } from "@/composables/useAsyncData";
-import { t, tn } from "@/i18n";
+import { t } from "@/i18n";
 import type { ContractSummary, UploadResult } from "@/types/api";
-import { prefersReducedMotion } from "@/utils/motion";
 
 /**
- * The contracts the Legal Agent checks every price change and late payment against, plus adding a new one.
- * Order = what the owner needs first: the list (what protects me) on the left / on top, "Add a contract" on the
- * right / below. Two columns only when the PAGE is wide enough (container query in rem, so large text sizes
- * fall back to one column); in one column the header button opens the file picker and scrolls to the box.
- * An upload is read live by the model (10–20 s) and used from the next inbox check.
+ * Contracts = a small file explorer (OneDrive-like) of the contracts the Legal Agent checks every price change and
+ * late payment against:
+ *   header with the ONE main button "Upload contract" → toolbar (search, type, added, size) → table
+ *   (Name · Type · Added · Size · Actions, sortable headers). Files can also be dropped onto the table.
+ * Filtering and sorting happen here in the browser (the list is small); the backend's filters are not needed.
+ * An upload is read live by the model (10–20 s) and counts from the next inbox check.
  */
 const { data: contracts, loading, error, reload } = useAsyncData(getContracts);
 const list = computed(() => contracts.value ?? []);
-const counts = computed(() => ({
-  supplier: list.value.filter((c) => roleOf(c) === "supplier").length,
-  customer: list.value.filter((c) => roleOf(c) === "customer").length,
-}));
 
-const uploading = ref(false);
+// --- filters + sort --------------------------------------------------------------------------------
+const filters = ref<FileFilters>({ ...NO_FILTERS });
+const sort = ref<SortState>({ ...DEFAULT_SORT });
+const rows = computed(() => applySort(applyFilters(list.value, filters.value), sort.value));
+/** Type chips: what can be uploaded + anything else that is already in the list. */
+const types = computed(() => [...new Set<string>([...FILE_TYPES, ...list.value.map((c) => c.file_type)])]);
+const clearFilters = () => (filters.value = { ...NO_FILTERS });
+const onSort = (k: SortKey) => (sort.value = nextSort(sort.value, k));
+
+// --- upload --------------------------------------------------------------------------------------
+const input = ref<HTMLInputElement | null>(null);
+const uploading = ref<string | null>(null);
 const uploadError = ref<{ message: string; detail?: string } | null>(null);
 const last = ref<UploadResult | null>(null);
 const newId = ref<string | null>(null);
-const removing = ref<string | null>(null);
-const removeError = ref<{ id: string; message: string } | null>(null);
 /** Screen-reader announcements (one persistent live region, so every change is read out). */
 const announcement = ref("");
 
-const uploadCard = ref<InstanceType<typeof BaseCard> | null>(null);
-const picker = ref<InstanceType<typeof ContractUpload> | null>(null);
-const listEl = ref<{ $el: HTMLElement } | null>(null);
-
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : t("Something went wrong."));
 
-/** Header / empty-state button: bring the upload box into view and open the file picker. */
-function addContract() {
-  (uploadCard.value?.$el as HTMLElement | undefined)?.scrollIntoView({
-    behavior: prefersReducedMotion() ? "auto" : "smooth",
-    block: "start",
-  });
-  picker.value?.open();
+function pick() {
+  input.value?.click();
+}
+function onPicked(e: Event) {
+  const el = e.target as HTMLInputElement;
+  if (el.files?.length) take(el.files);
+  el.value = ""; // the same file can be picked again
 }
 
-function invalid(message: string) {
-  last.value = null;
-  uploadError.value = { message };
+/** From the button or a drop: one file at a time, checked before sending. */
+function take(files: FileList) {
+  const f = files[0];
+  if (!f || uploading.value) return;
+  const problem = validateFile(f);
+  if (problem) {
+    last.value = null;
+    uploadError.value = { message: problem };
+    return;
+  }
+  upload(f);
 }
 
 async function upload(file: File) {
-  uploading.value = true;
+  uploading.value = file.name;
   uploadError.value = null;
   last.value = null;
   announcement.value = t("Reading your contract. This takes 10–20 seconds.");
@@ -71,6 +91,8 @@ async function upload(file: File) {
     last.value = res;
     newId.value = res.contract.id;
     announcement.value = t("Contract added: {party}", { party: partyOf(res.contract) });
+    // the new file must be visible: drop filters that would hide it
+    if (isFiltered(filters.value)) clearFilters();
     await reload();
   } catch (e) {
     // server answers (422 unreadable, model down…): plain lead + the backend's reason as delivered
@@ -80,11 +102,13 @@ async function upload(file: File) {
         : { message: messageOf(e) };
     announcement.value = "";
   } finally {
-    uploading.value = false;
+    uploading.value = null;
   }
 }
 
-/** Owner action – only from the click on "Yes, remove" in the row's confirm. */
+// --- remove (only after the row's inline "Remove" confirm) ---------------------------------------
+const removing = ref<string | null>(null);
+const removeError = ref<{ id: string; message: string } | null>(null);
 async function remove(c: ContractSummary) {
   removing.value = c.id;
   removeError.value = null;
@@ -93,9 +117,6 @@ async function remove(c: ContractSummary) {
     if (last.value?.contract.id === c.id) last.value = null;
     if (newId.value === c.id) newId.value = null;
     announcement.value = t("Contract removed: {party}", { party: partyOf(c) });
-    // the focused button is gone → keep keyboard users in the list
-    await nextTick();
-    listEl.value?.$el.focus();
   } catch (e) {
     removeError.value = { id: c.id, message: messageOf(e) };
   } finally {
@@ -105,7 +126,7 @@ async function remove(c: ContractSummary) {
 </script>
 
 <template>
-  <div class="grid grid-cols-[minmax(0,1fr)] gap-5 [container-type:inline-size]">
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5">
     <PageHeader
       :title="t('Your contracts')"
       :description="
@@ -114,101 +135,72 @@ async function remove(c: ContractSummary) {
         )
       "
     >
-      <BaseButton variant="secondary" icon="plus" :disabled="uploading" class="[@container(min-width:52rem)]:hidden" @click="addContract">
-        {{ t("Add a contract") }}
-      </BaseButton>
+      <BaseButton icon="cloudUpload" :loading="!!uploading" @click="pick">{{ t("Upload contract") }}</BaseButton>
+      <input ref="input" type="file" class="sr-only" tabindex="-1" aria-hidden="true" :accept="CONTRACT_ACCEPT" @change="onPicked" />
     </PageHeader>
 
-    <div class="grid items-start gap-5 [@container(min-width:52rem)]:grid-cols-[minmax(0,1fr)_21rem]">
-      <!-- 1. what protects you: the contracts Avida checks against -->
-      <div class="grid min-w-0 gap-5">
-        <AlertBanner v-if="error">
-          {{ error }} <button type="button" class="ml-2 underline" @click="reload">{{ t("Try again") }}</button>
-        </AlertBanner>
+    <!-- upload feedback: what went wrong, or what Avida read from the new contract -->
+    <AlertBanner v-if="uploadError" dismissible @dismiss="uploadError = null">
+      <span class="grid gap-1">
+        <span>{{ uploadError.message }}</span>
+        <span v-if="uploadError.detail" class="break-words text-label font-normal">{{ uploadError.detail }}</span>
+      </span>
+    </AlertBanner>
+    <Transition name="rise">
+      <UploadSummary v-if="last" :result="last" @close="last = null" />
+    </Transition>
 
-        <!-- loading: same card, header and row shapes as the real list → nothing jumps when it arrives -->
-        <BaseCard v-if="loading && !contracts" :title="t('Contracts Avida knows')" :padded="false" aria-busy="true">
-          <ul class="divide-y divide-line border-t border-line">
-            <li v-for="i in 4" :key="i" class="flex gap-3 px-4 py-4 sm:gap-4 sm:px-5">
-              <SkeletonBlock height="h-10" class="w-10 shrink-0" />
-              <div class="grid flex-1 gap-2 pt-0.5">
-                <SkeletonBlock height="h-5" class="w-2/5" />
-                <SkeletonBlock height="h-4" class="w-4/5" />
-                <SkeletonBlock height="h-6" class="mt-1 w-3/5" />
-              </div>
-            </li>
-          </ul>
-        </BaseCard>
+    <AlertBanner v-if="error">
+      {{ error }} <button type="button" class="ml-2 underline" @click="reload">{{ t("Try again") }}</button>
+    </AlertBanner>
 
-        <BaseCard v-else-if="list.length" :title="t('Contracts Avida knows')" :padded="false">
-          <template #actions>
-            <StatusPill v-if="counts.supplier" tone="neutral">
-              <AppIcon :name="ROLE.supplier.icon" :size="14" />{{ tn(counts.supplier, "{n} supplier", "{n} suppliers") }}
-            </StatusPill>
-            <StatusPill v-if="counts.customer" tone="neutral">
-              <AppIcon :name="ROLE.customer.icon" :size="14" />{{ tn(counts.customer, "{n} customer", "{n} customers") }}
-            </StatusPill>
-          </template>
-          <TransitionGroup
-            ref="listEl"
-            tag="ul"
-            :css="false"
-            class="divide-y divide-line border-t border-line focus:outline-none"
-            tabindex="-1"
-            :aria-label="t('Contracts Avida knows')"
-            @enter="rowEnter"
-            @after-enter="rowCleanup"
-            @leave="rowLeave"
-            @after-leave="rowCleanup"
-          >
-            <ContractRow
-              v-for="c in list"
-              :key="c.id"
-              :contract="c"
-              :is-new="c.id === newId"
-              :removing="removing === c.id"
-              :error="removeError?.id === c.id ? removeError.message : null"
-              @remove="remove(c)"
-            />
-          </TransitionGroup>
-        </BaseCard>
-
-        <EmptyState
-          v-else-if="!error"
-          icon="document"
-          :title="t('No contracts yet')"
-          :description="t('Add your first contract. Avida then checks price changes and late payments against it.')"
-        >
-          <BaseButton variant="secondary" icon="plus" :disabled="uploading" @click="addContract">{{ t("Add a contract") }}</BaseButton>
-        </EmptyState>
+    <!-- loading: same toolbar + row shapes as the real list → nothing jumps -->
+    <BaseCard v-if="loading && !contracts" aria-busy="true">
+      <div class="grid gap-3">
+        <SkeletonBlock height="h-11" class="w-full sm:w-96" />
+        <SkeletonBlock v-for="i in 4" :key="i" height="h-14" />
       </div>
+    </BaseCard>
 
-      <!-- 2. add a new one -->
-      <BaseCard ref="uploadCard" :title="t('Add a contract')" class="scroll-mt-32">
-        <div class="grid gap-4">
-          <p class="-mt-1 text-label text-muted">
-            {{ t("Avida reads it and picks out what matters: prices, notice periods and payment terms.") }}
-          </p>
-          <ContractUpload
-            ref="picker"
-            :busy="uploading"
-            :accept="CONTRACT_ACCEPT"
-            :max-bytes="CONTRACT_MAX_BYTES"
-            @file="upload"
-            @invalid="invalid"
-          />
-          <AlertBanner v-if="uploadError" dismissible @dismiss="uploadError = null">
-            <span class="grid gap-1">
-              <span>{{ uploadError.message }}</span>
-              <span v-if="uploadError.detail" class="break-words text-label font-normal">{{ uploadError.detail }}</span>
-            </span>
-          </AlertBanner>
-          <Transition name="rise">
-            <UploadSummary v-if="last" :result="last" @close="last = null" />
-          </Transition>
+    <template v-else-if="contracts">
+      <ContractsToolbar v-model="filters" :types="types" :shown="rows.length" :total="list.length" @clear="clearFilters" />
+
+      <ContractTable
+        :rows="rows"
+        :sort="sort"
+        :new-id="newId"
+        :removing="removing"
+        :remove-error="removeError"
+        :uploading="uploading"
+        :file-url="contractFileUrl"
+        @sort="onSort"
+        @remove="remove"
+        @files="take"
+      >
+        <!-- empty: no file matches the filters / no contracts at all -->
+        <div v-if="!rows.length && !uploading" class="grid justify-items-center gap-3 px-4 py-12 text-center">
+          <span class="grid h-12 w-12 place-items-center rounded-xl bg-input text-muted" aria-hidden="true">
+            <AppIcon :name="list.length ? 'search' : 'cloudUpload'" :size="24" />
+          </span>
+          <template v-if="list.length">
+            <p class="text-lg font-semibold">{{ t("No file matches your filters") }}</p>
+            <p class="max-w-md text-label text-muted">{{ t("Try another name, or show all files again.") }}</p>
+            <BaseButton variant="secondary" icon="x" @click="clearFilters">{{ t("Clear filters") }}</BaseButton>
+          </template>
+          <template v-else>
+            <p class="text-lg font-semibold">{{ t("No contracts yet") }}</p>
+            <p class="max-w-md text-label text-muted">
+              {{ t("Upload your first contract or drop the file here. Avida then checks price changes and late payments against it.") }}
+            </p>
+          </template>
         </div>
-      </BaseCard>
-    </div>
+      </ContractTable>
+
+      <p class="flex items-center gap-2 text-label text-muted">
+        <AppIcon name="info" :size="16" class="shrink-0" />
+        {{ t("Tip: drag a file from your computer onto the table to upload it. PDF, .md or .txt, up to 5 MB.") }}
+      </p>
+    </template>
 
     <p class="sr-only" role="status">{{ announcement }}</p>
   </div>
