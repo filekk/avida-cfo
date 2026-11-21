@@ -4,6 +4,9 @@ const de: Record<string, string> = {
   "Check my inbox": "Posteingang prüfen",
   "Checking your inbox": "Ihr Posteingang wird geprüft",
   "Inbox checked": "Posteingang geprüft",
+  // second line under "Inbox checked" ("5 minutes ago" itself comes from Intl.RelativeTimeFormat)
+  "just now": "gerade eben",
+  "last checked {when}": "zuletzt geprüft {when}",
   "Check failed": "Prüfung fehlgeschlagen",
   "{n} to approve": "{n} zur Freigabe",
   "Inbox check": "Posteingangsprüfung",
