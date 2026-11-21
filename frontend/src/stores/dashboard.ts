@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { ApiError, approveAction, getDashboard, rejectAction, resetDemo, startSync } from "@/api";
-import { t } from "@/i18n";
-import type { Action, Dashboard, TraceEvent } from "@/types/api";
+import { ApiError, approveAction, getDashboard, rejectAction, resetDemo, rewriteDraft, startSync } from "@/api";
+import { locale, t } from "@/i18n";
+import type { Action, Dashboard, RewriteResult, TraceEvent } from "@/types/api";
 
 const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
@@ -104,6 +104,21 @@ export const useDashboardStore = defineStore("dashboard", () => {
     }
   }
 
+  /**
+   * AV Rewrite (PROPOSED endpoint, CONTRACT_PROPOSALS.md §4): returns the rewritten draft for the editor.
+   * Changes nothing on the backend and sends nothing – the owner still has to click "Approve and send".
+   * Throws: the caller (view) shows the error next to the rewrite field; 404/405 = endpoint not there yet.
+   */
+  async function rewrite(id: string, body: string, instruction: string): Promise<RewriteResult> {
+    try {
+      return await rewriteDraft(id, { body, instruction: instruction.trim().slice(0, 200), lang: locale.value === "de" ? "de" : "en" });
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405))
+        throw new Error(t("AV Rewrite is not connected yet. Your draft is unchanged – you can still edit it yourself."));
+      throw new Error(message(e));
+    }
+  }
+
   function replaceAction(action: Action) {
     if (!dashboard.value) return;
     dashboard.value.actions = dashboard.value.actions.map((a) => (a.id === action.id ? action : a));
@@ -113,6 +128,6 @@ export const useDashboardStore = defineStore("dashboard", () => {
     dashboard, loading, error, trace, syncing, syncError, deciding,
     kpis, findings, actions, pendingActions, hasSynced, isSafe,
     findingById, actionById,
-    load, sync, cancelSync, decide, reset,
+    load, sync, cancelSync, decide, rewrite, reset,
   };
 });

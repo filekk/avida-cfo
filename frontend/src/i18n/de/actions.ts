@@ -101,5 +101,24 @@ const de: Record<string, string> = {
   Before: "Vorher",
   Now: "Jetzt",
   "/month": "/Monat",
+  // AV Rewrite (decision bar in the focus view)
+  "AV Rewrite": "AV Umschreiben",
+  "Rewriting…": "Wird umgeschrieben …",
+  "Rewrite the draft with AI": "Entwurf mit KI umschreiben",
+  "How should the email change?": "Wie soll sich die E-Mail ändern?",
+  "Avida rewrites the draft. Nothing is sent – you read it first.":
+    "Avida schreibt den Entwurf um. Es wird nichts gesendet – Sie lesen ihn zuerst.",
+  "Quick wishes": "Schnelle Wünsche",
+  "Be firmer": "Bestimmter formulieren",
+  "Be friendlier": "Freundlicher formulieren",
+  "Make it shorter": "Kürzer fassen",
+  "Mention a 2 % discount for paying early": "2 % Skonto bei früher Zahlung erwähnen",
+  "Your wish for the email": "Ihr Wunsch für die E-Mail",
+  "e.g. be firmer, mention the discount": "z. B. bestimmter, Rabatt erwähnen",
+  Rewrite: "Umschreiben",
+  "Rewritten by Avida – please read it before sending.": "Von Avida umgeschrieben – bitte vor dem Senden lesen.",
+  Undo: "Rückgängig",
+  "AV Rewrite is not connected yet. Your draft is unchanged – you can still edit it yourself.":
+    "AV Umschreiben ist noch nicht angebunden. Ihr Entwurf ist unverändert – Sie können ihn selbst bearbeiten.",
 };
 export default de;

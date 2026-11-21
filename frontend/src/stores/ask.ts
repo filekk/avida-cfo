@@ -13,11 +13,14 @@ export interface AskTurn {
   /** set when the answer arrived */
   answer?: AskAnswer;
   error?: string;
+  /** set when asked from inside one decision (Action center) – that panel shows only its own turns */
+  context?: string;
 }
 
 /**
  * "Ask your CFO" (docs/API.md → Ask your CFO). App-level, so there is ONE conversation that survives navigation:
- * the same turns show in the Action center card and in the overview's floating chat (components/ask/AskChat).
+ * the overview's floating chat (components/ask/AskChat) shows every turn; the contextual panel inside one Action
+ * center decision (components/ask/AskContext) shows only the turns asked there (`context`).
  * Suggestions are re-fetched whenever they can change: language switch, sync finished, reset.
  */
 export const useAskStore = defineStore("ask", () => {
@@ -49,25 +52,31 @@ export const useAskStore = defineStore("ask", () => {
   /**
    * Chip → pass the suggestion's question unchanged (instant prepared answer).
    * Typed → 1–500 characters, answered by the model in 3–7 s. One question at a time.
+   * `opts.context`: the decision it was asked from (tags the turn). `opts.subject`: put in front of the question
+   * the backend gets ("CloudHost GmbH: price change – is this fair?") so short follow-ups make sense; the owner
+   * still sees their own words. Never pass a subject for a chip – it must arrive unchanged.
    */
-  async function ask(question: string) {
+  async function ask(question: string, opts: { context?: string; subject?: string } = {}) {
     const q = question.trim().slice(0, 500);
     if (!q || asking.value) return;
-    const turn: AskTurn = { id: nextId++, question: q };
+    const turn: AskTurn = { id: nextId++, question: q, context: opts.context };
     turns.value.push(turn);
     const i = turns.value.length - 1;
+    const sent = opts.subject ? `${opts.subject} – ${q}`.slice(0, 500) : q;
     try {
-      const a = await askCfo(q);
+      const a = await askCfo(sent);
       turns.value[i] = { ...turn, answer: a };
-      suggestions.value = a.suggestions;
+      // a contextual question must not replace the general suggestions with ones about this case only
+      if (!opts.context) suggestions.value = a.suggestions;
       note.value = a.note;
     } catch (e) {
       turns.value[i] = { ...turn, error: message(e) };
     }
   }
 
-  function clear() {
-    turns.value = [];
+  /** Without `context`: the whole conversation. With it: only the turns of that decision. */
+  function clear(context?: string) {
+    turns.value = context ? turns.value.filter((x) => x.context !== context) : [];
   }
 
   // What the backend can suggest depends on the language and on whether the inbox was checked.

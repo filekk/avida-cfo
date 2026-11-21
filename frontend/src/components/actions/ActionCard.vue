@@ -4,10 +4,13 @@ import AutonomyBadge from "@/components/agent/AutonomyBadge.vue";
 import SourceTag from "@/components/agent/SourceTag.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
+import CollapseTransition from "@/components/ui/CollapseTransition.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
 import type { Action } from "@/types/api";
 import { eur, eurCents, fmtDayMonth } from "@/utils/format";
+import RewriteDraft from "./RewriteDraft.vue";
+import type { RewrittenDraft } from "./decision";
 
 /**
  * One proposed action. UI rule #1: nothing happens without an explicit click on Approve / Not now.
@@ -17,9 +20,23 @@ import { eur, eurCents, fmtDayMonth } from "@/utils/format";
  * `compact`:  also hides the "why" and the savings, for when the parent already explains them
  *             (the finding's email → contract → verdict flow).
  * Texts from the backend (title, why, draft, offer, result) are shown as delivered; the UI words are translated.
+ * AV Rewrite (send_email, only when the parent listens – `rewritable`): the owner's wish goes out via `rewrite`,
+ * the new text comes back as `rewritten` and replaces the editor content; "Undo" restores the text from before.
  */
-const props = defineProps<{ action: Action; busy?: boolean; compact?: boolean; embedded?: boolean }>();
-const emit = defineEmits<{ decide: [id: string, approve: boolean, editedBody?: string] }>();
+const props = defineProps<{
+  action: Action;
+  busy?: boolean;
+  compact?: boolean;
+  embedded?: boolean;
+  rewritable?: boolean;
+  rewriting?: boolean;
+  rewriteError?: string | null;
+  rewritten?: RewrittenDraft | null;
+}>();
+const emit = defineEmits<{
+  decide: [id: string, approve: boolean, editedBody?: string];
+  rewrite: [id: string, body: string, instruction: string];
+}>();
 
 const body = ref(props.action.type === "send_email" ? props.action.payload.body : "");
 watch(
@@ -30,6 +47,26 @@ watch(
 );
 
 const pending = computed(() => props.action.status === "pending");
+
+/** The text before the last rewrite (for "Undo") and the source of the rewrite shown in the editor. */
+const beforeRewrite = ref<string | null>(null);
+const rewriteSource = ref<RewrittenDraft["source"] | null>(null);
+watch(
+  () => props.rewritten?.n,
+  () => {
+    if (!props.rewritten) return;
+    beforeRewrite.value = body.value;
+    body.value = props.rewritten.body;
+    rewriteSource.value = props.rewritten.source;
+  },
+);
+function undoRewrite() {
+  if (beforeRewrite.value === null) return;
+  body.value = beforeRewrite.value;
+  beforeRewrite.value = null;
+  rewriteSource.value = null;
+}
+const askRewrite = (instruction: string) => emit("rewrite", props.action.id, body.value, instruction);
 const approve = () => emit("decide", props.action.id, true, props.action.type === "send_email" ? body.value : undefined);
 const decline = () => emit("decide", props.action.id, false);
 </script>
@@ -101,23 +138,48 @@ const decline = () => emit("decide", props.action.id, false);
     </div>
 
     <!-- send_email: editable draft -->
-    <label v-if="action.type === 'send_email'" class="grid gap-2">
-      <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-        <AppIcon name="mail" :size="18" /> {{ t("To") }}
-        <b class="min-w-0 text-fg [overflow-wrap:anywhere]">{{ action.payload.to }}</b>
-        <Transition name="fade">
-          <span v-if="pending" class="flex items-center gap-1 text-label">
-            <AppIcon name="pencil" :size="14" /> {{ t("you can edit it") }}
-          </span>
-        </Transition>
-      </span>
-      <textarea
-        v-model="body"
-        :disabled="!pending"
-        rows="8"
-        class="w-full rounded-lg border border-line bg-input p-3 font-mono text-sm leading-relaxed text-fg focus:border-fg/40 disabled:text-muted"
-      />
-    </label>
+    <div v-if="action.type === 'send_email'" class="grid gap-2">
+      <label class="grid gap-2">
+        <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+          <AppIcon name="mail" :size="18" /> {{ t("To") }}
+          <b class="min-w-0 text-fg [overflow-wrap:anywhere]">{{ action.payload.to }}</b>
+          <Transition name="fade">
+            <span v-if="pending" class="flex items-center gap-1 text-label">
+              <AppIcon name="pencil" :size="14" /> {{ t("you can edit it") }}
+            </span>
+          </Transition>
+        </span>
+        <textarea
+          v-model="body"
+          :disabled="!pending"
+          rows="8"
+          :aria-busy="rewriting || undefined"
+          :class="[
+            'w-full rounded-lg border border-line bg-input p-3 font-mono text-sm leading-relaxed text-fg transition-opacity duration-base focus:border-fg/40 disabled:text-muted',
+            rewriting ? 'opacity-60' : '',
+          ]"
+        />
+      </label>
+      <!-- after AV Rewrite: say so (honest about the AI) + one-click undo -->
+      <CollapseTransition>
+        <div v-if="pending && rewriteSource" role="status">
+          <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-muted">
+            <AppIcon name="sparkles" :size="16" />
+            <span>{{ t("Rewritten by Avida – please read it before sending.") }}</span>
+            <SourceTag :source="rewriteSource" />
+            <button
+              v-if="beforeRewrite !== null"
+              type="button"
+              class="ml-auto flex min-h-10 items-center gap-1.5 rounded-lg px-2 font-semibold text-gold underline-offset-4 hover:underline"
+              @click.prevent="undoRewrite"
+            >
+              <AppIcon name="undo" :size="16" />
+              {{ t("Undo") }}
+            </button>
+          </p>
+        </div>
+      </CollapseTransition>
+    </div>
 
     <!-- credit_application: offer details -->
     <div v-else class="grid gap-4 rounded-xl bg-input p-4">
@@ -146,11 +208,26 @@ const decline = () => emit("decide", props.action.id, false);
 
     <!-- buttons → result: cross-fade, no jump -->
     <Transition name="rise" mode="out-in">
-      <div v-if="pending" key="pending" class="grid gap-3 sm:flex sm:flex-wrap">
-        <BaseButton size="lg" icon="check" :loading="busy" @click="approve">
-          {{ action.type === "send_email" ? t("Approve and send") : t("Approve and apply") }}
-        </BaseButton>
-        <BaseButton size="lg" variant="secondary" :disabled="busy" @click="decline">{{ t("Not now") }}</BaseButton>
+      <!--
+        decision bar: the decision on the left (Approve / Not now), the helper on the right (AV Rewrite).
+        Phones: everything stacked full width · sm+: one row, AV Rewrite pushed right; if it does not fit, it wraps
+        to its own line (flex-wrap) – the buttons never overlap.
+      -->
+      <div v-if="pending" key="pending" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+        <div class="grid gap-3 sm:flex sm:flex-wrap">
+          <BaseButton size="lg" icon="check" :loading="busy" :disabled="rewriting" @click="approve">
+            {{ action.type === "send_email" ? t("Approve and send") : t("Approve and apply") }}
+          </BaseButton>
+          <BaseButton size="lg" variant="secondary" :disabled="busy" @click="decline">{{ t("Not now") }}</BaseButton>
+        </div>
+        <RewriteDraft
+          v-if="rewritable && action.type === 'send_email'"
+          class="sm:ml-auto"
+          :busy="rewriting"
+          :error="rewriteError"
+          :disabled="busy"
+          @submit="askRewrite"
+        />
       </div>
       <p
         v-else

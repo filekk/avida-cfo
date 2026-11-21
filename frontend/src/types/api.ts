@@ -333,3 +333,18 @@ export interface LlmHealth {
   models?: string[];
   reason?: string;
 }
+
+// ---- AV Rewrite (PROPOSED – POST /api/actions/{id}/rewrite, see CONTRACT_PROPOSALS.md §4) ----------
+// Not in docs/API.md yet. The UI handles 404/405 as "not connected yet" and leaves the draft unchanged.
+export interface RewriteRequest {
+  /** the draft as it is in the editor right now (the owner may already have changed it) */
+  body: string;
+  /** the owner's short wish, 1–200 characters ("be firmer", "mention the 2 % early-payment discount") */
+  instruction: string;
+  lang: Lang;
+}
+export interface RewriteResult {
+  body: string;
+  /** llm = rewritten by the model · fallback = model down, draft returned unchanged (label it!) */
+  source: AnswerSource;
+}

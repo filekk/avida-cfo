@@ -33,9 +33,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/DecisionsView.vue"),
     meta: { title: "Action center" },
   },
-  // "Ask your CFO" has no page any more: it is a card in the Action center (and a floating chat on the overview).
-  // Old /ask links land on that card.
-  { path: "/ask", name: "ask", redirect: { name: "decisions", hash: "#ask" } },
+  // "Ask your CFO" has no page: it is the floating chat on the overview and a contextual panel in each decision.
+  // Old /ask links land in the Action center.
+  { path: "/ask", name: "ask", redirect: { name: "decisions" } },
   {
     path: "/contracts",
     name: "contracts",

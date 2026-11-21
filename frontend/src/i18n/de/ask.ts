@@ -38,6 +38,23 @@ const de: Record<string, string> = {
   // uploaded contract in a finding
   "Uploaded by you · terms read by the AI model": "Von Ihnen hochgeladen · Bedingungen vom KI-Modell gelesen",
   "Uploaded by you · cached answer": "Von Ihnen hochgeladen · gespeicherte Antwort",
+  // contextual "Ask your CFO" inside one decision (components/ask/AskContext + contextual.ts)
+  "Questions about this case? Pick one below or ask in your own words.":
+    "Fragen zu diesem Fall? Wählen Sie unten eine aus oder fragen Sie in eigenen Worten.",
+  Open: "Öffnen",
+  "Quick questions": "Schnelle Fragen",
+  "Your question about this case": "Ihre Frage zu diesem Fall",
+  "Ask about this case…": "Fragen Sie zu diesem Fall …",
+  "How does the late payment from {party} affect my balance?": "Wie wirkt sich die verspätete Zahlung von {party} auf meinen Kontostand aus?",
+  "Can I charge {party} interest for paying late?": "Kann ich {party} Verzugszinsen berechnen?",
+  "What does it cost me if I just pay the new {party} price?": "Was kostet es mich, wenn ich den neuen Preis von {party} einfach zahle?",
+  "What happens if {party} refuses my reply?": "Was passiert, wenn {party} meine Antwort ablehnt?",
+  "Why is the {party} increase allowed?": "Warum ist die Erhöhung von {party} erlaubt?",
+  "Can I still ask {party} for a better price?": "Kann ich {party} trotzdem um einen besseren Preis bitten?",
+  "What should I check in the {party} email?": "Was sollte ich in der E-Mail von {party} prüfen?",
+  "How much does the overdraft cost me in total?": "Was kostet mich die Kreditlinie insgesamt?",
+  "What happens if I don't take the overdraft?": "Was passiert, wenn ich die Kreditlinie nicht nehme?",
+  "How does this decision change my cash forecast?": "Wie verändert diese Entscheidung meine Liquiditätsprognose?",
 };
 
 export default de;

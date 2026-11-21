@@ -8,18 +8,30 @@ import AppIcon from "@/components/ui/AppIcon.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { t } from "@/i18n";
 import ActionCard from "./ActionCard.vue";
-import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, type DecisionItem } from "./decision";
+import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, type DecisionItem, type RewrittenDraft } from "./decision";
 
 /**
  * Focus view: one decision fills the Action center. Everything about it – the email → contract → verdict flow,
  * the draft or offer and the buttons – plus "back to all actions" and previous / next to switch between decisions.
+ * slot `ask`: contextual "Ask your CFO" – full width, between the explanation and the decision (same place for
+ * email-based and forecast-based decisions, so both look like one system; the 3 explanation panels stay untouched).
+ * AV Rewrite state is passed through to ActionCard (`rewrite*` props / `rewrite` emit).
  */
-const props = defineProps<{ item: DecisionItem; busy?: boolean; position: number; total: number }>();
+const props = defineProps<{
+  item: DecisionItem;
+  busy?: boolean;
+  position: number;
+  total: number;
+  rewriting?: boolean;
+  rewriteError?: string | null;
+  rewritten?: RewrittenDraft | null;
+}>();
 const emit = defineEmits<{
   back: [];
   prev: [];
   next: [];
   decide: [id: string, approve: boolean, editedBody?: string];
+  rewrite: [id: string, body: string, instruction: string];
 }>();
 
 const a = computed(() => props.item.action);
@@ -80,14 +92,23 @@ const STEP =
 
       <FindingSplit v-if="f" :finding="f" bare />
 
+      <!-- "Ask your CFO": one full-width bar in the same place for every kind of decision –
+           after the explanation (email → contract → verdict, or nothing for forecast steps), before the decision -->
+      <slot name="ask" />
+
       <ActionCard
         v-if="a"
         :action="a"
         :busy="busy"
         embedded
         :compact="!!f"
+        rewritable
+        :rewriting="rewriting"
+        :rewrite-error="rewriteError"
+        :rewritten="rewritten"
         :class="f ? 'border-t border-line pt-5' : ''"
         @decide="(id, approve, body) => emit('decide', id, approve, body)"
+        @rewrite="(id, body, instruction) => emit('rewrite', id, body, instruction)"
       />
     </div>
   </section>

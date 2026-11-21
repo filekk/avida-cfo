@@ -1,7 +1,7 @@
 import type { Tone } from "@/components/ui/tones";
 import { describeFinding } from "@/components/findings/describe";
 import { t } from "@/i18n";
-import type { Action, Finding } from "@/types/api";
+import type { Action, AnswerSource, Finding } from "@/types/api";
 import { eur, fmtDayMonth } from "@/utils/format";
 
 /**
@@ -14,6 +14,13 @@ export interface DecisionItem {
   key: string;
   action?: Action;
   finding?: Finding;
+}
+
+/** AV Rewrite result handed to ActionCard; `n` changes on every new result so the same text twice still lands. */
+export interface RewrittenDraft {
+  body: string;
+  source: AnswerSource;
+  n: number;
 }
 
 export type DecisionState = "pending" | "review" | "executed" | "rejected" | "no-action";

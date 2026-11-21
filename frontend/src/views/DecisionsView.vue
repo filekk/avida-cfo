@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, onMounted, reactive, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import DecisionFocus from "@/components/actions/DecisionFocus.vue";
 import DecisionTile from "@/components/actions/DecisionTile.vue";
-import { buildItems, categoryOf, isOpenItem, type DecisionCategory, type DecisionItem } from "@/components/actions/decision";
-import AskChat from "@/components/ask/AskChat.vue";
+import {
+  buildItems,
+  categoryOf,
+  isOpenItem,
+  type DecisionCategory,
+  type DecisionItem,
+  type RewrittenDraft,
+} from "@/components/actions/decision";
+import AskContext from "@/components/ask/AskContext.vue";
+import { contextSubject, contextualSuggestions } from "@/components/ask/contextual";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -15,24 +23,26 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
+import { useAskStore } from "@/stores/ask";
 import { useDashboardStore } from "@/stores/dashboard";
-import { eur } from "@/utils/format";
 
 /**
  * Action center = a board of everything the owner can act on, in two columns:
  *   left  – based on your emails   ·   right – based on your forecast
- * each with Pending (open) and Resolved (toned down) parts of small tiles.
+ * each with Pending (open) and Resolved (greyed out until hovered) parts of small tiles.
  * Click a tile → focus view: only that decision, full width, with back and previous / next.
  * The focused item lives in the URL (?item=<key>) so the browser's Back button returns to the board.
  * Old /findings links arrive as ?finding=<id> and open that item too.
- * Below it, always: "Ask your CFO" (#ask, old /ask links land here) – questions come up while deciding.
+ * Inside the focus view the owner gets help for THAT decision: a contextual, full-width "Ask your CFO" bar under the explanation
+ * (chips fitted to the case) and "AV Rewrite" next to the decision buttons (rewrites the draft along a short wish).
+ * There is no general "Ask your CFO" card on this page any more – the general chat is the overview's floating bubble.
  */
 type PartKey = "pending" | "resolved";
 
 const route = useRoute();
 const router = useRouter();
 const store = useDashboardStore();
-const { actions, findings, loading, dashboard, deciding, error, kpis } = storeToRefs(store);
+const { actions, findings, loading, dashboard, deciding, error } = storeToRefs(store);
 
 const items = computed(() => buildItems(actions.value, findings.value));
 const inCategory = (c: DecisionCategory, open: boolean) =>
@@ -97,6 +107,44 @@ const step = (d: number) => {
   if (next) router.replace({ query: { item: next.key } });
 };
 
+// --- contextual "Ask your CFO" (focus view) -------------------------------------------------------
+const ask = useAskStore();
+const askSuggestions = computed(() => (focused.value ? contextualSuggestions(focused.value, ask.suggestions) : []));
+const askTurns = computed(() => ask.turns.filter((x) => x.context === focused.value?.key));
+onMounted(() => {
+  if (!ask.suggestions.length && !ask.loadingSuggestions) ask.loadSuggestions();
+});
+/** Chip → unchanged (the backend may know it). Typed → with the case as subject, so "is this fair?" works. */
+const askPick = (q: string) => focused.value && ask.ask(q, { context: focused.value.key });
+const askTyped = (q: string) =>
+  focused.value && ask.ask(q, { context: focused.value.key, subject: contextSubject(focused.value) });
+
+// --- AV Rewrite (focus view) ---------------------------------------------------------------------
+/** One decision is in focus at a time → one rewrite state, cleared when the focus changes. */
+const rewriteState = reactive<{ busy: boolean; error: string | null; result: RewrittenDraft | null }>({
+  busy: false,
+  error: null,
+  result: null,
+});
+let rewriteRun = 0;
+watch(focusKey, () => {
+  rewriteRun++; // a late answer for the previous decision is ignored
+  Object.assign(rewriteState, { busy: false, error: null, result: null });
+});
+async function rewrite(id: string, body: string, instruction: string) {
+  const run = ++rewriteRun;
+  Object.assign(rewriteState, { busy: true, error: null });
+  try {
+    const r = await store.rewrite(id, body, instruction);
+    if (run !== rewriteRun) return;
+    rewriteState.result = { body: r.body, source: r.source, n: (rewriteState.result?.n ?? 0) + 1 };
+  } catch (e) {
+    if (run === rewriteRun) rewriteState.error = e instanceof Error ? e.message : t("Something went wrong.");
+  } finally {
+    if (run === rewriteRun) rewriteState.busy = false;
+  }
+}
+
 /** Once the owner decides, go straight back to the board (the tile is now under Resolved). Stay on error. */
 async function decide(id: string, approve: boolean, body?: string) {
   await store.decide(id, approve, body);
@@ -115,10 +163,10 @@ async function decide(id: string, approve: boolean, body?: string) {
 
   <template v-else-if="items.length">
     <BaseCard :aria-label="t('Summary')">
-      <div class="grid gap-4 sm:grid-cols-3">
+      <!-- "Saved by Avida" is not repeated here: it lives in the navigation (sidebar card) on every page -->
+      <div class="grid gap-4 sm:grid-cols-2">
         <StatTile icon="approval" tone="warn" :label="t('Waiting for you')" :value="String(pendingCount)" />
         <StatTile icon="decisions" tone="info" :label="t('Already approved')" :value="String(approvedCount)" />
-        <StatTile icon="piggyBank" tone="positive" :label="t('Saved by Avida (12 months)')" :value="eur(kpis?.saved_liquidity ?? 0)" />
       </div>
     </BaseCard>
 
@@ -132,11 +180,27 @@ async function decide(id: string, approve: boolean, body?: string) {
         :busy="!!focused.action && deciding.has(focused.action.id)"
         :position="position"
         :total="order.length"
+        :rewriting="rewriteState.busy"
+        :rewrite-error="rewriteState.error"
+        :rewritten="rewriteState.result"
         @back="back"
         @prev="step(-1)"
         @next="step(1)"
         @decide="decide"
-      />
+        @rewrite="rewrite"
+      >
+        <template #ask>
+          <AskContext
+            :key="focused.key"
+            :suggestions="askSuggestions"
+            :turns="askTurns"
+            :asking="ask.asking"
+            @pick="askPick"
+            @ask="askTyped"
+            @clear="ask.clear(focused.key)"
+          />
+        </template>
+      </DecisionFocus>
 
       <!--
         board: two equal columns. On lg each column is a subgrid over 3 shared rows (header / Pending / Resolved),
@@ -158,7 +222,10 @@ async function decide(id: string, approve: boolean, body?: string) {
             <h3>
               <button
                 type="button"
-                class="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-input/60"
+                :class="[
+                  'group/part flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors duration-fast hover:bg-input/60',
+                  part.key === 'resolved' ? 'text-muted hover:text-fg' : '',
+                ]"
                 :aria-expanded="partOpen[col.key][part.key]"
                 :aria-controls="`part-${col.key}-${part.key}`"
                 @click="partOpen[col.key][part.key] = !partOpen[col.key][part.key]"
@@ -168,7 +235,7 @@ async function decide(id: string, approve: boolean, body?: string) {
                   :size="18"
                   :class="part.key === 'pending' ? 'text-warn' : 'text-muted'"
                 />
-                <span class="eyebrow !text-fg">{{ t(part.title) }}</span>
+                <span :class="['eyebrow', part.key === 'resolved' ? '!text-muted group-hover/part:!text-fg' : '!text-fg']">{{ t(part.title) }}</span>
                 <span
                   :class="[
                     'min-w-[1.75rem] rounded-md px-2 py-0.5 text-center text-caption font-semibold leading-tight transition-colors duration-base',
@@ -215,17 +282,6 @@ async function decide(id: string, approve: boolean, body?: string) {
   >
     <BaseButton :to="{ name: 'dashboard' }" variant="secondary" icon="arrowRight">{{ t("Go to overview") }}</BaseButton>
   </EmptyState>
-
-  <!-- "Ask your CFO": below the board / focus view / empty state, once the content above is final (#ask target) -->
-  <BaseCard v-if="dashboard || !loading" id="ask" :padded="false" aria-labelledby="ask-title">
-    <div class="grid gap-5 p-4 sm:p-5">
-      <header class="grid gap-0.5">
-        <h2 id="ask-title" class="text-lg font-semibold">{{ t("Ask your CFO") }}</h2>
-        <p class="text-label text-muted">{{ t("Not sure about a decision? Ask in your own words.") }}</p>
-      </header>
-      <AskChat />
-    </div>
-  </BaseCard>
 </template>
 
 <style scoped>
