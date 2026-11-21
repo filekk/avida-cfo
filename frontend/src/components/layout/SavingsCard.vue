@@ -14,9 +14,9 @@ import { eur, fmtDayMonth } from "@/utils/format";
 import { prefersReducedMotion } from "@/utils/motion";
 
 /**
- * Sidebar "Saved by Avida" card (on navy). ONE period for everything in it: the next 30 days, whatever period the
+ * Sidebar "Saved by Avida" card (on navy). ONE period for everything in it: the next 90 days, whatever period the
  * big chart shows – the amount, its label, the note ("Starts 5 Jan"), the waiting link and the mini chart.
- * Mini chart = the overview forecast chart cut to those 30 days:
+ * Mini chart = the overview forecast chart over those 90 days:
  *   mint line + faint area = your money if you follow Avida (the big chart's main line)
  *   coral dashed line      = if you accept every price increase (appears after the inbox check, like on the big chart)
  * Calm by design: nothing blinks or pops in – after a check the line glides to its new shape; the hover dot glides
@@ -25,11 +25,16 @@ import { prefersReducedMotion } from "@/utils/motion";
 const store = useDashboardStore();
 const { dashboard } = storeToRefs(store);
 
-/** The card's one period: the next 30 days (= "Month" on the overview chart). */
-const N = 30;
+/**
+ * The card's one period: the next 90 days (= the whole forecast, "3 months" on the overview chart). Not 30: the first
+ * saving usually starts weeks ahead (e.g. a price increase from 1 Jan), so a 30-day card stayed at 0 € right after
+ * the owner approved – the demo's "Saved by Avida goes up" moment was invisible in the sidebar. 90 days matches the
+ * overview's KPI card, so both show the same amount.
+ */
+const N = 90;
 
-// --- "Saved by Avida" for these 30 days + what to say about it (same period, never a yearly figure) --------------
-const month = computed(() => (dashboard.value ? savingsForPeriod(dashboard.value, N) : { saved: 0, waiting: 0 }));
+// --- "Saved by Avida" for these 90 days + what to say about it (same period, never a yearly figure) --------------
+const period = computed(() => (dashboard.value ? savingsForPeriod(dashboard.value, N) : { saved: 0, waiting: 0 }));
 const status = computed<SavingsStatus>(() => (dashboard.value ? savingsStatus(dashboard.value, N) : { kind: "unchecked" }));
 const startsOn = (from: string | null) => (from ? t("Savings start on {date}", { date: fmtDayMonth(from) }) : t("Savings start later"));
 const note = computed(() => {
@@ -46,7 +51,7 @@ const waitingText = computed(() => {
   return s.from ? t("Waiting for your OK · starts {date}", { date: fmtDayMonth(s.from) }) : t("Waiting for your OK");
 });
 
-// --- data: the first 30 days of the same forecast the overview chart draws -------------------------------
+// --- data: the first 90 days of the same forecast the overview chart draws -------------------------------
 const mainF = computed(() => dashboard.value?.scenarios.recommended ?? dashboard.value?.scenarios.current ?? null);
 const riskF = computed(() => dashboard.value?.scenarios.if_accepted ?? null);
 const dateAt = (k: number) => mainF.value?.series[k]?.date ?? null;
@@ -102,7 +107,7 @@ const mainPath = computed(() => pathOf(shown.value.main));
 const mainArea = computed(() => `${mainPath.value}L${sx(N - 1)},${H - PAD.bottom}L${sx(0)},${H - PAD.bottom}Z`);
 const riskPath = computed(() => pathOf(shown.value.risk));
 
-// --- hover / tap: a day of the month (default: the last one) ------------------------------------------------
+// --- hover / tap: a day of the period (default: the last one) ------------------------------------------------
 const svgEl = ref<SVGSVGElement | null>(null);
 const hover = ref<number | null>(null);
 const focusK = computed(() => hover.value ?? N - 1);
@@ -126,7 +131,7 @@ const summary = computed(() =>
 
 <template>
   <div class="grid gap-3 rounded-xl border border-white/10 bg-white/5 p-3.5">
-    <!-- ONE period for the whole card: the next 30 days (amount, its label, the note, the link and the chart) -->
+    <!-- ONE period for the whole card: the next 90 days (amount, its label, the note, the link and the chart) -->
     <div class="flex items-center gap-3">
       <!-- on-navy tile (IconTile tones are for light surfaces): same 40px sm size -->
       <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-mint/15 text-mint" aria-hidden="true">
@@ -139,14 +144,14 @@ const summary = computed(() =>
     </div>
 
     <div class="grid gap-1">
-      <AnimatedNumber :value="month.saved" class="font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-mint" />
+      <AnimatedNumber :value="period.saved" class="font-display text-2xl font-semibold leading-none tracking-tight tabular-nums text-mint" />
       <!-- why the amount is what it is (only when it needs explaining) -->
       <CollapseTransition>
         <span v-if="note" class="block pt-1 text-caption text-white/75">{{ note }}</span>
       </CollapseTransition>
     </div>
 
-    <!-- mini forecast: the overview chart, cut to the same 30 days -->
+    <!-- mini forecast: the overview chart over the same 90 days -->
     <div class="grid gap-1">
       <span class="text-caption text-white/75">{{ t("Your money") }}</span>
       <svg
