@@ -22,6 +22,14 @@ export const eurCents = (n: number | null | undefined) => (n == null ? "–" : m
 /** 1470 → "+1.470 €" (sign always shown) */
 export const eurSigned = (n: number) => (n > 0 ? "+" : "") + minus(eurFmt.format(n));
 export const num = (n: number) => minus(numFmt.format(n));
+/** 1385 → "1,4 KB" · 2_400_000 → "2,3 MB" (1 KB = 1024 bytes; de-DE decimal comma like all numbers) */
+export const fmtBytes = (n: number | null | undefined) => {
+  if (n == null) return "–";
+  if (n < 1024) return `${numFmt.format(n)} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${pctFmt.format(kb)} KB`;
+  return `${pctFmt.format(kb / 1024)} MB`;
+};
 /** 15 → "+15 %" */
 export const pct = (n: number, signed = true) => `${signed && n > 0 ? "+" : ""}${minus(pctFmt.format(n))} %`;
 
