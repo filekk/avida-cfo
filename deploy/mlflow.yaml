@@ -42,6 +42,9 @@ spec:
             # the app calls http://mlflow.avida-cfo.svc.cluster.local:5000 and the browser uses the Route host,
             # neither is "localhost" – MLflow 3 rejects unknown Host headers unless they are allowed here
             - --allowed-hosts=*
+            # the UI in the browser sends POST requests (e.g. runs/search) from the Route origin – MLflow 3 blocks
+            # cross-origin POSTs unless the origin is listed here (otherwise "Evaluation runs" stays empty)
+            - --cors-allowed-origins=https://*.opentlc.com
           env:
             - { name: HOME, value: /mlflow }   # OpenShift runs with a random UID – give it a writable home
           workingDir: /mlflow
