@@ -270,6 +270,8 @@ interface ActionBase {
   execution: "simulated";
   status: ActionStatus;
   savings_12m: number;
+  /** dated savings inside the forecast horizon (EUR > 0); approved ones add up to "Saved by Avida" per period */
+  savings_events?: { date: IsoDate; amount: number }[];
   source?: AnswerSource;
   result?: string; // after approve
   finding_id?: string;

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import AsyncIterator, Awaitable, Callable
 
 from . import data, decision, texts, tracing
@@ -350,6 +350,8 @@ def _email_action(f: dict, n: dict) -> dict:
         partner=f["extraction"]["party"],
         **en,
         savings_12m=f["impact"]["next_12_months"] if f["task"] == "reject_price" else 0.0,
+        # dated savings inside the 90 days (the UI's "Saved by Avida, next 90 days"); replies can add more later
+        savings_events=analyst.price_saving_events(f["extraction"]) if f["task"] == "reject_price" else [],
         payload={"to": f["email"]["from"], "body": n["body"]},
         review={"approved": n["review"]["approved"], "issues": n["review"]["issues"], "rounds": n["rounds"]},
         source=n["source"],
@@ -451,11 +453,24 @@ def after_approval(action: dict) -> None:
               effect=reply["effect"], simulated=True)
 
     ex = f["extraction"]
+    events: list[dict] = []
     if reply["effect"] == "pays_on_time" and f["kind"] == "payment_delay" and ex["figures_stated"]:
         this = analyst.to_delay(ex)
         plan["delays"] = [x for x in plan["delays"] if x != this]
         f["confirmed_on_time"] = True
+        credit_before = plan.get("credit")
         _replan(d, plan, party=ex["party"])
+        # the overdraft the plan needed is no longer needed → its interest is saved (only if it really went away)
+        if credit_before and plan.get("credit") is None:
+            events = [{"date": credit_before["from"], "amount": credit_before["max_interest_cost"]}]
+    elif reply["effect"] == "price_kept_after_asking":
+        events = analyst.saving_events(reply["monthly_saved"], date.fromisoformat(reply["from_date"]), reply["pay_day"])
+        action["savings_12m"] = round(reply["monthly_saved"] * 12, 2)
+    if events:
+        action["savings_events"] = events
+        if reply["effect"] == "pays_on_time":
+            action["savings_12m"] = round(sum(e["amount"] for e in events), 2)  # one-off
+        store.saved_liquidity += action["savings_12m"]
 
 
 def _replan(d: dict, plan: dict, party: str) -> None:
@@ -465,7 +480,7 @@ def _replan(d: dict, plan: dict, party: str) -> None:
     accepted = [analyst.to_adjustment(f["extraction"]) for f in d["findings"]
                 if f["kind"] == "price_change" and f["extraction"]["figures_stated"]]
     sc["if_accepted"] = analyst.forecast(accepted, plan["delays"])
-    credit = analyst.credit_proposal(rec)
+    credit = plan["credit"] = analyst.credit_proposal(rec)
     d["kpis"] = _kpis(rec)
     d["headline"] = analyst.headline(rec, "en")
     d.setdefault("i18n", {}).setdefault("de", {})["headline"] = analyst.headline(rec, "de")

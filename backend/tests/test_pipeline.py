@@ -204,3 +204,25 @@ def test_demo_arc_red_after_sync_green_after_decisions():
     events = [e["event"] for e in client.get("/api/audit").json()]
     assert events.count("reply_received") == 2 and "plan_updated" in events
     client.post("/api/reset")
+
+
+def test_saved_by_avida_grows_with_every_approval():
+    """Each approved email adds its own dated savings inside the 90 days (not only the forecast-changing one)."""
+    client.post("/api/reset")
+    with client.stream("GET", "/api/sync") as r:
+        "".join(r.iter_text())
+    d = client.get("/api/dashboard").json()
+    ids = {a["partner"]: a["id"] for a in d["actions"] if a["type"] == "send_email"}
+    in90 = lambda a: round(sum(e["amount"] for e in a.get("savings_events") or []), 2)  # noqa: E731
+
+    totals, last = [], 0.0
+    for party in ("CloudHost GmbH", "Bauer Maschinenbau AG", "IT-Service Kraus e.K."):
+        r = client.post(f"/api/actions/{ids[party]}/approve").json()
+        assert r["saved_liquidity"] > last
+        last = r["saved_liquidity"]
+        totals.append(in90(r["action"]))
+    assert totals == [2940.0, 54.66, 260.0]
+    assert last == 17640 + 54.66 + 1560
+    kraus = next(a for a in client.get("/api/dashboard").json()["actions"] if a["id"] == ids["IT-Service Kraus e.K."])
+    assert "1,300 EUR" in kraus["result"] and kraus["reply"]["simulated"]
+    client.post("/api/reset")

@@ -4,8 +4,11 @@ import type { Action, Dashboard, Scenarios } from "@/types/api";
  * "Saved by Avida" maths for the overview (KPI card, sidebar chart, the loss strip under the forecast).
  * The UI never invents money: everything comes from the backend's deterministic numbers –
  *   - `savings_12m` per action and `kpis.saved_liquidity` (12-month figures, the official total),
+ *   - `savings_events` per action: dated savings inside the forecast horizon (a rejected increase each month, a price
+ *     kept after asking, overdraft interest no longer needed). Each approval adds its own → the 90-day amount grows
+ *     with every OK, not only with the decision that changes the forecast lines,
  *   - the two forecast scenarios: `recommended` (follow Avida) vs `if_accepted` (accept every price increase =
- *     "without Avida"). Their gap on a given day = money Avida keeps for you up to that day.
+ *     "without Avida"). Their gap on a given day = money Avida keeps for you up to that day (fallback without events).
  */
 
 /** Money-saving actions (an overdraft or a reminder saves nothing directly). */
@@ -47,6 +50,13 @@ export function savingsStatus(d: Dashboard, days: number): SavingsStatus {
 }
 
 /** First day on which following Avida makes a difference (ISO) – "savings start on 5 Jan". null = never. */
+/** ISO date `days` after `iso` (UTC, no time zone drift). */
+function addDays(iso: string, days: number): string {
+  const t = new Date(`${iso}T00:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + days);
+  return t.toISOString().slice(0, 10);
+}
+
 export function firstSavingDate(s: Scenarios): string | null {
   const series = s.recommended?.series ?? [];
   const i = series.findIndex((_, k) => gapAt(s, k) > 0.5);
@@ -64,6 +74,12 @@ export function savingsForPeriod(d: Dashboard, days: number): { saved: number; w
   const waiting12 = pendingSavings12m(d.actions);
   const potential = sum(moneyActions(d.actions));
   if (days >= 365 || potential <= 0) return { saved: saved12, waiting: waiting12 };
+  if (d.actions.some((a) => a.savings_events?.length)) {
+    const end = addDays(d.today, days);
+    const within = (a: Action) => (a.savings_events ?? []).filter((e) => e.date < end).reduce((s, e) => s + e.amount, 0);
+    const of = (status: Action["status"]) => d.actions.filter((a) => a.status === status).reduce((s, a) => s + within(a), 0);
+    return { saved: of("executed"), waiting: of("pending") };
+  }
   const gap = gapAt(d.scenarios, days - 1);
   return { saved: (gap * saved12) / potential, waiting: (gap * waiting12) / potential };
 }
