@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-from . import data, extraction
+from . import data, extraction, tracing
 from .config import settings
 from .llm import llm
 from .state import store
@@ -152,6 +152,7 @@ def _next_id() -> str:
     return f"U-{n:03d}"
 
 
+@tracing.traced("contract_upload", tracing.CHAIN, skip=("content",))
 async def upload(filename: str, content: bytes) -> dict:
     if not content:
         raise ExtractionError("The file is empty.")

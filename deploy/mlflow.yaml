@@ -1,0 +1,87 @@
+# MLflow tracking server for tracing + evaluating the agents (namespace avida-cfo, next to the app).
+#   oc apply -n avida-cfo -f deploy/mlflow.yaml
+#   oc rollout status -n avida-cfo deploy/mlflow
+#   oc get route -n avida-cfo mlflow -o jsonpath='{.spec.host}'   → open https://<host> in the browser
+# Storage: SQLite + artifacts on a 2 GiB volume (survives pod restarts). Demo data only – no login on the UI.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-data
+  labels: { app: mlflow }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 2Gi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  labels: { app: mlflow }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }   # SQLite on a RWO volume: never two pods at once
+  selector:
+    matchLabels: { app: mlflow }
+  template:
+    metadata:
+      labels: { app: mlflow }
+    spec:
+      containers:
+        - name: mlflow
+          # same version as mlflow-tracing in backend/requirements.txt
+          image: ghcr.io/mlflow/mlflow:v3.17.2
+          command: ["mlflow", "server"]
+          args:
+            - --host=0.0.0.0
+            - --port=5000
+            - --workers=1
+            - --backend-store-uri=sqlite:////mlflow/mlflow.db
+            - --artifacts-destination=/mlflow/artifacts
+            - --serve-artifacts
+            # the app calls http://mlflow.avida-cfo.svc.cluster.local:5000 and the browser uses the Route host,
+            # neither is "localhost" – MLflow 3 rejects unknown Host headers unless they are allowed here
+            - --allowed-hosts=*
+            # the UI in the browser sends POST requests (e.g. runs/search) from the Route origin – MLflow 3 blocks
+            # cross-origin POSTs unless the origin is listed here (otherwise "Evaluation runs" stays empty)
+            - --cors-allowed-origins=https://*.opentlc.com
+          env:
+            - { name: HOME, value: /mlflow }   # OpenShift runs with a random UID – give it a writable home
+          workingDir: /mlflow
+          ports: [{ containerPort: 5000 }]
+          volumeMounts: [{ name: data, mountPath: /mlflow }]
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests: { cpu: 200m, memory: 1Gi }
+            limits: { cpu: "2", memory: 3Gi }   # MLflow 3 server + job runner needs > 1 GiB
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: mlflow-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+  labels: { app: mlflow }
+spec:
+  selector: { app: mlflow }
+  ports: [{ name: http, port: 5000, targetPort: 5000 }]
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mlflow
+  labels: { app: mlflow }
+spec:
+  to: { kind: Service, name: mlflow }
+  port: { targetPort: http }
+  tls: { termination: edge, insecureEdgeTerminationPolicy: Redirect }

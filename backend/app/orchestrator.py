@@ -25,7 +25,7 @@ import time
 from datetime import datetime, timezone
 from typing import AsyncIterator, Awaitable, Callable
 
-from . import data, decision, texts
+from . import data, decision, texts, tracing
 from .agents import analyst, legal, negotiator
 from .config import settings
 from .state import ANALYZED, APPROVAL, RECOMMENDATION, store
@@ -229,6 +229,16 @@ def _briefing_line(summary: str, lang: str) -> str:
 # --- one negotiation (runs concurrently with the others) ---------------------------
 
 async def _negotiate(f: dict, emit: Callable[[dict], Awaitable[None]], lang: str) -> dict:
+    with tracing.span(f"negotiation · {f['extraction']['party']}", tracing.CHAIN,
+                      inputs={"task": f["task"], "finding_id": f["id"]}) as s:
+        n = await _negotiate_steps(f, emit, lang)
+        s.outputs({"approved": n["review"]["approved"], "rounds": n["rounds"], "source": n["source"],
+                   "issues": n["review"]["issues"]})
+        s.attrs({"avida.review_rounds": n["rounds"], "avida.approved": n["review"]["approved"]})
+        return n
+
+
+async def _negotiate_steps(f: dict, emit: Callable[[dict], Awaitable[None]], lang: str) -> dict:
     task, ex, res, imp = f["task"], f["extraction"], f["contract"], f["impact"]
     name = ex["party"]
     de = lang == "de"
@@ -378,20 +388,42 @@ async def run_pipeline(lang: str = "en") -> AsyncIterator[dict]:
     started = time.perf_counter()
     seq, phase = 0, None
     try:
-        async for ev in _pipeline(background, lang):
-            if ev["type"] in ("trace", "phase"):
-                seq += 1
-                if ev["type"] == "phase" and ev["status"] == "start":
-                    phase = ev["phase"]
-                ev = {"id": seq, "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-                      "elapsed_ms": int((time.perf_counter() - started) * 1000), "phase": phase, **ev}
-                store.trace.append(ev)
-            yield ev
+        # One MLflow trace per sync (no-op when tracing is off); agent and LLM spans nest under it.
+        with tracing.span("sync_inbox", tracing.CHAIN,
+                          inputs={"today": settings.today().isoformat(), "lang": lang}) as root:
+            sources: dict[str, int] = {}
+            async for ev in _pipeline(background, lang):
+                if ev.get("source"):
+                    sources[ev["source"]] = sources.get(ev["source"], 0) + 1
+                if ev["type"] in ("trace", "phase"):
+                    seq += 1
+                    if ev["type"] == "phase" and ev["status"] == "start":
+                        phase = ev["phase"]
+                    ev = {"id": seq, "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+                          "elapsed_ms": int((time.perf_counter() - started) * 1000), "phase": phase, **ev}
+                    store.trace.append(ev)
+                if ev["type"] == "result":
+                    root.outputs(_trace_summary(ev["dashboard"], sources))
+                    tracing.tag_trace(app="avida-cfo", flow="sync", lang=lang,
+                                      fallback_used=str(sources.get("fallback", 0) > 0).lower())
+                yield ev
     finally:
         # Client disconnected or error: don't leave LLM calls running in the background.
         for t in background:
             t.cancel()
         _running = False
+
+
+def _trace_summary(dash: dict, sources: dict) -> dict:
+    """Compact result for the MLflow trace: what the agents decided, not the whole dashboard."""
+    return {
+        "findings": {f["extraction"]["party"]: {"kind": f["kind"], "verdict": f["contract"]["verdict"],
+                                                "recommendation": f.get("recommendation")} for f in dash["findings"]},
+        "actions": [a["title"] for a in dash["actions"]],
+        "min_balance": dash["kpis"]["min_balance"],
+        "risk_level": (dash.get("analysis") or {}).get("risk_level"),
+        "trace_sources": sources,
+    }
 
 
 async def _pipeline(background: list[asyncio.Task], lang: str) -> AsyncIterator[dict]:
