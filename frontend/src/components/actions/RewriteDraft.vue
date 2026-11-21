@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, ref, useId, watch, watchEffect } from "vue";
+import { computed, nextTick, ref, useId, watch, watchEffect } from "vue";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
 import { usePopover } from "@/composables/usePopover";
 import { t } from "@/i18n";
+import type { RewriteHint } from "./decision";
 
 /**
  * "AV Rewrite": the owner tells the AI in a few words how the draft should change ("be firmer", "mention the
@@ -13,12 +14,22 @@ import { t } from "@/i18n";
  * Same open/close behaviour as the top-bar pop-ups (usePopover): click to open, Escape / click outside closes.
  * Narrow screens: the trigger is full width and the panel opens under it at the same width.
  */
-const props = defineProps<{ busy?: boolean; error?: string | null; disabled?: boolean }>();
+const props = defineProps<{
+  busy?: boolean;
+  error?: string | null;
+  disabled?: boolean;
+  /** chips from the backend (GET /redraft/hints): label shown, instruction sent unchanged */
+  hints?: RewriteHint[] | null;
+  placeholder?: string | null;
+}>();
 const emit = defineEmits<{ submit: [instruction: string] }>();
 
-const MAX = 200;
-/** Quick wishes – English source, translated where shown and sent in the UI language. */
+const MAX = 300;
+/** Own quick wishes when the backend has no hints – English source, translated where shown and sent. */
 const QUICK = ["Be firmer", "Be friendlier", "Make it shorter", "Mention a 2 % discount for paying early"];
+const chips = computed<RewriteHint[]>(() =>
+  props.hints?.length ? props.hints : QUICK.map((q) => ({ label: t(q), instruction: t(q) })),
+);
 
 const { open, root, trigger, close, onTriggerClick, onFocusOut } = usePopover({
   onKeyboardOpen: () => nextTick(() => field.value?.focus()),
@@ -89,14 +100,14 @@ watch(open, (o) => o && nextTick(() => field.value?.focus()));
         </div>
 
         <ul class="flex flex-wrap gap-2" :aria-label="t('Quick wishes')">
-          <li v-for="q in QUICK" :key="q">
+          <li v-for="c in chips" :key="c.instruction">
             <button
               type="button"
               :disabled="busy"
               class="min-h-9 rounded-lg border border-line bg-surface px-3 py-1 text-left text-label font-medium hover:border-fg/40 hover:bg-input/60 disabled:opacity-60"
-              @click="submit(t(q))"
+              @click="submit(c.instruction)"
             >
-              {{ t(q) }}
+              {{ c.label }}
             </button>
           </li>
         </ul>
@@ -112,7 +123,7 @@ watch(open, (o) => o && nextTick(() => field.value?.focus()));
               :maxlength="MAX"
               autocomplete="off"
               enterkeyhint="send"
-              :placeholder="t('e.g. be firmer, mention the discount')"
+              :placeholder="placeholder || t('e.g. be firmer, mention the discount')"
               class="min-h-[2.75rem] w-full min-w-0 flex-1 rounded-lg border border-line bg-input px-3 text-fg placeholder:text-muted focus:border-fg/40"
             />
             <BaseButton type="submit" icon="sparkles" :loading="busy" :disabled="!wish.trim()" class="shrink-0">

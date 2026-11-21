@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import DecisionFocus from "@/components/actions/DecisionFocus.vue";
@@ -10,10 +10,12 @@ import {
   isOpenItem,
   type DecisionCategory,
   type DecisionItem,
+  type DraftCheck,
+  type RewriteHint,
   type RewrittenDraft,
 } from "@/components/actions/decision";
 import AskContext from "@/components/ask/AskContext.vue";
-import { contextSubject, contextualSuggestions } from "@/components/ask/contextual";
+import { contextualSuggestions } from "@/components/ask/contextual";
 import AlertBanner from "@/components/ui/AlertBanner.vue";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import BaseButton from "@/components/ui/BaseButton.vue";
@@ -23,7 +25,7 @@ import PageHeader from "@/components/ui/PageHeader.vue";
 import SkeletonBlock from "@/components/ui/SkeletonBlock.vue";
 import StatTile from "@/components/ui/StatTile.vue";
 import { t } from "@/i18n";
-import { useAskStore } from "@/stores/ask";
+import { useAskStore, type ProblemRef } from "@/stores/ask";
 import { useDashboardStore } from "@/stores/dashboard";
 
 /**
@@ -109,41 +111,96 @@ const step = (d: number) => {
 
 // --- contextual "Ask your CFO" (focus view) -------------------------------------------------------
 const ask = useAskStore();
-const askSuggestions = computed(() => (focused.value ? contextualSuggestions(focused.value, ask.suggestions) : []));
+/** The problem on the backend: the action, or – for findings with nothing to approve – the finding. */
+const problemRef = (item: DecisionItem): ProblemRef =>
+  item.action ? { action_id: item.action.id } : item.finding ? { finding_id: item.finding.id } : {};
+/** Chips from GET /context for this problem; until they arrive (or if they fail) our own case questions. */
+const askSuggestions = computed(() => {
+  const f = focused.value;
+  if (!f) return [];
+  return ask.contextSuggestions[f.key] ?? contextualSuggestions(f, ask.suggestions);
+});
 const askTurns = computed(() => ask.turns.filter((x) => x.context === focused.value?.key));
 onMounted(() => {
   if (!ask.suggestions.length && !ask.loadingSuggestions) ask.loadSuggestions();
 });
-/** Chip → unchanged (the backend may know it). Typed → with the case as subject, so "is this fair?" works. */
-const askPick = (q: string) => focused.value && ask.ask(q, { context: focused.value.key });
-const askTyped = (q: string) =>
-  focused.value && ask.ask(q, { context: focused.value.key, subject: contextSubject(focused.value) });
+/** Chip → sent unchanged (instant prepared answer). Typed → the model, with the problem and the turns so far. */
+const askAbout = (q: string) => focused.value && ask.ask(q, { context: focused.value.key, ...problemRef(focused.value) });
 
-// --- AV Rewrite (focus view) ---------------------------------------------------------------------
-/** One decision is in focus at a time → one rewrite state, cleared when the focus changes. */
-const rewriteState = reactive<{ busy: boolean; error: string | null; result: RewrittenDraft | null }>({
-  busy: false,
-  error: null,
-  result: null,
-});
+// --- AV Rewrite + checking the draft (focus view) ------------------------------------------------
+/** One decision is in focus at a time → one state, reset when the focus changes. */
+const rewriteState = reactive<{
+  busy: boolean;
+  error: string | null;
+  result: RewrittenDraft | null;
+  hints: RewriteHint[] | null;
+  placeholder: string | null;
+  check: DraftCheck | null;
+}>({ busy: false, error: null, result: null, hints: null, placeholder: null, check: null });
 let rewriteRun = 0;
-watch(focusKey, () => {
-  rewriteRun++; // a late answer for the previous decision is ignored
-  Object.assign(rewriteState, { busy: false, error: null, result: null });
-});
+let reviewTimer: ReturnType<typeof setTimeout> | undefined;
+let reviewAbort: AbortController | null = null;
+
+watch(
+  [focusKey, () => focused.value?.action?.status],
+  async ([key]) => {
+    rewriteRun++; // a late answer for the previous decision is ignored
+    clearTimeout(reviewTimer);
+    reviewAbort?.abort();
+    Object.assign(rewriteState, { busy: false, error: null, result: null, hints: null, placeholder: null, check: null });
+    const item = focused.value;
+    if (!key || !item) return;
+    // chips for "Ask your CFO" (once per problem and language)
+    if (!ask.contextSuggestions[item.key]) ask.loadContext(item.key, problemRef(item));
+    // chips for AV Rewrite (only drafts that still wait for the owner)
+    const a = item.action;
+    if (a?.type === "send_email" && a.status === "pending") {
+      const run = rewriteRun;
+      const h = await store.redraftHints(a.id);
+      if (h && run === rewriteRun) Object.assign(rewriteState, { hints: h.hints, placeholder: h.placeholder });
+    }
+  },
+  { immediate: true },
+);
+
 async function rewrite(id: string, body: string, instruction: string) {
   const run = ++rewriteRun;
+  clearTimeout(reviewTimer);
   Object.assign(rewriteState, { busy: true, error: null });
   try {
-    const r = await store.rewrite(id, body, instruction);
+    const r = await store.redraft(id, body, instruction);
     if (run !== rewriteRun) return;
-    rewriteState.result = { body: r.body, source: r.source, n: (rewriteState.result?.n ?? 0) + 1 };
+    rewriteState.result = {
+      body: r.body,
+      source: r.source,
+      n: (rewriteState.result?.n ?? 0) + 1,
+      attempt: r.attempt,
+      changed: r.changed,
+      note: r.note,
+    };
+    if (r.changed) rewriteState.check = { ...r.review, origin: "rewrite" };
   } catch (e) {
     if (run === rewriteRun) rewriteState.error = e instanceof Error ? e.message : t("Something went wrong.");
   } finally {
     if (run === rewriteRun) rewriteState.busy = false;
   }
 }
+
+/** Owner edits the draft → instant rule check (POST /review), 600 ms after the last key press. */
+function onEdit(id: string, body: string) {
+  clearTimeout(reviewTimer);
+  reviewTimer = setTimeout(async () => {
+    reviewAbort?.abort();
+    reviewAbort = new AbortController();
+    const key = focusKey.value;
+    const r = await store.review(id, body, reviewAbort.signal);
+    if (r && key === focusKey.value) rewriteState.check = { approved: r.approved, issues: r.issues, origin: "typing" };
+  }, 600);
+}
+onBeforeUnmount(() => {
+  clearTimeout(reviewTimer);
+  reviewAbort?.abort();
+});
 
 /** Once the owner decides, go straight back to the board (the tile is now under Resolved). Stay on error. */
 async function decide(id: string, approve: boolean, body?: string) {
@@ -183,11 +240,15 @@ async function decide(id: string, approve: boolean, body?: string) {
         :rewriting="rewriteState.busy"
         :rewrite-error="rewriteState.error"
         :rewritten="rewriteState.result"
+        :rewrite-hints="rewriteState.hints"
+        :rewrite-placeholder="rewriteState.placeholder"
+        :check="rewriteState.check"
         @back="back"
         @prev="step(-1)"
         @next="step(1)"
         @decide="decide"
         @rewrite="rewrite"
+        @edit="onEdit"
       >
         <template #ask>
           <AskContext
@@ -195,8 +256,8 @@ async function decide(id: string, approve: boolean, body?: string) {
             :suggestions="askSuggestions"
             :turns="askTurns"
             :asking="ask.asking"
-            @pick="askPick"
-            @ask="askTyped"
+            @pick="askAbout"
+            @ask="askAbout"
             @clear="ask.clear(focused.key)"
           />
         </template>

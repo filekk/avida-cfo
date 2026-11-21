@@ -16,11 +16,30 @@ export interface DecisionItem {
   finding?: Finding;
 }
 
-/** AV Rewrite result handed to ActionCard; `n` changes on every new result so the same text twice still lands. */
+/** AV Rewrite result (POST /redraft) handed to ActionCard; `n` changes on every new result so the same text twice still lands. */
 export interface RewrittenDraft {
   body: string;
   source: AnswerSource;
   n: number;
+  /** "Version 2" */
+  attempt: number;
+  /** false = the model was unavailable, the draft is unchanged – show `note` */
+  changed: boolean;
+  note: string | null;
+}
+
+/** Result of a check of the draft: the Legal Agent's review of a rewrite, or the instant check while typing. */
+export interface DraftCheck {
+  approved: boolean;
+  issues: string[];
+  /** "rewrite" = came with the AV Rewrite proposal · "typing" = POST /review after the owner edited the text */
+  origin: "rewrite" | "typing";
+}
+
+/** A chip in the AV Rewrite pop-up: what it says and what is sent as the instruction. */
+export interface RewriteHint {
+  label: string;
+  instruction: string;
 }
 
 export type DecisionState = "pending" | "review" | "executed" | "rejected" | "no-action";

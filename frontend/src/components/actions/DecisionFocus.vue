@@ -8,7 +8,7 @@ import AppIcon from "@/components/ui/AppIcon.vue";
 import StatusPill from "@/components/ui/StatusPill.vue";
 import { t } from "@/i18n";
 import ActionCard from "./ActionCard.vue";
-import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, type DecisionItem, type RewrittenDraft } from "./decision";
+import { CATEGORY_LABEL, STATUS, categoryOf, decisionState, type DecisionItem, type DraftCheck, type RewriteHint, type RewrittenDraft } from "./decision";
 
 /**
  * Focus view: one decision fills the Action center. Everything about it – the email → contract → verdict flow,
@@ -25,6 +25,9 @@ const props = defineProps<{
   rewriting?: boolean;
   rewriteError?: string | null;
   rewritten?: RewrittenDraft | null;
+  rewriteHints?: RewriteHint[] | null;
+  rewritePlaceholder?: string | null;
+  check?: DraftCheck | null;
 }>();
 const emit = defineEmits<{
   back: [];
@@ -32,6 +35,7 @@ const emit = defineEmits<{
   next: [];
   decide: [id: string, approve: boolean, editedBody?: string];
   rewrite: [id: string, body: string, instruction: string];
+  edit: [id: string, body: string];
 }>();
 
 const a = computed(() => props.item.action);
@@ -106,9 +110,13 @@ const STEP =
         :rewriting="rewriting"
         :rewrite-error="rewriteError"
         :rewritten="rewritten"
+        :rewrite-hints="rewriteHints"
+        :rewrite-placeholder="rewritePlaceholder"
+        :check="check"
         :class="f ? 'border-t border-line pt-5' : ''"
         @decide="(id, approve, body) => emit('decide', id, approve, body)"
         @rewrite="(id, body, instruction) => emit('rewrite', id, body, instruction)"
+        @edit="(id, body) => emit('edit', id, body)"
       />
     </div>
   </section>

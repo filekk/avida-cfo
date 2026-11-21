@@ -1,4 +1,4 @@
-import type { AskAnswer, AskSuggestions, Lang } from "@/types/api";
+import type { AskAnswer, AskRequest, AskSuggestions, Lang } from "@/types/api";
 import { locale } from "@/i18n";
 import { http } from "./http";
 
@@ -17,6 +17,13 @@ const lang = (): Lang => (locale.value === "de" ? "de" : "en");
 /** GET /api/ask/suggestions – clickable questions for the current situation, in the UI language. */
 export const getAskSuggestions = (signal?: AbortSignal) => http.get<AskSuggestions>("/ask/suggestions", signal);
 
-/** POST /api/ask – 422 if the question is empty or longer than 500 characters. */
-export const askCfo = (question: string, signal?: AbortSignal) =>
-  http.post<AskAnswer>("/ask", { question, lang: lang() }, signal);
+/**
+ * POST /api/ask – 422 if the question is empty or longer than 500 characters.
+ * Problem chat: pass `action_id` or `finding_id` (+ the last turns as `history`, oldest first, max 6) – the backend
+ * keeps no chat state. Chips of the problem (`ProblemContext.suggestions`) are answered instantly.
+ */
+export const askCfo = (
+  question: string,
+  ctx: Pick<AskRequest, "action_id" | "finding_id" | "history"> = {},
+  signal?: AbortSignal,
+) => http.post<AskAnswer>("/ask", { question, lang: lang(), ...ctx } satisfies AskRequest, signal);

@@ -4,26 +4,14 @@ import { t } from "@/i18n";
 import type { AskSuggestion } from "@/types/api";
 
 /**
- * "Ask your CFO" inside one decision: questions that fit THIS case.
+ * FALLBACK chips for "Ask your CFO" inside one decision – used until (or if not) the backend's problem chips from
+ * GET /api/{actions|findings}/{id}/context arrive. Questions that fit THIS case.
  *   1. the backend's own suggestions that name this supplier / customer (or the overdraft) – sent unchanged, so the
  *      backend recognises them and answers instantly with a prepared answer (`source: "rules"`)
  *   2. topped up with questions written for the case – these are answered by the model like a typed question
  * Max. 4 chips. Texts are translated here → call at render time (computed).
  */
 export const MAX_CONTEXT_SUGGESTIONS = 4;
-
-/** Short subject the backend gets in front of a TYPED question ("CloudHost GmbH, price change"), so "is this fair?" works. */
-export function contextSubject(item: DecisionItem): string {
-  const { action: a, finding: f } = item;
-  if (f) {
-    const party = describeFinding(f).party;
-    return f.kind === "payment_delay"
-      ? t("{supplier}: late payment", { supplier: party })
-      : t("{supplier}: price change", { supplier: party });
-  }
-  if (a?.type === "credit_application") return t("Overdraft");
-  return a?.title ?? "";
-}
 
 export function contextualSuggestions(item: DecisionItem, backend: AskSuggestion[]): AskSuggestion[] {
   const { action: a, finding: f } = item;

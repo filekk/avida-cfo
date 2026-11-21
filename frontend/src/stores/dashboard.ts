@@ -1,8 +1,18 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { ApiError, approveAction, getDashboard, rejectAction, resetDemo, rewriteDraft, startSync } from "@/api";
-import { locale, t } from "@/i18n";
-import type { Action, Dashboard, RewriteResult, TraceEvent } from "@/types/api";
+import {
+  ApiError,
+  approveAction,
+  getDashboard,
+  getRedraftHints,
+  redraftAction,
+  rejectAction,
+  resetDemo,
+  reviewDraft,
+  startSync,
+} from "@/api";
+import { t } from "@/i18n";
+import type { Action, Dashboard, DraftReview, RedraftHints, RedraftProposal, TraceEvent } from "@/types/api";
 
 const message = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : t("Something went wrong."));
 
@@ -105,17 +115,33 @@ export const useDashboardStore = defineStore("dashboard", () => {
   }
 
   /**
-   * AV Rewrite (PROPOSED endpoint, CONTRACT_PROPOSALS.md §4): returns the rewritten draft for the editor.
-   * Changes nothing on the backend and sends nothing – the owner still has to click "Approve and send".
-   * Throws: the caller (view) shows the error next to the rewrite field; 404/405 = endpoint not there yet.
+   * AV Rewrite = POST /api/actions/{id}/redraft (3–8 s): the Negotiator rewrites, the Legal Agent reviews.
+   * Returns a PROPOSAL for the editor – nothing is stored or sent; the owner still clicks "Approve and send".
+   * Throws: the caller (view) shows the error next to the rewrite field.
    */
-  async function rewrite(id: string, body: string, instruction: string): Promise<RewriteResult> {
+  async function redraft(id: string, body: string, instruction: string): Promise<RedraftProposal> {
     try {
-      return await rewriteDraft(id, { body, instruction: instruction.trim().slice(0, 200), lang: locale.value === "de" ? "de" : "en" });
+      return await redraftAction(id, { body, instruction: instruction.trim().slice(0, 300) || undefined });
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 404 || e.status === 405))
-        throw new Error(t("AV Rewrite is not connected yet. Your draft is unchanged – you can still edit it yourself."));
       throw new Error(message(e));
+    }
+  }
+
+  /** Chips + placeholder for the Rewrite pop-up; null when the backend has none (the UI uses its own). */
+  async function redraftHints(id: string): Promise<RedraftHints | null> {
+    try {
+      return await getRedraftHints(id);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Instant rule check of the edited draft (clause cited, amounts, no placeholder …); null when it failed. */
+  async function review(id: string, body: string, signal?: AbortSignal): Promise<DraftReview | null> {
+    try {
+      return await reviewDraft(id, body, signal);
+    } catch {
+      return null;
     }
   }
 
@@ -128,6 +154,6 @@ export const useDashboardStore = defineStore("dashboard", () => {
     dashboard, loading, error, trace, syncing, syncError, deciding,
     kpis, findings, actions, pendingActions, hasSynced, isSafe,
     findingById, actionById,
-    load, sync, cancelSync, decide, rewrite, reset,
+    load, sync, cancelSync, decide, redraft, redraftHints, review, reset,
   };
 });

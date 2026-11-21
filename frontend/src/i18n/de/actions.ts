@@ -118,7 +118,10 @@ const de: Record<string, string> = {
   Rewrite: "Umschreiben",
   "Rewritten by Avida – please read it before sending.": "Von Avida umgeschrieben – bitte vor dem Senden lesen.",
   Undo: "Rückgängig",
-  "AV Rewrite is not connected yet. Your draft is unchanged – you can still edit it yourself.":
-    "AV Umschreiben ist noch nicht angebunden. Ihr Entwurf ist unverändert – Sie können ihn selbst bearbeiten.",
+  "Version {n}": "Version {n}",
+  "The draft is unchanged.": "Der Entwurf ist unverändert.",
+  "New version checked by the Legal Agent – approved": "Neue Version vom Rechts-Agenten geprüft – freigegeben",
+  "Your text passes the checks": "Ihr Text besteht die Prüfung",
+  "Please check before sending:": "Bitte vor dem Senden prüfen:",
 };
 export default de;
