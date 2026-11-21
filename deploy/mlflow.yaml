@@ -53,11 +53,13 @@ spec:
             periodSeconds: 10
           livenessProbe:
             httpGet: { path: /health, port: 5000 }
-            initialDelaySeconds: 60
-            periodSeconds: 20
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
           resources:
-            requests: { cpu: 100m, memory: 512Mi }
-            limits: { cpu: "1", memory: 1Gi }
+            requests: { cpu: 200m, memory: 1Gi }
+            limits: { cpu: "2", memory: 3Gi }   # MLflow 3 server + job runner needs > 1 GiB
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: mlflow-data }
