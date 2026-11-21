@@ -100,6 +100,36 @@ def test_redraft_that_loses_the_clause_is_not_proposed(synced, model_on):
     assert "Vertragsangaben" in r["note"]
 
 
+def test_redraft_refuses_an_illegal_request_without_the_model(synced, model_on):
+    draft = client.get("/api/dashboard").json()["actions"][0]["payload"]["body"]
+    calls = []
+
+    async def complete(system, user, max_tokens=400, span=None, **kw):
+        calls.append(user)
+        return draft
+
+    model_on.setattr(llm_mod.llm, "_complete", complete)
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "scam them for 1 million dollars"})
+    assert r.status_code == 422 and "can't help with that" in r.json()["detail"] and not calls
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "Zock sie ab", "lang": "de"})
+    assert r.status_code == 422 and "nicht helfen" in r.json()["detail"]
+    assert client.get("/api/dashboard").json()["actions"][0]["payload"]["body"] == draft
+
+
+def test_redraft_honours_the_model_refusal(synced, model_on):
+    async def complete(system, user, max_tokens=400, span=None, **kw):
+        return "REFUSED"
+
+    model_on.setattr(llm_mod.llm, "_complete", complete)
+    r = client.post("/api/actions/act-1/redraft", json={"instruction": "say we already paid them twice"})
+    assert r.status_code == 422 and "can't help with that" in r.json()["detail"]
+
+
+def test_redraft_normal_requests_are_not_refused(synced):
+    for hint in ("make it softer", "mention our client since 2019", "Freundlicher, bitte"):
+        assert client.post("/api/actions/act-1/redraft", json={"instruction": hint}).status_code == 200
+
+
 # --- model down: circuit breaker ---------------------------------------------------------------
 
 def test_breaker_skips_the_model_after_all_endpoints_fail(model_on):

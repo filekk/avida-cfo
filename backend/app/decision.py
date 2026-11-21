@@ -153,6 +153,10 @@ class NotEditable(ValueError):
     pass
 
 
+class UnsafeInstruction(ValueError):
+    """The owner asked the Rewrite button for something illegal or deceptive → 422, the draft stays as it is."""
+
+
 def _context(action_id: str) -> tuple[dict, dict]:
     """The pending email action and the finding it answers."""
     a = store.actions.get(action_id)
@@ -179,8 +183,29 @@ REDRAFT_SYSTEM = (
     "Apply the owner's request, but keep the contract clause (with its number), all amounts, invoice numbers and dates "
     "exactly as in the draft. Never mention the company's own cash flow, liquidity, overdraft or credit. "
     "Keep the language of the draft unless the owner explicitly asks for another language. "
-    "Max 170 words, no placeholders, no markdown. Return only the full email, starting with 'Subject:'."
+    "Max 170 words, no placeholders, no markdown. Return only the full email, starting with 'Subject:'. "
+    "If the owner's request asks for anything illegal, deceptive or unethical (fraud, scams, made-up claims or amounts, "
+    "threats, blackmail, bribery, insults), do not write an email: reply with exactly the word REFUSED."
 )
+
+# Rules screen for the owner's Rewrite request (EN + DE word stems). Runs before the model, so a clear
+# "scam them for 1 million dollars" is refused instantly and never reaches the Negotiator. The model's own
+# REFUSED answer catches the wordings this list misses.
+_UNSAFE_REQUEST = re.compile(
+    r"\b(scam|fraud|defraud|swindl|rip\s*(them|him|her)?\s*off|cheat|trick\s+them|deceiv|mislead|"
+    r"lie|lies|lying|fake|forge|forged|falsif|fabricat|blackmail|extort|bribe|bribery|kickback|launder|steal|"
+    r"intimidat|harass|insult|"
+    r"betrug|betrüg|(ab)?zock|über\s+den\s+tisch|täusch|lüg|gelogen|fälsch|gefälscht|erfind|erpress|bestech|"
+    r"schmiergeld|geldwäsch|stehl|beleidig|einschüchter)",
+    re.I,
+)
+_REFUSED = re.compile(r"^\W*refused\W*$", re.I)
+
+
+def _refusal(lang: str) -> str:
+    return ("Dabei kann die KI nicht helfen: Die Bitte wäre unrechtmäßig oder irreführend. "
+            "Der Entwurf bleibt unverändert." if lang == "de" else
+            "The AI can't help with that: the request would be illegal or misleading. The draft is unchanged.")
 
 
 # Quick hints for the "Rewrite" button (chips next to the hint field). `instruction` goes to the model unchanged.
@@ -244,9 +269,15 @@ async def redraft(action_id: str, instruction: str, body: str | None, lang: str)
     if a["status"] != "pending":
         raise NotEditable("This action has already been decided.")
     instruction = instruction.strip() or DEFAULT_REWRITE
+    if _UNSAFE_REQUEST.search(instruction):
+        store.log("redraft_refused", action=a["id"], instruction=instruction, source="rules")
+        raise UnsafeInstruction(_refusal(lang))
     current = body if body and body.strip() else a["payload"]["body"]
     user = f"OWNER'S REQUEST: {instruction}\n\nCURRENT DRAFT:\n{current}"
     new, source = await llm.text(REDRAFT_SYSTEM, user, current, max_tokens=500)
+    if source == "llm" and _REFUSED.match(new.strip()):
+        store.log("redraft_refused", action=a["id"], instruction=instruction, source="llm")
+        raise UnsafeInstruction(_refusal(lang))
     new = _clean_email(new) if source == "llm" else current
     de = lang == "de"
     note = None
