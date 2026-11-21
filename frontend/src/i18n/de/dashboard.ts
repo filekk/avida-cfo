@@ -12,7 +12,7 @@ const de: Record<string, string> = {
   "Biggest payments ahead": "Größte anstehende Zahlungen",
   "Next {period}": "Nächste {period}",
 
-  // "Saved by Avida": KPI card (chart period) + sidebar card (next 30 days) – every figure in a card = one period
+  // "Saved by Avida": KPI card (chart period) + sidebar card (next 90 days) – every figure in a card = one period
   "next {period}": "nächste {period}",
   "Same period as the chart – change it there": "Gleicher Zeitraum wie im Diagramm – dort ändern",
   "+{amount} if you approve": "+{amount} nach Ihrer Freigabe",
