@@ -19,7 +19,20 @@
 
 </div>
 
----
+##  Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Languages** | Python, TypeScript/JavaScript |
+| **Frontend** | Vue 3, TypeScript, Vite, Pinia, Vue Router, Tailwind CSS |
+| **Backend** | FastAPI, Uvicorn, Pydantic, pypdf, OpenAI-compatible client, Server-Sent Events |
+| **AI & models** | IBM Granite 3.3 8B Instruct (FP8) on vLLM, served through llm-d behind a private inference gateway (a plain vLLM/KServe InferenceService is the alternative setup) |
+| **Agents & orchestration** | Multi-agent pipeline (Analyst → Legal → Negotiator, Legal reviews every draft), Python asyncio orchestrator, JSON-schema guided decoding |
+| **Observability & evaluation** | MLflow (tracing and agent evaluation) |
+| **Platform** | Red Hat OpenShift, Red Hat OpenShift AI, OpenShift Dev Spaces with Continue (OSS AI code assistant), JupyterLab workbench, OpenShift BuildConfig with GitHub webhook |
+| **Data** | Simulated inbox, bank cash flows and contracts (JSON/Markdown); in-memory app state |
+| **Testing & tools** | pytest (109 tests), httpx, Git/GitHub, oc CLI, Docker |
+| **Hardware** | 1x NVIDIA L4 GPU (24 GB), single OpenShift node (32 CPUs, ~121 GB RAM) |
 
 ## The Problem
 
@@ -57,23 +70,6 @@ Implemented and working today on OpenShift:
 |  **Ask your CFO** | Natural-language questions in English or German, answered by the right agent. |
 |  **Contract library** | Upload a PDF, Markdown or text contract and Granite extracts the key terms live; every value is checked against the document. |
 |  **Policy and audit** | An autonomy matrix showing what each agent may do, and a full history of every decision. |
-
----
-
-##  Tech Stack
-
-| Layer | Technologies |
-|---|---|
-| **Languages** | Python, TypeScript/JavaScript |
-| **Frontend** | Vue 3, TypeScript, Vite, Pinia, Vue Router, Tailwind CSS |
-| **Backend** | FastAPI, Uvicorn, Pydantic, pypdf, OpenAI-compatible client, Server-Sent Events |
-| **AI & models** | IBM Granite 3.3 8B Instruct (FP8) on vLLM, served through llm-d behind a private inference gateway (a plain vLLM/KServe InferenceService is the alternative setup) |
-| **Agents & orchestration** | Multi-agent pipeline (Analyst → Legal → Negotiator, Legal reviews every draft), Python asyncio orchestrator, JSON-schema guided decoding |
-| **Observability & evaluation** | MLflow (tracing and agent evaluation) |
-| **Platform** | Red Hat OpenShift, Red Hat OpenShift AI, OpenShift Dev Spaces with Continue (OSS AI code assistant), JupyterLab workbench, OpenShift BuildConfig with GitHub webhook |
-| **Data** | Simulated inbox, bank cash flows and contracts (JSON/Markdown); in-memory app state |
-| **Testing & tools** | pytest (109 tests), httpx, Git/GitHub, oc CLI, Docker |
-| **Hardware** | 1x NVIDIA L4 GPU (24 GB), single OpenShift node (32 CPUs, ~121 GB RAM) |
 
 ---
 
