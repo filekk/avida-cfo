@@ -15,7 +15,7 @@
 
 **Avida** is an AI CFO for small/medium business owners: it reads emails and contracts, spots cash-flow risks early, and suggests ready-to-send solutions, while you make the final call.
 
-[Live App](https://avida-cfo-avida-cfo.apps.ocp.8c6kp.sandbox2571.opentlc.com/) · [Source Code](https://github.com/filekk/avida-cfo)
+[Source Code](https://github.com/filekk/avida-cfo)
 
 </div>
 
@@ -123,6 +123,6 @@ We are most proud of the moment the owner clicks **"Approve and send"** and the 
 
 Built with ☕ & ❤️ at **Collabothon 2026**
 
-[Live App](https://avida-cfo-avida-cfo.apps.ocp.8c6kp.sandbox2571.opentlc.com/) · [Source Code](https://github.com/filekk/avida-cfo)
+[Source Code](https://github.com/filekk/avida-cfo)
 
 </div>
