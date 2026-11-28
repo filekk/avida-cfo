@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+backend/static/
+*.pdf.tmp
+
+# local cluster diagnostics (contain cluster URLs)
+cluster-info.txt
+*.kubeconfig
+kubeconfig
+
+# macOS Finder metadata and duplicates ("file 2.vue")
+.DS_Store
+* 2.*
+* 2/

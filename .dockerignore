@@ -16,3 +16,5 @@ cluster-info.txt
 # local env files (e.g. frontend/.env.local) must never be baked into the Vite bundle
 **/.env
 **/.env.*
+# frozen hackathon snapshot – not part of the image
+avidia_cfo_hackaton

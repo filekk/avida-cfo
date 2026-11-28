@@ -1,0 +1,192 @@
+{
+  "model": "granite-8b",
+  "contracts": 4,
+  "field_accuracy": 1.0,
+  "fields": "26/26",
+  "avg_latency_s": 12.9,
+  "guard_warnings": 0,
+  "rows": [
+    {
+      "party": "CloudHost GmbH",
+      "field": "role",
+      "expected": "supplier",
+      "got": "supplier",
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "start_date",
+      "expected": "2025-09-01",
+      "got": "2025-09-01",
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "monthly_fee",
+      "expected": 9800,
+      "got": 9800.0,
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "fixed_price_until",
+      "expected": "2027-08-31",
+      "got": "2027-08-31",
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "price_change_notice_days",
+      "expected": 90,
+      "got": 90,
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "max_annual_increase_pct",
+      "expected": null,
+      "got": null,
+      "ok": true
+    },
+    {
+      "party": "CloudHost GmbH",
+      "field": "clauses found",
+      "expected": 4,
+      "got": 4,
+      "ok": true
+    },
+    {
+      "party": "Bauer Maschinenbau AG",
+      "field": "role",
+      "expected": "customer",
+      "got": "customer",
+      "ok": true
+    },
+    {
+      "party": "Bauer Maschinenbau AG",
+      "field": "start_date",
+      "expected": "2024-03-01",
+      "got": "2024-03-01",
+      "ok": true
+    },
+    {
+      "party": "Bauer Maschinenbau AG",
+      "field": "payment_terms_days",
+      "expected": 30,
+      "got": 30,
+      "ok": true
+    },
+    {
+      "party": "Bauer Maschinenbau AG",
+      "field": "changes_require_written_agreement",
+      "expected": true,
+      "got": true,
+      "ok": true
+    },
+    {
+      "party": "Bauer Maschinenbau AG",
+      "field": "clauses found",
+      "expected": 3,
+      "got": 3,
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "role",
+      "expected": "supplier",
+      "got": "supplier",
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "start_date",
+      "expected": "2024-01-01",
+      "got": "2024-01-01",
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "monthly_fee",
+      "expected": 1200,
+      "got": 1200.0,
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "fixed_price_until",
+      "expected": null,
+      "got": null,
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "price_change_notice_days",
+      "expected": 30,
+      "got": 30,
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "max_annual_increase_pct",
+      "expected": 5.0,
+      "got": 5.0,
+      "ok": true
+    },
+    {
+      "party": "PaperPro GmbH",
+      "field": "clauses found",
+      "expected": 2,
+      "got": 2,
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "role",
+      "expected": "supplier",
+      "got": "supplier",
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "start_date",
+      "expected": "2025-01-01",
+      "got": "2025-01-01",
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "monthly_fee",
+      "expected": 14000,
+      "got": 14000.0,
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "fixed_price_until",
+      "expected": null,
+      "got": null,
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "price_change_notice_days",
+      "expected": 42,
+      "got": 42,
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "max_annual_increase_pct",
+      "expected": 8.0,
+      "got": 8.0,
+      "ok": true
+    },
+    {
+      "party": "Stahlhandel Nord GmbH",
+      "field": "clauses found",
+      "expected": 2,
+      "got": 2,
+      "ok": true
+    }
+  ]
+}

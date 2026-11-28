@@ -1,0 +1,31 @@
+# oc apply -f deploy/configmap.yaml && oc set env deploy/avida-cfo --from=configmap/avida-cfo-config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avida-cfo-config
+data:
+  # Primary: Granite served by llm-d (deploy/model/granite-llmd.yaml), through our private inference
+  # Gateway (cluster-internal only). Check: oc get llmisvc granite-llmd -n avida-models -o jsonpath='{.status.url}'
+  LLM_BASE_URL: "http://avida-inference-openshift-ai-inference.openshift-ingress.svc.cluster.local/avida-models/granite-llmd/v1"
+  # Must match the served model name (curl $LLM_BASE_URL/models)
+  LLM_MODEL: "granite-8b"
+  # Failover endpoint, tried automatically when the llm-d gateway fails: the same vLLM pod, reached directly
+  # (bypasses the llm-d gateway + scheduler; no 2nd GPU needed – the plain granite-8b InferenceService stays stopped).
+  # Its certificate is signed by the OpenShift service CA, which is mounted in every pod.
+  # To switch failover off, set LLM_FALLBACK_BASE_URL to "" – don't delete keys: `oc set env --from=configmap`
+  # references every key, and a pod whose referenced key is missing does not start.
+  LLM_FALLBACK_BASE_URL: "https://granite-llmd-kserve-workload-svc.avida-models.svc.cluster.local:8000/v1"
+  LLM_FALLBACK_CA_FILE: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+  LLM_FALLBACK_MODEL: "granite-8b"
+  LLM_TIMEOUT_S: "60"
+  # all endpoints down / timing out → canned answers for this many seconds instead of waiting per call
+  LLM_BREAKER_S: "45"
+  LLM_ENABLED: "true"
+  DEMO_FALLBACK: "true"
+  FORECAST_DAYS: "90"
+  DEMO_TODAY: "2026-11-20"
+  TRACE_DELAY_S: "0.4"
+  # MLflow tracing of the agents (deploy/mlflow.yaml). Set it to "" to switch tracing off (don't delete the key,
+  # see above); if MLflow is down the app keeps working, it just stops sending traces.
+  MLFLOW_TRACKING_URI: "http://mlflow.avida-cfo.svc.cluster.local:5000"
+  MLFLOW_EXPERIMENT_NAME: "avida-cfo-agents"

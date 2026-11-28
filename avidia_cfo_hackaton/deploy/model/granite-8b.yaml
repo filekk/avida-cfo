@@ -1,0 +1,103 @@
+# Granite 3.3 8B Instruct on vLLM (KServe, RHOAI) – sized for 1x NVIDIA L4 (24 GB).
+# Same format the RHOAI dashboard generates ("vLLM NVIDIA GPU ServingRuntime for KServe").
+#
+#   oc apply -f deploy/model/granite-8b.yaml
+#   oc -n avida-models get isvc granite-8b -w
+#
+# Internal endpoint for the app:
+#   http://granite-8b-predictor.avida-models.svc.cluster.local:8080/v1   (model name: granite-8b)
+#
+# Memory math: weights ~16.3 GB bf16; 0.92 x 22.5 GB usable leaves ~4 GB KV cache
+# (~25k tokens) -> max-model-len 16384 is safe.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: avida-models
+  labels:
+    opendatahub.io/dashboard: "true"   # shows up as a Data Science Project in the dashboard
+  annotations:
+    openshift.io/display-name: avida-models
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: granite-8b
+  namespace: avida-models
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/template-display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+    opendatahub.io/template-name: vllm-cuda-runtime-template
+    openshift.io/display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+    - name: kserve-container
+      image: registry.redhat.io/rhaiis/vllm-cuda-rhel9:3.2.4
+      command: [python, -m, vllm.entrypoints.openai.api_server]
+      args:
+        - --port=8080
+        - --model=/mnt/models
+        - --served-model-name={{.Name}}
+      env:
+        - name: HF_HOME
+          value: /tmp/hf_home
+      ports:
+        - containerPort: 8080
+          protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: vLLM
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: granite-8b
+  namespace: avida-models
+  annotations:
+    modelFormat: vLLM
+    opendatahub.io/hardware-profile-name: gpu-profile
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: generative
+    openshift.io/display-name: granite-8b
+    security.opendatahub.io/enable-auth: "false"   # only reachable inside the cluster (no route)
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/genai-asset: "true"
+spec:
+  predictor:
+    automountServiceAccountToken: false
+    # Only one GPU: a rolling update would deadlock (new pod waits for the GPU the old one holds).
+    deploymentStrategy:
+      type: Recreate
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: granite-8b
+      storageUri: oci://quay.io/redhat-ai-services/modelcar-catalog:granite-3.3-8b-instruct
+      args:
+        - --dtype=bfloat16
+        # L4 (Ada) has FP8 tensor cores: dynamic FP8 roughly doubles decode speed
+        # (~15 -> ~30 tok/s) and frees VRAM for KV cache.
+        - --quantization=fp8
+        - --max-model-len=16384
+        - --gpu-memory-utilization=0.92
+        - --enable-auto-tool-choice
+        - --tool-call-parser=granite
+      resources:
+        requests:
+          cpu: "2"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "6"
+          memory: 24Gi
+          nvidia.com/gpu: "1"

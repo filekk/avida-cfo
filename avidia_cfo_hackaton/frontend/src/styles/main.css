@@ -1,0 +1,99 @@
+/* @import must come before the Tailwind directives (Vite inlines them). */
+@import "../assets/fonts/fonts.css";
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Motion tokens (mirrored in tailwind.config.js → `duration-fast/base/slow`, default `ease`).
+ * Rule: every interactive element animates with these – no instant jumps, no ad-hoc curves.
+ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 400ms;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-body text-fg;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+    text-wrap: balance;
+  }
+  /* Weights: 400 text · 500 labels/numbers · 600 headings/buttons. 800 nowhere; <b> is 600, not a synthetic 700. */
+  b, strong {
+    @apply font-semibold;
+  }
+  /* Smooth by default: anything clickable/focusable eases its colours, shadow and transform.
+     Tailwind `transition-*` utilities still win (utilities layer comes later). */
+  a, button, input, select, textarea, summary, label, [role="button"], [tabindex] {
+    transition-property: color, background-color, border-color, outline-color, box-shadow, opacity, transform, fill, stroke;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  :focus-visible {
+    @apply outline outline-[3px] outline-offset-2 outline-sun;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer utilities {
+  /* Small uppercase label above section titles (prototype ".eyebrow"). 13px floor, steel colour. */
+  .eyebrow {
+    @apply text-caption font-semibold uppercase leading-none tracking-eyebrow text-muted;
+  }
+}
+
+/*
+ * Shared Vue <Transition> names – use these instead of inventing new ones.
+ *   fade  – opacity only (overlays, swaps in place)
+ *   rise  – opacity + 6px lift (cards/blocks appearing, route changes)
+ * Height animations: <CollapseTransition> (components/ui).
+ */
+.fade-enter-active, .fade-leave-active,
+.rise-enter-active, .rise-leave-active {
+  transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.rise-enter-from { opacity: 0; transform: translateY(6px); }
+.rise-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* Route change (App.vue): fast fade out, soft rise in – the page never "blinks". */
+.page-enter-active { transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out); }
+.page-leave-active { transition: opacity var(--dur-fast) var(--ease-out); }
+.page-enter-from { opacity: 0; transform: translateY(8px); }
+.page-leave-to { opacity: 0; }
+
+/* Reduced motion: OS setting (unless the accessibility menu says "full") or the menu ([data-motion="reduce"]).
+   JS animations use the same rule: utils/motion.ts → prefersReducedMotion(). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) *, :root:not([data-motion="full"]) *::before, :root:not([data-motion="full"]) *::after {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* delays too: a staggered item (utils/motion → stagger) must not sit invisible before it appears */
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}

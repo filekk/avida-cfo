@@ -1,0 +1,247 @@
+/*
+ * Aurum design tokens (source: ProjektPrototyp/index.html, step 2 + step 6).
+ * Values are RGB channels so Tailwind can apply opacity: rgb(var(--c-sun) / .2).
+ * Dark-mode "translucent" prototype colours (e.g. rgba(182,220,254,.14)) are pre-blended
+ * onto the dark surface #11233A so they stay solid and predictable.
+ */
+:root {
+  --c-bg: 245 249 253;          /* #F5F9FD tło */
+  --c-surface: 255 255 255;     /* #FFFFFF karty */
+  --c-line: 220 230 240;        /* #DCE6F0 linia */
+  --c-input: 240 245 250;       /* #F0F5FA pola, tory pasków */
+  --c-grid: 230 237 245;        /* #E6EDF5 siatka wykresu */
+
+  --c-fg: 14 42 71;             /* #0E2A47 granat – tekst, nagłówki */
+  --c-muted: 74 93 115;         /* #4A5D73 stal – tekst drugorzędny */
+  --c-side: 14 42 71;           /* #0E2A47 sidebar */
+  --c-side-fg: 175 195 217;     /* #AFC3D9 */
+
+  --c-sun: 255 199 44;          /* #FFC72C słońce – CTA */
+  --c-sun-hover: 242 183 5;     /* #F2B705 */
+  --c-on-sun: 14 42 71;         /* granat na słońcu (9:1) */
+  --c-gold: 138 98 0;           /* #8A6200 żółty jako tekst */
+
+  --c-sky: 182 220 254;         /* #B6DCFE błękit */
+  --c-mist: 205 237 253;        /* #CDEDFD mgła */
+  --c-mist-fg: 14 74 122;       /* #0E4A7A tekst chipa */
+
+  --c-mint: 129 247 229;        /* #81F7E5 mięta – tylko zysk */
+  --c-positive: 11 110 99;      /* #0B6E63 turkus */
+  --c-positive-soft: 213 251 245;
+  --c-negative: 180 35 24;      /* #B42318 koral */
+  --c-negative-soft: 253 227 227;
+  --c-warn: 122 86 0;           /* #7A5600 */
+  --c-warn-soft: 255 244 214;   /* #FFF4D6 */
+
+  --c-chart-line: 14 42 71;     /* linia główna wykresu */
+  --c-chart-alt: 180 35 24;     /* scenariusz ryzyka */
+
+  color-scheme: light;
+}
+
+/* "Noc" – dark theme. Applied explicitly via [data-theme="dark"] or by OS preference. */
+:root[data-theme="dark"] {
+  --c-bg: 10 22 38;             /* #0A1626 */
+  --c-surface: 17 35 58;        /* #11233A */
+  --c-line: 31 53 80;           /* #1F3550 */
+  --c-input: 13 29 49;          /* #0D1D31 */
+  --c-grid: 26 46 71;           /* #1A2E47 */
+  --c-fg: 232 240 249;          /* #E8F0F9 */
+  --c-muted: 157 176 198;       /* #9DB0C6 */
+  --c-side: 7 17 32;            /* #071120 */
+  --c-side-fg: 141 163 188;     /* #8DA3BC */
+  --c-sun-hover: 255 209 92;    /* #FFD15C */
+  --c-gold: 255 209 92;
+  --c-sky: 62 106 150;          /* #3E6A96 */
+  --c-mist: 40 61 85;           /* rgba(182,220,254,.14) on surface */
+  --c-mist-fg: 182 220 254;
+  --c-positive: 129 247 229;
+  --c-positive-soft: 30 60 79;
+  --c-negative: 252 165 165;
+  --c-negative-soft: 49 46 66;
+  --c-warn: 255 209 92;
+  --c-warn-soft: 46 55 56;
+  --c-chart-line: 129 247 229;
+  --c-chart-alt: 252 165 165;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --c-bg: 10 22 38;
+    --c-surface: 17 35 58;
+    --c-line: 31 53 80;
+    --c-input: 13 29 49;
+    --c-grid: 26 46 71;
+    --c-fg: 232 240 249;
+    --c-muted: 157 176 198;
+    --c-side: 7 17 32;
+    --c-side-fg: 141 163 188;
+    --c-sun-hover: 255 209 92;
+    --c-gold: 255 209 92;
+    --c-sky: 62 106 150;
+    --c-mist: 40 61 85;
+    --c-mist-fg: 182 220 254;
+    --c-positive: 129 247 229;
+    --c-positive-soft: 30 60 79;
+    --c-negative: 252 165 165;
+    --c-negative-soft: 49 46 66;
+    --c-warn: 255 209 92;
+    --c-warn-soft: 46 55 56;
+    --c-chart-line: 129 247 229;
+    --c-chart-alt: 252 165 165;
+    color-scheme: dark;
+  }
+}
+
+/* ============================================================================================
+ * Accessibility menu (composables/useA11y.ts → attributes on <html>, applied before first paint)
+ * ========================================================================================== */
+
+/* Text size – every size in the app is rem-based, so the root font-size scales the whole UI. */
+:root[data-text="lg"] { font-size: 112.5%; }
+:root[data-text="xl"] { font-size: 125%; }
+:root[data-text="xxl"] { font-size: 137.5%; }
+
+/*
+ * Categorical slices (payments donut). Default = the colours the donut always used; high contrast gives
+ * them five clearly different hues, because there almost everything else is yellow.
+ * (Wire-up: tailwind `slice-1…5` → rgb(var(--c-slice-N)), used by dashboard/payments.ts SLICES.)
+ */
+:root {
+  --c-slice-1: var(--c-chart-line);
+  --c-slice-2: var(--c-sun);
+  --c-slice-3: var(--c-mist-fg);
+  --c-slice-4: var(--c-sky);
+  --c-slice-5: var(--c-muted);
+}
+
+/*
+ * HIGH CONTRAST = the classic low-vision scheme: pure yellow on black (19.6:1), whatever the theme.
+ * Inverted controls (black on yellow), 1px yellow borders on every card, no shadows, no grey tints.
+ * Money keeps its meaning with bright, high-contrast hues: green 15.8:1, red 7.6:1 on black (cyan 13.6:1).
+ * `html:root[…]` (0,2,1) beats both theme selectors (0,2,0), so contrast always wins over light/dark.
+ */
+html:root[data-contrast="high"] {
+  --c-bg: 0 0 0;
+  --c-surface: 0 0 0;
+  --c-line: 255 255 0;          /* every border yellow */
+  --c-input: 0 0 0;             /* fields/tracks black, outlined yellow (rule below) */
+  --c-grid: 112 112 0;          /* chart grid: dim yellow 4:1 – visible, never louder than the data */
+  --c-fg: 255 255 0;            /* #FF0 on #000 = 19.6:1 */
+  --c-muted: 255 255 0;
+  --c-side: 0 0 0;
+  --c-side-fg: 255 255 0;
+  --c-sun: 255 255 0;           /* primary buttons: yellow with black text */
+  --c-sun-hover: 255 255 160;
+  --c-on-sun: 0 0 0;
+  --c-gold: 255 255 0;
+  --c-sky: 0 229 255;           /* cyan for secondary chart marks */
+  --c-mist: 0 0 0;
+  --c-mist-fg: 255 255 0;
+  --c-mint: 61 255 122;
+  --c-positive: 61 255 122;     /* #3DFF7A – 15.8:1 */
+  --c-positive-soft: 0 0 0;
+  --c-negative: 255 107 107;    /* #FF6B6B – 7.6:1 */
+  --c-negative-soft: 0 0 0;
+  --c-warn: 255 255 0;
+  --c-warn-soft: 0 0 0;
+  --c-chart-line: 255 255 0;
+  --c-chart-alt: 255 107 107;
+  --c-slice-1: 255 255 0;       /* yellow */
+  --c-slice-2: 0 229 255;       /* cyan */
+  --c-slice-3: 255 255 255;     /* white */
+  --c-slice-4: 255 159 26;      /* orange */
+  --c-slice-5: 201 160 255;     /* violet */
+  color-scheme: dark;
+}
+
+/* No grey haze: shadows off (rings stay – they live in --tw-ring-shadow). */
+html:root[data-contrast="high"] * {
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+}
+
+/* Soft tints are black now → a 1px outline in their own colour keeps every pill/tile/field visible.
+   Outline (not border): no layout shift. Exact class tokens only, so hover:bg-* never matches. */
+html:root[data-contrast="high"] :is([class~="bg-input"], [class~="bg-input/40"], [class~="bg-input/50"],
+  [class~="bg-input/60"], [class~="bg-input/70"], [class~="bg-mist"], [class~="bg-warn-soft"], [class~="bg-side"]) {
+  outline: 1px solid rgb(var(--c-line));
+  outline-offset: -1px;
+}
+html:root[data-contrast="high"] :is([class~="bg-positive-soft"], [class~="bg-positive-soft/60"]) {
+  outline: 1px solid rgb(var(--c-positive));
+  outline-offset: -1px;
+}
+html:root[data-contrast="high"] [class~="bg-negative-soft"] {
+  outline: 1px solid rgb(var(--c-negative));
+  outline-offset: -1px;
+}
+html:root[data-contrast="high"] :is([class~="bg-mint/15"], [class~="bg-white/5"], [class~="bg-white/10"]) {
+  background-color: transparent !important;
+  outline: 1px solid currentColor;
+  outline-offset: -1px;
+}
+
+/* White-on-navy places (sidebar, headline band) → yellow on black; danger buttons → black on bright red. */
+html:root[data-contrast="high"] [class*="text-white"] {
+  color: rgb(var(--c-fg)) !important;
+}
+html:root[data-contrast="high"] [class~="bg-negative"] {
+  color: rgb(var(--c-on-sun)) !important;
+}
+html:root[data-contrast="high"] [class*="border-white"] {
+  border-color: rgb(var(--c-line)) !important;
+}
+html:root[data-contrast="high"] [class*="ring-white"] {
+  --tw-ring-color: rgb(var(--c-line)) !important;
+}
+html:root[data-contrast="high"] [class*="stroke-white"] {
+  stroke: rgb(var(--c-fg) / 0.35) !important;
+}
+
+/* Navigation: yellow on black, the current page inverted (black on yellow). */
+html:root[data-contrast="high"] nav a[aria-current="page"] {
+  background-color: rgb(var(--c-sun)) !important;
+  color: rgb(var(--c-on-sun)) !important;
+}
+html:root[data-contrast="high"] nav a[aria-current="page"] [class*="text-white"] {
+  color: rgb(var(--c-on-sun)) !important;
+}
+html:root[data-contrast="high"] nav a[aria-current="page"] [class~="bg-mist"] {
+  background-color: rgb(var(--c-bg)) !important;
+  color: rgb(var(--c-fg)) !important;
+}
+
+/* Links: always underlined (colour alone is not enough). */
+html:root[data-contrast="high"] :is([class~="text-gold"], p a, li > a:not([class*="rounded"])) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Focus: thick WHITE ring – clearly different from the yellow UI. */
+html:root[data-contrast="high"] :focus-visible,
+html:root[data-contrast="high"] label:has(> input:focus-visible) {
+  outline: 4px solid #fff !important;
+  outline-offset: 2px !important;
+}
+
+/* Underline links – every link (incl. links styled as buttons) gets a clear underline. */
+:root[data-links="underline"] a {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Readable spacing – a bit more air between letters, words and lines (WCAG 1.4.12 direction). */
+:root[data-spacing="wide"] body {
+  letter-spacing: 0.02em;
+  word-spacing: 0.08em;
+}
+:root[data-spacing="wide"] p,
+:root[data-spacing="wide"] li,
+:root[data-spacing="wide"] blockquote,
+:root[data-spacing="wide"] textarea {
+  line-height: 1.8;
+}

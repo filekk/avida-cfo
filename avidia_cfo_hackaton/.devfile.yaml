@@ -1,0 +1,43 @@
+# Red Hat OpenShift Dev Spaces workspace: Dashboard -> Create Workspace -> paste the repo URL.
+schemaVersion: 2.2.0
+metadata:
+  name: avida-cfo
+components:
+  - name: tools
+    container:
+      image: quay.io/devfile/universal-developer-image:ubi8-latest
+      memoryLimit: 4Gi
+      cpuLimit: "2"
+      mountSources: true
+      endpoints:
+        - name: backend
+          targetPort: 8080
+          exposure: public
+          protocol: https
+        - name: frontend
+          targetPort: 5173
+          exposure: public
+          protocol: https
+commands:
+  - id: install
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "python -m pip install --user -r backend/requirements-dev.txt && cd frontend && npm ci"
+  - id: backend
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}/backend
+      commandLine: "python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload"
+  - id: frontend
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}/frontend
+      commandLine: "npx vite --host 0.0.0.0"
+  - id: test
+    exec:
+      component: tools
+      workingDir: ${PROJECT_SOURCE}/backend
+      commandLine: "python -m pytest -q"
+events:
+  postStart: [install]
