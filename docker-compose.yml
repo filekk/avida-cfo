@@ -1,0 +1,42 @@
+# Run Avida CFO anywhere Docker / Podman runs – no OpenShift needed.
+#
+#   cp .env.example .env        # optional: pick an LLM (see the file)
+#   docker compose up --build   # or: podman compose up --build
+#   open http://localhost:8080
+#
+# Without any LLM configured the app runs in demo mode: the cash forecast, contract checks and decisions are
+# deterministic Python, and the model-written texts come from the prepared answers (marked "fallback" in the UI).
+#
+# Local model with Ollama (same Granite family as on the cluster):
+#   docker compose --profile ollama up --build
+#   docker compose exec ollama ollama pull granite3.3:8b
+#   then set LLM_ENABLED=true in .env (the defaults below already point at the ollama service)
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-granite3.3:8b}
+      LLM_API_KEY: ${LLM_API_KEY:-EMPTY}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
+      DEMO_FALLBACK: ${DEMO_FALLBACK:-true}
+      DEMO_TODAY: ${DEMO_TODAY:-2026-11-20}
+      TRACE_DELAY_S: ${TRACE_DELAY_S:-0.4}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-}
+    restart: unless-stopped
+
+  # Optional local LLM. Started only with `--profile ollama`. CPU works (slow); a GPU makes it usable.
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    profiles: [ollama]
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+volumes:
+  ollama:

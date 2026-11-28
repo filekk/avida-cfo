@@ -34,6 +34,26 @@
 | **Testing & tools** | pytest (109 tests), httpx, Git/GitHub, oc CLI, Docker |
 | **Hardware** | 1x NVIDIA L4 GPU (24 GB), single OpenShift node (32 CPUs, ~121 GB RAM) |
 
+## Run it yourself (no OpenShift needed)
+
+```bash
+git clone https://github.com/filekk/avida-cfo && cd avida-cfo
+cp .env.example .env            # optional: choose an LLM, see the comments in the file
+docker compose up --build       # or: podman compose up --build
+# -> http://localhost:8080
+```
+
+Without a model the app runs in demo mode (forecast, contract checks and decisions are deterministic; model texts come
+from the prepared answers). For a real model use any OpenAI-compatible endpoint: a local Ollama
+(`docker compose --profile ollama up`, then `docker compose exec ollama ollama pull granite3.3:8b`) or a hosted API
+(set `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`). The single image also runs on any Docker host or PaaS: it listens on
+`$PORT` (default 8080). Keep one instance, the state is in memory.
+
+Without Docker: `cd frontend && npm ci && npm run build`, then
+`cd backend && pip install -r requirements.txt && STATIC_DIR=../frontend/dist uvicorn app.main:app --port 8080`.
+
+---
+
 ## The Problem
 
 Small and medium business owners run their companies on a gut feeling when it comes to cash. A late customer payment, a supplier price increase or a contract clause hidden in an email can push the company below zero weeks later, and nobody notices until it is too late.

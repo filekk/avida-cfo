@@ -23,4 +23,5 @@ RUN chmod -R g=u /opt/app-root/src
 USER 1001
 ENV STATIC_DIR=/opt/app-root/src/static PYTHONUNBUFFERED=1
 EXPOSE 8080
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# PaaS hosts (Render, Railway, Koyeb, HF Spaces…) pass the port in $PORT; 8080 otherwise (OpenShift, compose).
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
